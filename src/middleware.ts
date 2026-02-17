@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
-import { createServerClient } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 
 // Routes that don't require authentication
 const PUBLIC_ROUTES = ["/login", "/auth/callback"];
@@ -84,25 +84,17 @@ export async function middleware(request: NextRequest) {
 
 /**
  * Fetch the user's role from the public.users table.
- * Uses a service-level client to bypass RLS for the role check.
+ * Uses createClient (not createServerClient) with SERVICE_ROLE_KEY
+ * to fully bypass RLS. createServerClient from @supabase/ssr uses
+ * cookie-based auth context that doesn't honor service_role bypass.
  */
 async function getUserRole(
-    request: NextRequest,
+    _request: NextRequest,
     userId: string
 ): Promise<string | null> {
-    const supabase = createServerClient(
+    const supabase = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
-            cookies: {
-                getAll() {
-                    return request.cookies.getAll();
-                },
-                setAll() {
-                    // Middleware can't set cookies directly in this helper
-                },
-            },
-        }
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
     );
 
     const { data } = await supabase
