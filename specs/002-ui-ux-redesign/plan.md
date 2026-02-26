@@ -46,27 +46,51 @@ specs/002-ui-ux-redesign/
 ```text
 src/
 ├── app/
-│   ├── (student)/
-│   │   ├── check-in/      # Student Check-in Pulse Form
-│   │   ├── feedback/      # Student Feedback & Loop Closure View
-│   │   └── privacy/       # FAQ & Privacy Policy
-│   ├── (teacher)/
-│   │   ├── class/[id]/    # Weekly TL;DR Dashboard per class
-│   │   ├── actions/       # AI suggested action inbox
-│   │   └── page.tsx       # Teacher general dashboard
-│   ├── (admin)/
-│   │   ├── metrics/       # School-wide adoption metrics
-│   │   └── audit/         # Audit log for teacher actions
+│   ├── (auth)/
+│   │   └── login/page.tsx
+│   ├── (dashboard)/
+│   │   ├── layout.tsx              ← shared sidebar + auth guard
+│   │   ├── student/
+│   │   │   ├── check-in/page.tsx
+│   │   │   ├── check-in/success/page.tsx
+│   │   │   ├── feedback/page.tsx
+│   │   │   └── join/page.tsx
+│   │   ├── teacher/
+│   │   │   ├── page.tsx            ← Teacher dashboard
+│   │   │   ├── class/[id]/page.tsx
+│   │   │   ├── class/[id]/settings/page.tsx
+│   │   │   ├── class/new/page.tsx
+│   │   │   └── recommendations/page.tsx
+│   │   └── admin/
+│   │       ├── dashboard/page.tsx
+│   │       ├── settings/page.tsx
+│   │       └── audit/page.tsx
 │   └── api/
+│       ├── student/
+│       │   ├── check-in/route.ts
+│       │   └── feedback/route.ts
+│       ├── teacher/
+│       │   ├── dashboard/route.ts
+│       │   └── class/[classId]/route.ts
 │       └── n8n/
-│           └── webhook/   # Ingress points for n8n to notify Next.js
+│           └── webhook/route.ts
 ├── components/
-│   ├── student/           # PulseForm, ClassVibeSnapshot, PriorityReward
-│   ├── teacher/           # ClassClimateCard, AIDraftActionCard
-│   └── admin/             # TrendCharts, MetricCards
+│   ├── domain/
+│   │   ├── student/       # CheckInForm, ClimateCharts, ActionList
+│   │   ├── teacher/       # ClassHealthRow, RiskIndicator, SparklineBar
+│   │   └── admin/         # MetricCards
+│   ├── charts/            # TrendChart (Recharts)
+│   └── ui/                # shadcn/ui primitives
+├── hooks/
+│   └── useClimateHistory.ts
 └── lib/
-    ├── supabase/          # RLS policies and DB client wrappers
-    └── n8n/               # Trigger events pushing out from Next.js -> n8n
+    ├── supabase/          # client.ts, server.ts, middleware.ts
+    ├── microcopy.tsx       # BiText + MICROCOPY constants (Thai/EN)
+    └── utils.ts
 ```
+
+> ⚠️ Route wrapper `(dashboard)/` enforces shared layout and auth guard.
+> Old `(student)/`, `(teacher)/` flat groups removed in D2 fix (2026-02-21).
+> plan.md updated to match actual implementation — I1 fix, speckit.analyze v2.
 
 **Structure Decision**: A single monolith Next.js 15 project structure categorized by domain-driven feature folders under `app/(role)`. `components` are also explicitly broken down by actor (student, teacher, admin) to enforce separation of concerns and avoid accidental data leaks between roles. N8N webhook syncs are handled via generic `api/n8n/webhook` endpoints.

@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ClimateCharts, NotEnoughData } from "@/components/domain/student/ClimateCharts";
+import { ClimateCharts } from "@/components/domain/student/ClimateCharts";
 import { ActionList } from "@/components/domain/student/ActionList";
+import { TrendChart } from "@/components/charts/TrendChart";
+import { useClimateHistory } from "@/hooks/useClimateHistory";
 import { Loader2, BarChart3 } from "lucide-react";
 
 interface ClimateSummary {
@@ -25,8 +27,13 @@ interface Action {
 export default function StudentFeedbackPage() {
     const [climate, setClimate] = useState<ClimateSummary[]>([]);
     const [actions, setActions] = useState<Action[]>([]);
+    const [classId, setClassId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+
+    // 4-week trend chart data
+    const { data: climateHistory, isLoading: trendLoading } =
+        useClimateHistory(classId);
 
     useEffect(() => {
         async function fetchFeedback() {
@@ -39,6 +46,7 @@ export default function StudentFeedbackPage() {
                 const data = await res.json();
                 setClimate(data.climate || []);
                 setActions(data.actions || []);
+                setClassId(data.class_id || null);
             } catch (err: unknown) {
                 setError(
                     err instanceof Error ? err.message : "Something went wrong"
@@ -76,11 +84,27 @@ export default function StudentFeedbackPage() {
                 </div>
             )}
 
-            {/* Climate Charts or Not Enough Data */}
+            {/* 4-Week Trend Chart (G2/T011 — FR-007) */}
+            <section className="mb-6">
+                <h2 className="text-base font-semibold mb-3">
+                    แนวโน้ม 4 สัปดาห์ / 4-Week Class Trend
+                </h2>
+                {trendLoading ? (
+                    <div className="h-[220px] animate-pulse bg-muted rounded-lg" />
+                ) : (
+                    <TrendChart
+                        data={climateHistory}
+                        title="Mood · Pace · Fairness"
+                    />
+                )}
+            </section>
+
+            {/* Climate Charts (existing bar charts) */}
             <ClimateCharts data={climate} />
 
-            {/* Teacher Actions */}
+            {/* Teacher Actions (loop-closure feed) */}
             <ActionList actions={actions} />
         </div>
     );
 }
+

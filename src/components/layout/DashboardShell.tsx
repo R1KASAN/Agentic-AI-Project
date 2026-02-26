@@ -12,6 +12,7 @@ import {
     BarChart3,
     ClipboardList,
     Users,
+    Settings,
     Shield,
     LogOut,
     ChevronLeft,
@@ -30,6 +31,7 @@ const NAV_ITEMS: Record<UserRole, NavItem[]> = {
     student: [
         { label: "Check-in", href: "/student/check-in", icon: <CloudSun className="w-5 h-5" /> },
         { label: "Feedback", href: "/student/feedback", icon: <BarChart3 className="w-5 h-5" /> },
+        { label: "ความเป็นส่วนตัว", href: "/student/privacy", icon: <Shield className="w-5 h-5" /> },
     ],
     teacher: [
         { label: "Dashboard", href: "/teacher", icon: <LayoutDashboard className="w-5 h-5" /> },
@@ -39,6 +41,7 @@ const NAV_ITEMS: Record<UserRole, NavItem[]> = {
         { label: "Metrics", href: "/admin/metrics", icon: <BarChart3 className="w-5 h-5" /> },
         { label: "Audit Log", href: "/admin/audit", icon: <ClipboardList className="w-5 h-5" /> },
         { label: "Users", href: "/admin/users", icon: <Users className="w-5 h-5" /> },
+        { label: "⚙️ ตั้งค่าระบบ", href: "/admin/settings", icon: <Settings className="w-5 h-5" /> }
     ],
 };
 
@@ -73,6 +76,8 @@ export function DashboardShell({
     const navItems = NAV_ITEMS[role] || [];
 
     async function handleSignOut() {
+        const confirmed = window.confirm("ออกจากระบบ? / Sign out?");
+        if (!confirmed) return;
         const supabase = createClient();
         await supabase.auth.signOut();
         router.push("/login");

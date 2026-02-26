@@ -1,0 +1,141 @@
+{
+    "name": "Weekly Teacher Email Summary",
+    "nodes": [
+        {
+            "parameters": {
+                "rule": {
+                    "interval": [
+                        {
+                            "field": "weeks",
+                            "triggerOnWeekdays": [
+                                1
+                            ],
+                            "triggerAtHour": 7,
+                            "triggerAtMinute": 0
+                        }
+                    ]
+                }
+            },
+            "id": "cron-teacher-email",
+            "name": "Schedule Trigger",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "typeVersion": 1.1,
+            "position": [
+                180,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "executeQuery",
+                "query": "SELECT au.email, u.full_name as teacher_name, c.name as class_name, c.risk_score, c.id as class_id, COUNT(r.id) as pending_count FROM public.users u JOIN auth.users au ON u.id = au.id JOIN public.classes c ON u.id = c.teacher_id LEFT JOIN public.recommendations r ON c.id = r.class_id AND r.status = 'pending' WHERE u.role = 'teacher' GROUP BY au.email, u.full_name, c.name, c.risk_score, c.id HAVING COUNT(r.id) > 0;"
+            },
+            "id": "fetch-teachers-pending",
+            "name": "Get Teachers With Pending Actions",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 2.4,
+            "position": [
+                400,
+                300
+            ],
+            "credentials": {
+                "postgres": {
+                    "id": "supabase-db",
+                    "name": "Supabase Postgres"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "resource": "mail",
+                "operation": "send",
+                "fromEmail": "noreply@climateagent.edu",
+                "toEmail": "={{ $json.email }}",
+                "subject": "=Weekly Climate Summary: {{ $json.class_name }}",
+                "contentType": "text",
+                "contentValue": "=Hi {{ $json.teacher_name }},\n\nYour class {{ $json.class_name }} has a current risk score of {{ $json.risk_score }}. You have {{ $json.pending_count }} AI-drafted recommendations waiting for your approval.\n\nPlease review them here: {{ $env.NEXT_PUBLIC_APP_URL }}/teacher/actions\n\nClimate Agent"
+            },
+            "id": "sendgrid-email",
+            "name": "Send Email via SendGrid",
+            "type": "n8n-nodes-base.sendGrid",
+            "typeVersion": 1,
+            "position": [
+                620,
+                300
+            ],
+            "credentials": {
+                "sendGridApi": {
+                    "id": "sendgrid-key",
+                    "name": "SendGrid API Key"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "={{ $env.NEXT_PUBLIC_APP_URL }}/api/n8n/webhook",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Authorization",
+                            "value": "=Bearer {{ $env.N8N_WEBHOOK_SECRET }}"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "{\"event\": \"teacher_email_sent\"}",
+                "options": {}
+            },
+            "id": "notify-webhook-email",
+            "name": "Notify Webhook",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
+            "position": [
+                840,
+                300
+            ]
+        }
+    ],
+    "connections": {
+        "Schedule Trigger": {
+            "main": [
+                [
+                    {
+                        "node": "Get Teachers With Pending Actions",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Get Teachers With Pending Actions": {
+            "main": [
+                [
+                    {
+                        "node": "Send Email via SendGrid",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Send Email via SendGrid": {
+            "main": [
+                [
+                    {
+                        "node": "Notify Webhook",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "pinData": {},
+    "settings": {
+        "executionOrder": "v1"
+    },
+    "active": false
+}

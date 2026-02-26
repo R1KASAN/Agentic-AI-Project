@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
 export async function GET() {
@@ -10,7 +9,7 @@ export async function GET() {
         } = await supabase.auth.getUser();
 
         if (!user) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+            return Response.json({ error: "Unauthorized" }, { status: 401 });
         }
 
         // Verify admin role
@@ -21,7 +20,7 @@ export async function GET() {
             .single();
 
         if (!profile || profile.role !== "admin") {
-            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+            return Response.json({ error: "Forbidden" }, { status: 403 });
         }
 
         // Fetch adoption metrics via SECURITY DEFINER RPC
@@ -31,7 +30,7 @@ export async function GET() {
 
         if (rpcError) {
             console.error("Adoption metrics RPC error:", rpcError);
-            return NextResponse.json(
+            return Response.json(
                 { error: "Failed to fetch metrics" },
                 { status: 500 }
             );
@@ -46,26 +45,20 @@ export async function GET() {
             .order("created_at", { ascending: false })
             .limit(50);
 
-        // Fetch counts for dashboard stats
-        const { count: totalUsers } = await supabase
-            .from("users")
-            .select("*", { count: "exact", head: true });
+        // Fetch counts for dashboard stats — parallel to avoid waterfall
+        const [
+            { count: totalUsers },
+            { count: totalClasses },
+            { count: totalStudents },
+            { count: totalTeachers },
+        ] = await Promise.all([
+            supabase.from("users").select("*", { count: "exact", head: true }),
+            supabase.from("classes").select("*", { count: "exact", head: true }),
+            supabase.from("users").select("*", { count: "exact", head: true }).eq("role", "student"),
+            supabase.from("users").select("*", { count: "exact", head: true }).eq("role", "teacher"),
+        ]);
 
-        const { count: totalClasses } = await supabase
-            .from("classes")
-            .select("*", { count: "exact", head: true });
-
-        const { count: totalStudents } = await supabase
-            .from("users")
-            .select("*", { count: "exact", head: true })
-            .eq("role", "student");
-
-        const { count: totalTeachers } = await supabase
-            .from("users")
-            .select("*", { count: "exact", head: true })
-            .eq("role", "teacher");
-
-        return NextResponse.json({
+        return Response.json({
             metrics: metrics || [],
             logs: logs || [],
             stats: {
@@ -77,7 +70,7 @@ export async function GET() {
         });
     } catch (error) {
         console.error("Admin metrics API error:", error);
-        return NextResponse.json(
+        return Response.json(
             { error: "Internal server error" },
             { status: 500 }
         );

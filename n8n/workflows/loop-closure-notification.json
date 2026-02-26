@@ -1,0 +1,98 @@
+{
+    "name": "Loop Closure Notification",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "supabase-loop-closure",
+                "responseMode": "onReceived",
+                "options": {}
+            },
+            "id": "webhook-trigger",
+            "name": "Supabase Webhook Trigger",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1.1,
+            "position": [
+                180,
+                300
+            ],
+            "webhookId": "loop-closure-webhook"
+        },
+        {
+            "parameters": {
+                "operation": "executeQuery",
+                "query": "=INSERT INTO public.notifications (user_id, message, type) SELECT student_id, 'Your teacher has approved a new action based on class feedback!', 'loop_closure'::notification_type FROM public.class_enrollments WHERE class_id = '{{ $json.body.record.class_id }}';"
+            },
+            "id": "insert-notifications",
+            "name": "Insert In-App Notifications",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 2.4,
+            "position": [
+                400,
+                300
+            ],
+            "credentials": {
+                "postgres": {
+                    "id": "supabase-db",
+                    "name": "Supabase Postgres"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "={{ $env.NEXT_PUBLIC_APP_URL }}/api/n8n/webhook",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Authorization",
+                            "value": "=Bearer {{ $env.N8N_WEBHOOK_SECRET }}"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={\"event\": \"loop_closure_communicated\", \"class_id\": \"{{ $('Supabase Webhook Trigger').item.json.body.record.class_id }}\"}",
+                "options": {}
+            },
+            "id": "notify-webhook",
+            "name": "Notify Next.js Webhook",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
+            "position": [
+                620,
+                300
+            ]
+        }
+    ],
+    "connections": {
+        "Supabase Webhook Trigger": {
+            "main": [
+                [
+                    {
+                        "node": "Insert In-App Notifications",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Insert In-App Notifications": {
+            "main": [
+                [
+                    {
+                        "node": "Notify Next.js Webhook",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "pinData": {},
+    "settings": {
+        "executionOrder": "v1"
+    },
+    "active": false
+}

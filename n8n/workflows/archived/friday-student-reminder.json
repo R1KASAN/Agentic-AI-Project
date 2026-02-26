@@ -1,0 +1,136 @@
+{
+    "name": "Friday Student Reminder",
+    "nodes": [
+        {
+            "parameters": {
+                "rule": {
+                    "interval": [
+                        {
+                            "field": "weeks",
+                            "triggerOnWeekdays": [
+                                5
+                            ],
+                            "triggerAtHour": 15,
+                            "triggerAtMinute": 0
+                        }
+                    ]
+                }
+            },
+            "id": "cron-student-reminder",
+            "name": "Schedule Trigger",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "typeVersion": 1.1,
+            "position": [
+                180,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "executeQuery",
+                "query": "WITH class_stats AS (SELECT c.id, c.name, COUNT(DISTINCT ce.student_id) as total_students, COUNT(DISTINCT p.id) as pulse_count FROM public.classes c LEFT JOIN public.class_enrollments ce ON c.id = ce.class_id LEFT JOIN public.student_pulses p ON c.id = p.class_id AND p.created_at >= date_trunc('week', now()) GROUP BY c.id, c.name) SELECT id as class_id, name as class_name FROM class_stats WHERE total_students > 0 AND (COALESCE(pulse_count,0)::float / total_students) < 0.5;"
+            },
+            "id": "fetch-low-participation",
+            "name": "Get Classes Below 50pct",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 2.4,
+            "position": [
+                400,
+                300
+            ],
+            "credentials": {
+                "postgres": {
+                    "id": "supabase-db",
+                    "name": "Supabase Postgres"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "operation": "executeQuery",
+                "query": "=INSERT INTO public.notifications (user_id, message, type) SELECT ce.student_id, 'Don''t forget to share your climate pulse for {{ $json.class_name }} this week!', 'reminder' FROM public.class_enrollments ce WHERE ce.class_id = '{{ $json.class_id }}' AND NOT EXISTS (SELECT 1 FROM public.student_pulses p WHERE p.student_id = ce.student_id AND p.class_id = ce.class_id AND p.created_at >= date_trunc('week', now()));"
+            },
+            "id": "insert-reminders",
+            "name": "Insert Reminder Notifications",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 2.4,
+            "position": [
+                620,
+                300
+            ],
+            "credentials": {
+                "postgres": {
+                    "id": "supabase-db",
+                    "name": "Supabase Postgres"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "={{ $env.NEXT_PUBLIC_APP_URL }}/api/n8n/webhook",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Authorization",
+                            "value": "=Bearer {{ $env.N8N_WEBHOOK_SECRET }}"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "{\"event\": \"student_reminder_sent\"}",
+                "options": {}
+            },
+            "id": "notify-webhook-reminders",
+            "name": "Notify Webhook",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
+            "position": [
+                840,
+                300
+            ]
+        }
+    ],
+    "connections": {
+        "Schedule Trigger": {
+            "main": [
+                [
+                    {
+                        "node": "Get Classes Below 50pct",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Get Classes Below 50pct": {
+            "main": [
+                [
+                    {
+                        "node": "Insert Reminder Notifications",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Insert Reminder Notifications": {
+            "main": [
+                [
+                    {
+                        "node": "Notify Webhook",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "pinData": {},
+    "settings": {
+        "executionOrder": "v1"
+    },
+    "active": false
+}

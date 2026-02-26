@@ -4,6 +4,11 @@ This defines the expected webhooks and database triggers interacting with N8N.
 
 ## 1. Weekly AI Recommendation Generator
 **Trigger**: Cron (Every Monday 06:00)
+**AI Model**: Gemini 2.0 Flash via Google AI Studio API (`googlePalmApi` credential in N8N, `lmChatGoogleGemini` node)
+
+> Selected for: Constitution §V compliance, free tier availability for school pilots,
+> native N8N node support, and faster response times vs GPT-4o.
+
 **Data Fetched**:
 - Supabase RPC: `get_class_climate_summary(class_id, 4)`
 **N8N Output to Supabase**:
@@ -15,7 +20,7 @@ This defines the expected webhooks and database triggers interacting with N8N.
   "category": "academic",
   "status": "pending",
   "ai_generated": true,
-  "ai_model": "gpt-4o",
+  "ai_model": "gemini-2.0-flash",
   "raw_climate_snapshot": { /* JSON aggregated data */ }
 }
 ```
@@ -56,6 +61,10 @@ This defines the expected webhooks and database triggers interacting with N8N.
 **Trigger**: Cron (Every Friday 15:00)
 **Data Fetched**: Classes where check-in rate < 50%.
 **Output**: Email / LINE Notify.
+
+> ✅ **I3 Verified 2026-02-21**: `friday-student-reminder.json` triggers
+> Friday (weekday=5) at 15:00. Master poller routes reminder via DB-driven
+> `shouldRun()` function — no hardcoded day drift. No changes needed.
 
 ## 5. Health Score & Churn Alert
 **Trigger**: Cron (Every Sunday 09:00)

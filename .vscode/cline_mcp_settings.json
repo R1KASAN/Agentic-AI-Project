@@ -1,0 +1,18 @@
+{
+    "mcpServers": {
+        "n8n-mcp": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "n8n-mcp"
+            ],
+            "env": {
+                "MCP_MODE": "stdio",
+                "LOG_LEVEL": "error",
+                "DISABLE_CONSOLE_OUTPUT": "true",
+                "N8N_API_URL": "https://sclerotomic-octavia-unsingularly.ngrok-free.dev/api",
+                "N8N_API_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkM2JkNjNiYi02NzYyLTRiNzctOWViYS0wYWU2MWI3YjBmM2YiLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwianRpIjoiZTNhZmMyZTktYmExMy00MThiLTgzN2ItODg2MTExNzgxMWMwIiwiaWF0IjoxNzcxODE0ODI1fQ._eO20-oVFoKTvwBC4UzKCgyitSsEN1jvqfzZahUbU5U"
+            }
+        }
+    }
+}

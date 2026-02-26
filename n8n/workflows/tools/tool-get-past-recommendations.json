@@ -1,0 +1,54 @@
+{
+    "name": "Tool: Get Past Recommendations",
+    "nodes": [
+        {
+            "parameters": {},
+            "id": "trigger-001",
+            "name": "Execute Workflow Trigger",
+            "type": "n8n-nodes-base.executeWorkflowTrigger",
+            "typeVersion": 1,
+            "position": [
+                100,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "executeQuery",
+                "query": "=SELECT id, content, category, priority, status, dismissal_reason, created_at::text FROM public.recommendations WHERE class_id = '{{ $json.class_id }}'::uuid ORDER BY created_at DESC LIMIT {{ $json.limit || 10 }};"
+            },
+            "id": "postgres-001",
+            "name": "Fetch Recommendations",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 2.4,
+            "position": [
+                320,
+                300
+            ],
+            "credentials": {
+                "postgres": {
+                    "id": "supabase-db",
+                    "name": "Supabase Postgres"
+                }
+            }
+        }
+    ],
+    "connections": {
+        "Execute Workflow Trigger": {
+            "main": [
+                [
+                    {
+                        "node": "Fetch Recommendations",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "pinData": {},
+    "settings": {
+        "executionOrder": "v1"
+    },
+    "active": false
+}

@@ -1,0 +1,54 @@
+{
+    "name": "Tool: Get Trend Comparison",
+    "nodes": [
+        {
+            "parameters": {},
+            "id": "trigger-001",
+            "name": "Execute Workflow Trigger",
+            "type": "n8n-nodes-base.executeWorkflowTrigger",
+            "typeVersion": 1,
+            "position": [
+                100,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "executeQuery",
+                "query": "=SELECT public.get_trend_comparison('{{ $json.class_id }}'::uuid) AS trend;"
+            },
+            "id": "postgres-001",
+            "name": "Run Trend RPC",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 2.4,
+            "position": [
+                320,
+                300
+            ],
+            "credentials": {
+                "postgres": {
+                    "id": "supabase-db",
+                    "name": "Supabase Postgres"
+                }
+            }
+        }
+    ],
+    "connections": {
+        "Execute Workflow Trigger": {
+            "main": [
+                [
+                    {
+                        "node": "Run Trend RPC",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "pinData": {},
+    "settings": {
+        "executionOrder": "v1"
+    },
+    "active": false
+}

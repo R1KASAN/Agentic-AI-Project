@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -8,7 +9,11 @@ import {
     CardTitle,
 } from "@/components/ui/card";
 import { RiskIndicator } from "@/components/domain/teacher/RiskIndicator";
-import { LayoutDashboard, Users, ChevronRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { LayoutDashboard, Users, ChevronRight, Plus } from "lucide-react";
+import { MICROCOPY, BiText } from "@/lib/microcopy";
+
+export const metadata: Metadata = { title: "Teacher Dashboard" };
 
 export default async function TeacherDashboardPage() {
     const supabase = await createClient();
@@ -51,14 +56,23 @@ export default async function TeacherDashboardPage() {
 
     return (
         <div className="space-y-6">
-            <div>
-                <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-                    <LayoutDashboard className="w-6 h-6 text-sky-500" />
-                    Teacher Dashboard
-                </h1>
-                <p className="text-muted-foreground mt-1">
-                    Your weekly TL;DR — what's happening in your classes.
-                </p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+                        <LayoutDashboard className="w-6 h-6 text-sky-500" />
+                        <BiText entry={MICROCOPY.teacher.dashboardTitle} />
+                    </h1>
+                    <p className="text-muted-foreground mt-1">
+                        {MICROCOPY.teacher.dashboardSubtitle.th}
+                        <span className="block text-sm">{MICROCOPY.teacher.dashboardSubtitle.en}</span>
+                    </p>
+                </div>
+                <Link href="/teacher/class/new" className="shrink-0">
+                    <Button className="w-full sm:w-auto">
+                        <Plus className="w-4 h-4 mr-2" />
+                        <BiText entry={MICROCOPY.teacher.createClass} />
+                    </Button>
+                </Link>
             </div>
 
             {(!classes || classes.length === 0) ? (
@@ -66,7 +80,7 @@ export default async function TeacherDashboardPage() {
                     <CardContent className="flex flex-col items-center justify-center py-12 text-center space-y-2">
                         <Users className="w-10 h-10 text-muted-foreground/40" />
                         <p className="text-muted-foreground">
-                            No classes found. Classes will appear here once assigned.
+                            <BiText entry={MICROCOPY.teacher.emptyState} />
                         </p>
                     </CardContent>
                 </Card>

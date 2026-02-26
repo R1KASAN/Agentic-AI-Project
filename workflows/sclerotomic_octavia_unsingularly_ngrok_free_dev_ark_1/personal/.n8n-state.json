@@ -1,0 +1,69 @@
+{
+  "workflows": {
+    "sePmJECuRJZRzuNA": {
+      "lastSyncedHash": "35b6ae429b04389449963d5eab8b3ed549f7a5774dbc7f36c62abc2c5f3e82ad",
+      "lastSyncedAt": "2026-02-26T12:44:30.355Z",
+      "filename": "tool-get-climate-summary.workflow.ts"
+    },
+    "OJY4DmzzvK1XLcWj": {
+      "lastSyncedHash": "b746e9a1ffd3f73e29cf30f67fe8b59cc8c59c3293ba4848cd53018d704d657b",
+      "lastSyncedAt": "2026-02-26T12:44:30.539Z",
+      "filename": "W02 Loop Closure Notification.workflow.ts"
+    },
+    "AxWN6Lt21JtQipGI": {
+      "lastSyncedHash": "254e3a75f53d5a1946b91309d8824957ef03343f85723de88c284a1e07d3893f",
+      "lastSyncedAt": "2026-02-26T12:44:30.539Z",
+      "filename": "W01 Agentic AI Recommendation copy.workflow.ts"
+    },
+    "0CU8EgjCKxf2b3VU": {
+      "lastSyncedHash": "b6f028578f9d241706c47dbd62e5b963871aa5238498c7e5d67c7724e655eece",
+      "lastSyncedAt": "2026-02-26T12:44:30.558Z",
+      "filename": "W03 Friday Student Reminder.workflow.ts"
+    },
+    "8GRng9RuVvzJeERG": {
+      "lastSyncedHash": "34c2d7151d124fe271f3a5eaed524fd900653acf7280915d6b848dbe8e6ee8dd",
+      "lastSyncedAt": "2026-02-26T12:44:30.558Z",
+      "filename": "W01 Agentic AI Recommendation.workflow.ts"
+    },
+    "a14iWR631kx158D5": {
+      "lastSyncedHash": "1925a94c4c4c73c7bb62c53028563eb341dce5b41c51e9ead3958a4ba79964af",
+      "lastSyncedAt": "2026-02-26T12:44:30.558Z",
+      "filename": "W04 Sunday Health Score.workflow.ts"
+    },
+    "jId42HRuqekDno9w": {
+      "lastSyncedHash": "92f0a11a51e49cddf7b9da48f64cd80dd5780bbf76db13ce12af36222d96be44",
+      "lastSyncedAt": "2026-02-26T12:44:30.559Z",
+      "filename": "W01 Agentic AI Recommendation_jId42HRu.workflow.ts"
+    },
+    "zRmZ8LHg0glp3NWi": {
+      "lastSyncedHash": "6b9b780f7643eda60ce212f12907b54c96c03490988d3997626cf99fec6f63f8",
+      "lastSyncedAt": "2026-02-26T12:44:30.605Z",
+      "filename": "W05 Weekly Teacher Email Summary.workflow.ts"
+    },
+    "m4Q2PTyEymdrPtk7": {
+      "lastSyncedHash": "40a9946f5e82120d509472c49b77781f73670d05347399d095b971553c515c72",
+      "lastSyncedAt": "2026-02-26T12:44:30.605Z",
+      "filename": "tool-get-past-recommendations.workflow.ts"
+    },
+    "f64ztSYZ41AZc8JQ": {
+      "lastSyncedHash": "5dd59638490a886a49117254f6469e6f53294a14a1c9875e89a964e4ec6bdcfd",
+      "lastSyncedAt": "2026-02-26T12:44:30.605Z",
+      "filename": "tool-get-teacher-action-rate.workflow.ts"
+    },
+    "VtrnbinNk13QvRTF": {
+      "lastSyncedHash": "f67e5847d3fdbb7a48857e44418112b55d4e05210e4e066bdcb0accf38a883ff",
+      "lastSyncedAt": "2026-02-26T12:44:30.606Z",
+      "filename": "tool-get-trend-comparison.workflow.ts"
+    },
+    "tURaOxy7GFTbqPis": {
+      "lastSyncedHash": "dc4e2860959b4ec830f44303bf27bb0029db98f15d32f2dad359745152044fdd",
+      "lastSyncedAt": "2026-02-26T12:44:30.606Z",
+      "filename": "tool-submit-recommendation.workflow.ts"
+    },
+    "roM4WCNpr0k4NMNa": {
+      "lastSyncedHash": "5b196df202e9f41b3531460454e60bdb4422cd4577662119e8c439f558f441ec",
+      "lastSyncedAt": "2026-02-26T12:44:30.606Z",
+      "filename": "tool-count-enrolled-students.workflow.ts"
+    }
+  }
+}

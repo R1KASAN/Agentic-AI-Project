@@ -1,0 +1,501 @@
+{
+    "name": "Agentic AI Recommendation Generator",
+    "nodes": [
+        {
+            "parameters": {
+                "rule": {
+                    "interval": [
+                        {
+                            "field": "weeks",
+                            "triggerOnWeekdays": [
+                                1
+                            ],
+                            "triggerAtHour": 6,
+                            "triggerAtMinute": 0
+                        }
+                    ]
+                }
+            },
+            "id": "agent-trigger-001",
+            "name": "Schedule Trigger",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "typeVersion": 1.1,
+            "position": [
+                100,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "executeQuery",
+                "query": "SELECT c.id AS class_id, c.name AS class_name, u.full_name AS teacher_name, (SELECT COUNT(*) FROM class_enrollments ce WHERE ce.class_id = c.id) AS enrolled_count, (SELECT COUNT(*) FROM recommendations r WHERE r.class_id = c.id AND r.status = 'pending') AS pending_count FROM public.classes c JOIN public.users u ON c.teacher_id = u.id WHERE c.pilot_status = true;"
+            },
+            "id": "agent-get-classes-002",
+            "name": "Get Active Classes",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 2.4,
+            "position": [
+                320,
+                300
+            ],
+            "credentials": {
+                "postgres": {
+                    "id": "supabase-db",
+                    "name": "Supabase Postgres"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "batchSize": 1,
+                "options": {
+                    "reset": false
+                }
+            },
+            "id": "agent-loop-003",
+            "name": "Loop Over Classes",
+            "type": "n8n-nodes-base.splitInBatches",
+            "typeVersion": 3,
+            "position": [
+                540,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "mode": "runOnceForEachItem",
+                "jsCode": "const c = $input.item.json;\nconst now = new Date().toISOString().split('T')[0];\n\nconst systemPrompt = `You are ClimateAgent Advisor — an AI educational consultant for Thai classroom climate monitoring. Your role is to analyze student pulse data and generate actionable recommendations for teachers.\n\n## CORE RULES (MUST FOLLOW):\n1. PRIVACY FIRST: If get_climate_summary returns privacy_locked=true, you MUST skip that class entirely. Say \"Skipped: insufficient data for k-anonymity (n<3).\" Do NOT guess or infer from partial data.\n\n2. NO DUPLICATE RECOMMENDATIONS: Always call get_past_recommendations BEFORE submitting any new recommendation. If a similar recommendation with status='pending' already exists, do NOT submit a duplicate.\n\n3. MAX 2 RECOMMENDATIONS per class per run. Quality over quantity.\n\n4. MAX 3 PENDING TOTAL: If a class already has >=3 pending recommendations, do NOT submit more. Note \"Teacher has unreviewed recommendations.\"\n\n## REASONING CHAIN:\nFor each class, follow this process:\n1. OBSERVE: Call get_climate_summary to see current state\n2. COMPARE: Call get_trend_comparison to detect week-over-week changes\n3. HISTORY: Call get_past_recommendations to avoid duplicates and learn from teacher responses\n4. CONTEXT: If teacher dismissed previous recs, adjust your approach\n5. DECIDE: Based on data, either submit_recommendation or explain why not\n\n## OUTPUT CATEGORIES:\n- engagement: participation, attendance, check-in rates\n- wellbeing: mood trends, emotional patterns\n- collaboration: peer interaction, group dynamics\n- academic: pace concerns, fairness perceptions, workload\n\n## OUTPUT PRIORITIES:\n- high: dramatic drop (>20% week-over-week) or consistently low scores\n- medium: gradual decline or mixed signals\n- low: minor optimization or positive reinforcement\n\n## STYLE:\n- Write recommendations in THAI for Thai teachers\n- Be specific and actionable (reference actual data points)\n- Keep each recommendation under 200 characters\n- Use warm, supportive tone`;\n\nconst userPrompt = `Analyze class \"${c.class_name}\" (ID: ${c.class_id}).\nTeacher: ${c.teacher_name}\nEnrolled students: ${c.enrolled_count}\nCurrent pending recommendations: ${c.pending_count}\nDate: ${now}\n\nUse your tools to investigate and decide whether to generate new recommendations. Follow your reasoning chain.`;\n\nreturn {\n  json: {\n    ...c,\n    systemPrompt,\n    userPrompt\n  }\n};"
+            },
+            "id": "agent-context-004",
+            "name": "Build Agent Context",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                760,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "agent": "toolsAgent",
+                "text": "={{ $json.userPrompt }}",
+                "options": {
+                    "systemMessage": "={{ $json.systemPrompt }}",
+                    "maxIterations": 8,
+                    "returnIntermediateSteps": true
+                }
+            },
+            "id": "agent-node-005",
+            "name": "AI Recommendation Agent",
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 1.7,
+            "position": [
+                1000,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "modelName": "gemini-2.0-flash",
+                "options": {
+                    "temperature": 0.4
+                }
+            },
+            "id": "agent-llm-006",
+            "name": "Google Gemini Chat Model",
+            "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+            "typeVersion": 1.4,
+            "position": [
+                900,
+                520
+            ],
+            "credentials": {
+                "googlePalmApi": {
+                    "id": "gemini-key",
+                    "name": "Google Gemini account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "name": "get_climate_summary",
+                "description": "Get aggregated climate summary for a class (avg mood, pace, fairness, response count). Returns privacy_locked=true if fewer than 3 responses. Input JSON: {\"class_id\": \"<uuid>\", \"weeks\": 4}",
+                "workflowId": "={{ $env.TOOL_WORKFLOW_CLIMATE_SUMMARY }}",
+                "fields": {
+                    "values": [
+                        {
+                            "name": "class_id",
+                            "stringValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('class_id', 'UUID of the class to get climate summary for', 'string') }}"
+                        },
+                        {
+                            "name": "weeks",
+                            "stringValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('weeks', 'Number of weeks to look back, default 4', 'number') }}"
+                        }
+                    ]
+                }
+            },
+            "id": "tool-climate-007",
+            "name": "Tool: get_climate_summary",
+            "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+            "typeVersion": 1.2,
+            "position": [
+                820,
+                700
+            ]
+        },
+        {
+            "parameters": {
+                "name": "get_past_recommendations",
+                "description": "Get previous AI recommendations for a class with their teacher response status (pending/approved/dismissed/edited). Input JSON: {\"class_id\": \"<uuid>\", \"limit\": 10}",
+                "workflowId": "={{ $env.TOOL_WORKFLOW_PAST_RECS }}",
+                "fields": {
+                    "values": [
+                        {
+                            "name": "class_id",
+                            "stringValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('class_id', 'UUID of the class', 'string') }}"
+                        },
+                        {
+                            "name": "limit",
+                            "stringValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('limit', 'Max records to return, default 10', 'number') }}"
+                        }
+                    ]
+                }
+            },
+            "id": "tool-past-recs-008",
+            "name": "Tool: get_past_recommendations",
+            "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+            "typeVersion": 1.2,
+            "position": [
+                960,
+                700
+            ]
+        },
+        {
+            "parameters": {
+                "name": "get_trend_comparison",
+                "description": "Compare climate metrics between current week and previous week. Respects k-anonymity. Input JSON: {\"class_id\": \"<uuid>\"}",
+                "workflowId": "={{ $env.TOOL_WORKFLOW_TREND }}",
+                "fields": {
+                    "values": [
+                        {
+                            "name": "class_id",
+                            "stringValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('class_id', 'UUID of the class', 'string') }}"
+                        }
+                    ]
+                }
+            },
+            "id": "tool-trend-009",
+            "name": "Tool: get_trend_comparison",
+            "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+            "typeVersion": 1.2,
+            "position": [
+                1100,
+                700
+            ]
+        },
+        {
+            "parameters": {
+                "name": "count_enrolled_students",
+                "description": "Count the number of students enrolled in a class. Input JSON: {\"class_id\": \"<uuid>\"}",
+                "workflowId": "={{ $env.TOOL_WORKFLOW_ENROLL_COUNT }}",
+                "fields": {
+                    "values": [
+                        {
+                            "name": "class_id",
+                            "stringValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('class_id', 'UUID of the class', 'string') }}"
+                        }
+                    ]
+                }
+            },
+            "id": "tool-enroll-010",
+            "name": "Tool: count_enrolled_students",
+            "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+            "typeVersion": 1.2,
+            "position": [
+                1240,
+                700
+            ]
+        },
+        {
+            "parameters": {
+                "name": "get_teacher_action_rate",
+                "description": "Calculate the teacher's action rate on AI recommendations (how many were approved/dismissed vs still pending). Input JSON: {\"class_id\": \"<uuid>\"}",
+                "workflowId": "={{ $env.TOOL_WORKFLOW_ACTION_RATE }}",
+                "fields": {
+                    "values": [
+                        {
+                            "name": "class_id",
+                            "stringValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('class_id', 'UUID of the class', 'string') }}"
+                        }
+                    ]
+                }
+            },
+            "id": "tool-action-rate-011",
+            "name": "Tool: get_teacher_action_rate",
+            "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+            "typeVersion": 1.2,
+            "position": [
+                1380,
+                700
+            ]
+        },
+        {
+            "parameters": {
+                "name": "submit_recommendation",
+                "description": "Submit a new recommendation for the teacher. Server-side guard rejects if class already has >=3 pending. Returns was_inserted=true if successful. Input JSON: {\"class_id\": \"<uuid>\", \"content\": \"<text in Thai>\", \"category\": \"engagement|wellbeing|collaboration|academic\", \"priority\": \"high|medium|low\"}",
+                "workflowId": "={{ $env.TOOL_WORKFLOW_SUBMIT_REC }}",
+                "fields": {
+                    "values": [
+                        {
+                            "name": "class_id",
+                            "stringValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('class_id', 'UUID of the class', 'string') }}"
+                        },
+                        {
+                            "name": "content",
+                            "stringValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('content', 'Recommendation text in Thai', 'string') }}"
+                        },
+                        {
+                            "name": "category",
+                            "stringValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('category', 'Category: engagement, wellbeing, collaboration, or academic', 'string') }}"
+                        },
+                        {
+                            "name": "priority",
+                            "stringValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('priority', 'Priority: high, medium, or low', 'string') }}"
+                        }
+                    ]
+                }
+            },
+            "id": "tool-submit-012",
+            "name": "Tool: submit_recommendation",
+            "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+            "typeVersion": 1.2,
+            "position": [
+                1520,
+                700
+            ]
+        },
+        {
+            "parameters": {
+                "mode": "runOnceForEachItem",
+                "jsCode": "const output = $input.item.json;\nconst agentOutput = output.output || output.text || '';\n\nlet parsed;\ntry {\n  const jsonMatch = agentOutput.match(/\\{[\\s\\S]*\\}/);\n  parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { reasoning: agentOutput };\n} catch(e) {\n  parsed = { reasoning: agentOutput, parse_error: true };\n}\n\nreturn {\n  json: {\n    class_id: parsed.class_id || 'unknown',\n    reasoning: parsed.reasoning || agentOutput,\n    actions_taken: parsed.actions_taken || [],\n    data_quality_notes: parsed.data_quality_notes || '',\n    intermediate_steps: output.intermediateSteps || []\n  }\n};"
+            },
+            "id": "agent-parse-013",
+            "name": "Parse Agent Output",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1220,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "amount": 4,
+                "unit": "seconds"
+            },
+            "id": "agent-wait-014",
+            "name": "Rate Limit Cooldown",
+            "type": "n8n-nodes-base.wait",
+            "typeVersion": 1.1,
+            "position": [
+                1440,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "={{ $env.NEXT_PUBLIC_APP_URL }}/api/n8n/webhook",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Authorization",
+                            "value": "=Bearer {{ $env.N8N_WEBHOOK_SECRET }}"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={\"event\": \"recommendations_generated\"}",
+                "options": {}
+            },
+            "id": "agent-webhook-015",
+            "name": "Notify Webhook",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
+            "position": [
+                1660,
+                300
+            ]
+        }
+    ],
+    "connections": {
+        "Schedule Trigger": {
+            "main": [
+                [
+                    {
+                        "node": "Get Active Classes",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Get Active Classes": {
+            "main": [
+                [
+                    {
+                        "node": "Loop Over Classes",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Loop Over Classes": {
+            "main": [
+                [
+                    {
+                        "node": "Build Agent Context",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Notify Webhook",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Build Agent Context": {
+            "main": [
+                [
+                    {
+                        "node": "AI Recommendation Agent",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "AI Recommendation Agent": {
+            "main": [
+                [
+                    {
+                        "node": "Parse Agent Output",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Google Gemini Chat Model": {
+            "ai_languageModel": [
+                [
+                    {
+                        "node": "AI Recommendation Agent",
+                        "type": "ai_languageModel",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Tool: get_climate_summary": {
+            "ai_tool": [
+                [
+                    {
+                        "node": "AI Recommendation Agent",
+                        "type": "ai_tool",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Tool: get_past_recommendations": {
+            "ai_tool": [
+                [
+                    {
+                        "node": "AI Recommendation Agent",
+                        "type": "ai_tool",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Tool: get_trend_comparison": {
+            "ai_tool": [
+                [
+                    {
+                        "node": "AI Recommendation Agent",
+                        "type": "ai_tool",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Tool: count_enrolled_students": {
+            "ai_tool": [
+                [
+                    {
+                        "node": "AI Recommendation Agent",
+                        "type": "ai_tool",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Tool: get_teacher_action_rate": {
+            "ai_tool": [
+                [
+                    {
+                        "node": "AI Recommendation Agent",
+                        "type": "ai_tool",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Tool: submit_recommendation": {
+            "ai_tool": [
+                [
+                    {
+                        "node": "AI Recommendation Agent",
+                        "type": "ai_tool",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Parse Agent Output": {
+            "main": [
+                [
+                    {
+                        "node": "Rate Limit Cooldown",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Rate Limit Cooldown": {
+            "main": [
+                [
+                    {
+                        "node": "Loop Over Classes",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "pinData": {},
+    "settings": {
+        "executionOrder": "v1"
+    },
+    "active": false
+}

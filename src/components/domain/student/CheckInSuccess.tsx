@@ -2,6 +2,7 @@
 
 import { CheckCircle2, ArrowRight, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { MICROCOPY, BiText } from "@/lib/microcopy";
 import Link from "next/link";
 
 export function CheckInSuccess() {
@@ -20,25 +21,29 @@ export function CheckInSuccess() {
             {/* Message */}
             <div className="space-y-2">
                 <h2 className="text-2xl font-bold text-foreground">
-                    Thanks for checking in!
+                    <BiText entry={MICROCOPY.student.successMessage} />
                 </h2>
                 <p className="text-muted-foreground text-sm max-w-sm">
-                    Your voice matters. Your teacher will see the aggregate trends (never
-                    your individual response) and can take action.
+                    <span className="block">เสียงของคุณมีความหมาย ครูจะเห็นเฉพาะแนวโน้มรวม ไม่เห็นคำตอบส่วนตัว</span>
+                    <span className="block text-muted-foreground/70 text-xs mt-1">
+                        Your voice matters. Your teacher sees aggregate trends, never your individual response.
+                    </span>
                 </p>
             </div>
 
             {/* Privacy reminder */}
             <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-xl px-4 py-3 text-sm text-green-700 dark:text-green-300 max-w-sm">
-                🔒 Your response is protected by k-anonymity. It will only appear in
-                aggregate data when 3+ students have responded.
+                <span className="block">🔒 คำตอบของคุณได้รับการปกป้องโดย k-anonymity จะแสดงเฉพาะเมื่อมีนักเรียน 3+ คนตอบ</span>
+                <span className="block text-xs mt-1 opacity-80">
+                    Protected by k-anonymity — only shown in aggregate when 3+ students respond.
+                </span>
             </div>
 
             {/* Actions */}
             <div className="flex gap-3 pt-2">
                 <Link href="/student/feedback">
                     <Button variant="outline" className="gap-2">
-                        View Feedback
+                        ดูความคิดเห็น / View Feedback
                         <ArrowRight className="w-4 h-4" />
                     </Button>
                 </Link>
@@ -48,7 +53,7 @@ export function CheckInSuccess() {
                         className="text-muted-foreground"
                         onClick={() => window.location.reload()}
                     >
-                        New Check-in
+                        เช็คอินใหม่ / New Check-in
                     </Button>
                 </Link>
             </div>

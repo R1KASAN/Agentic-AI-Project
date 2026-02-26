@@ -1,0 +1,54 @@
+{
+    "name": "Tool: Submit Recommendation",
+    "nodes": [
+        {
+            "parameters": {},
+            "id": "trigger-001",
+            "name": "Execute Workflow Trigger",
+            "type": "n8n-nodes-base.executeWorkflowTrigger",
+            "typeVersion": 1,
+            "position": [
+                100,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "executeQuery",
+                "query": "=SELECT * FROM public.submit_recommendation_safe('{{ $json.class_id }}'::uuid, '{{ $json.content.replace(/'/g, \"''\") }}', '{{ $json.category }}', '{{ $json.priority }}');"
+            },
+            "id": "postgres-001",
+            "name": "Submit Rec Safe",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 2.4,
+            "position": [
+                320,
+                300
+            ],
+            "credentials": {
+                "postgres": {
+                    "id": "supabase-db",
+                    "name": "Supabase Postgres"
+                }
+            }
+        }
+    ],
+    "connections": {
+        "Execute Workflow Trigger": {
+            "main": [
+                [
+                    {
+                        "node": "Submit Rec Safe",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "pinData": {},
+    "settings": {
+        "executionOrder": "v1"
+    },
+    "active": false
+}

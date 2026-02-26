@@ -1,0 +1,54 @@
+{
+    "name": "Tool: Get Teacher Action Rate",
+    "nodes": [
+        {
+            "parameters": {},
+            "id": "trigger-001",
+            "name": "Execute Workflow Trigger",
+            "type": "n8n-nodes-base.executeWorkflowTrigger",
+            "typeVersion": 1,
+            "position": [
+                100,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "executeQuery",
+                "query": "=SELECT COUNT(*) FILTER (WHERE status != 'pending') AS acted, COUNT(*) AS total, ROUND(COUNT(*) FILTER (WHERE status != 'pending')::numeric / GREATEST(COUNT(*), 1) * 100, 1) AS action_rate_pct FROM public.recommendations WHERE class_id = '{{ $json.class_id }}'::uuid AND ai_generated = true;"
+            },
+            "id": "postgres-001",
+            "name": "Get Action Rate",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 2.4,
+            "position": [
+                320,
+                300
+            ],
+            "credentials": {
+                "postgres": {
+                    "id": "supabase-db",
+                    "name": "Supabase Postgres"
+                }
+            }
+        }
+    ],
+    "connections": {
+        "Execute Workflow Trigger": {
+            "main": [
+                [
+                    {
+                        "node": "Get Action Rate",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "pinData": {},
+    "settings": {
+        "executionOrder": "v1"
+    },
+    "active": false
+}

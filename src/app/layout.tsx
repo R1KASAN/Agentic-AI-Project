@@ -3,12 +3,15 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 
 const inter = Inter({
-  variable: "--font-geist-sans",
+  variable: "--font-inter",
   subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
-  title: "Climate Agent — Classroom Climate System",
+  title: {
+    default: "Climate Agent — Classroom Climate System",
+    template: "%s | Climate Agent",
+  },
   description:
     "A privacy-first classroom climate system that helps students share feelings and teachers respond meaningfully.",
 };

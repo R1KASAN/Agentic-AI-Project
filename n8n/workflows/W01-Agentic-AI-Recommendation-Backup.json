@@ -1,0 +1,435 @@
+{
+  "updatedAt": "2026-02-25T14:21:15.850Z",
+  "createdAt": "2026-02-25T12:22:42.944Z",
+  "id": "8GRng9RuVvzJeERG",
+  "name": "W01 Agentic AI Recommendation",
+  "description": null,
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "typeVersion": 1,
+      "parameters": {
+        "reason": "",
+        "content": "This is a dummy node to pass schema validation"
+      },
+      "position": [
+        0,
+        0
+      ],
+      "type": "n8n-nodes-base.stickyNote",
+      "name": "reason",
+      "id": "dummy-reason-node"
+    },
+    {
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "name": "Schedule Trigger",
+      "id": "schedule-trigger",
+      "typeVersion": 1.3,
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 * * 1"
+            }
+          ]
+        },
+        "reason": ""
+      },
+      "position": [
+        250,
+        0
+      ]
+    },
+    {
+      "id": "get-active-classes",
+      "name": "Get Active Classes",
+      "typeVersion": 2.6,
+      "position": [
+        500,
+        0
+      ],
+      "type": "n8n-nodes-base.postgres",
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=SELECT id AS class_id, name, school_id FROM public.classes WHERE risk_score >= 0;",
+        "reason": ""
+      }
+    },
+    {
+      "id": "loop-over-classes",
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "position": [
+        750,
+        0
+      ],
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "name": "Loop Over Classes"
+    },
+    {
+      "typeVersion": 4.4,
+      "id": "notify-webhook",
+      "name": "Notify Webhook",
+      "position": [
+        1000,
+        0
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "specifyBody": "json",
+        "authentication": "none",
+        "sendBody": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "value": "=Bearer {{ $env[\"N8N_WEBHOOK_SECRET\"] }}",
+              "name": "Authorization"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "url": "http://host.docker.internal:3000/api/n8n/webhook",
+        "options": {},
+        "bodyParameters": {
+          "parameters": [
+            {
+              "value": "recommendations_generated",
+              "name": "event"
+            }
+          ]
+        },
+        "reason": "",
+        "requestMethod": "POST"
+      }
+    },
+    {
+      "id": "build-agent-context",
+      "name": "Build Agent Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        750,
+        200
+      ],
+      "parameters": {
+        "jsCode": "const classId = $input.item.json.class_id;\nconst className = $input.item.json.name;\n\nreturn {\n  json: {\n    system_prompt: `You are an AI assistant designed to help teachers improve their classroom climate...`,\n    user_prompt: `Please evaluate the classroom climate for class: ${className} (ID: ${classId}) and suggest actionable recommendations.`,\n    class_id: classId\n  }\n};"
+      }
+    },
+    {
+      "id": "ai-recommendation-agent",
+      "name": "AI Recommendation Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1000,
+        200
+      ],
+      "parameters": {
+        "reason": "",
+        "options": {
+          "systemMessage": "={{ $json.system_prompt }}"
+        },
+        "text": "={{ $json.user_prompt }}"
+      }
+    },
+    {
+      "id": "google-gemini-chat-model",
+      "name": "Google Gemini Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        1000,
+        450
+      ],
+      "parameters": {
+        "options": {},
+        "model": "gemini-2.0-flash",
+        "reason": ""
+      }
+    },
+    {
+      "id": "tool-get-climate-summary",
+      "name": "Tool: Get Climate Summary",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        1200,
+        400
+      ],
+      "parameters": {
+        "toolDescription": "Fetches the current week's climate summary for a specific class (pace, fairness, mood). Use this to understand current student sentiment. Requires class_id.",
+        "name": "get_climate_summary",
+        "workflowId": "sePmJECuRJZRzuNA"
+      }
+    },
+    {
+      "id": "tool-get-past-recommendations",
+      "name": "Tool: Get Past Recommendations",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        1400,
+        400
+      ],
+      "parameters": {
+        "workflowId": "m4Q2PTyEymdrPtk7",
+        "name": "get_past_recommendations",
+        "toolDescription": "Fetches the 5 most recent recommendations made for a specific class. Use this to ensure you do not repeat recent advice. Requires class_id."
+      }
+    },
+    {
+      "id": "tool-get-trend-comparison",
+      "name": "Tool: Get Trend Comparison",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        1600,
+        400
+      ],
+      "parameters": {
+        "workflowId": "VtrnbinNk13QvRTF",
+        "name": "get_trend_comparison",
+        "toolDescription": "Compares this week's climate metrics to last week's for a specific class. Use this to identify if things are improving or degrading. Requires class_id."
+      }
+    },
+    {
+      "id": "tool-count-enrolled-students",
+      "name": "Tool: Count Enrolled Students",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        1200,
+        600
+      ],
+      "parameters": {
+        "workflowId": "roM4WCNpr0k4NMNa",
+        "name": "count_enrolled_students",
+        "toolDescription": "Counts the total number of enrolled students in a specific class. Requires class_id."
+      }
+    },
+    {
+      "id": "tool-get-teacher-action-rate",
+      "name": "Tool: Get Teacher Action Rate",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        1400,
+        600
+      ],
+      "parameters": {
+        "toolDescription": "Calculates the percentage of recommendations the teacher has acted on (approved or edited) vs ignored. Use this to gauge teacher engagement. Requires class_id.",
+        "name": "get_teacher_action_rate",
+        "workflowId": "f64ztSYZ41AZc8JQ"
+      }
+    },
+    {
+      "id": "tool-submit-recommendation",
+      "name": "Tool: Submit Recommendation",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        1600,
+        600
+      ],
+      "parameters": {
+        "toolDescription": "Submits a new actionable recommendation for the teacher. Requires class_id, content (the recommendation text), category (engagement, wellbeing, collaboration, or academic), and priority (high, medium, or low).",
+        "workflowId": "tURaOxy7GFTbqPis",
+        "name": "submit_recommendation"
+      }
+    }
+  ],
+  "connections": {
+    "reason": {
+      "main": [
+        [
+          {
+            "node": "Schedule Trigger",
+            "index": 0,
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Get Active Classes": {
+      "main": [
+        [
+          {
+            "type": "main",
+            "index": 0,
+            "node": "Loop Over Classes"
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Get Active Classes",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Build Agent Context": {
+      "main": [
+        [
+          {
+            "node": "AI Recommendation Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Recommendation Agent": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Classes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Recommendation Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Get Climate Summary": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Recommendation Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Get Past Recommendations": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Recommendation Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Get Trend Comparison": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Recommendation Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Count Enrolled Students": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Recommendation Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Get Teacher Action Rate": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Recommendation Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Submit Recommendation": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Recommendation Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Classes": {
+      "main": [
+        [
+          {
+            "node": "Notify Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Agent Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true,
+    "saveExecutionProgress": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": null,
+  "versionId": "d7597845-ee9c-4be6-acc9-a007d81fa103",
+  "activeVersionId": null,
+  "versionCounter": 18,
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-02-25T12:22:42.944Z",
+      "createdAt": "2026-02-25T12:22:42.944Z",
+      "role": "workflow:owner",
+      "workflowId": "8GRng9RuVvzJeERG",
+      "projectId": "MYClj1mmM5lJKkdC",
+      "project": {
+        "updatedAt": "2026-02-22T11:31:12.968Z",
+        "createdAt": "2026-02-22T11:21:26.537Z",
+        "id": "MYClj1mmM5lJKkdC",
+        "name": "Ark 1 <ark1dev1412@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "d3bd63bb-6762-4b77-9eba-0ae61b7b0f3f"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": null
+}

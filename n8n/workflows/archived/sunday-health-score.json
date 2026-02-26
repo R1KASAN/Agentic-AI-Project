@@ -1,0 +1,185 @@
+{
+    "name": "Sunday Health Score",
+    "nodes": [
+        {
+            "parameters": {
+                "rule": {
+                    "interval": [
+                        {
+                            "field": "weeks",
+                            "triggerOnWeekdays": [
+                                0
+                            ],
+                            "triggerAtHour": 9,
+                            "triggerAtMinute": 0
+                        }
+                    ]
+                }
+            },
+            "id": "cron-health-score",
+            "name": "Schedule Trigger",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "typeVersion": 1.1,
+            "position": [
+                180,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "executeQuery",
+                "query": "SELECT s.id as school_id, COALESCE((SELECT COUNT(*) FROM public.student_pulses sp JOIN public.class_enrollments ce ON sp.class_id = ce.class_id JOIN public.classes c2 ON ce.class_id = c2.id WHERE c2.school_id = s.id AND sp.created_at >= now() - interval '7 days') * 100.0 / NULLIF((SELECT COUNT(*) FROM public.class_enrollments ce2 JOIN public.classes c3 ON ce2.class_id = c3.id WHERE c3.school_id = s.id), 0), 0) as checkin_rate, COALESCE((SELECT COUNT(*) FROM public.recommendations r JOIN public.classes c4 ON r.class_id = c4.id WHERE c4.school_id = s.id AND r.status = 'approved') * 100.0 / NULLIF((SELECT COUNT(*) FROM public.recommendations r2 JOIN public.classes c5 ON r2.class_id = c5.id WHERE c5.school_id = s.id), 0), 0) as loop_closure_rate, COALESCE((SELECT COUNT(DISTINCT c6.teacher_id) FROM public.recommendations r3 JOIN public.classes c6 ON r3.class_id = c6.id WHERE c6.school_id = s.id AND r3.status = 'approved' AND r3.updated_at >= now() - interval '7 days') * 100.0 / NULLIF((SELECT COUNT(DISTINCT c7.teacher_id) FROM public.classes c7 WHERE c7.school_id = s.id), 0), 0) as teacher_active_rate FROM public.schools s;"
+            },
+            "id": "calculate-health-score",
+            "name": "Calculate Health Score",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 2.4,
+            "position": [
+                400,
+                300
+            ],
+            "credentials": {
+                "postgres": {
+                    "id": "supabase-db",
+                    "name": "Supabase Postgres"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "mode": "runOnceForEachItem",
+                "jsCode": "const d = $input.item.json;\nconst score = Math.round(\n  (d.checkin_rate * 0.4) +\n  (d.loop_closure_rate * 0.4) +\n  (d.teacher_active_rate * 0.2)\n);\nreturn {\n  json: {\n    school_id: d.school_id,\n    health_score: score\n  }\n};"
+            },
+            "id": "compute-score",
+            "name": "Compute Final Score",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                620,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "executeQuery",
+                "query": "=UPDATE public.schools SET health_score = {{ $json.health_score }}, last_calculated = now() WHERE id = '{{ $json.school_id }}';"
+            },
+            "id": "update-health-score",
+            "name": "Update Schools Health Score",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 2.4,
+            "position": [
+                840,
+                300
+            ],
+            "credentials": {
+                "postgres": {
+                    "id": "supabase-db",
+                    "name": "Supabase Postgres"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "number": [
+                        {
+                            "value1": "={{ $json.health_score }}",
+                            "operation": "smaller",
+                            "value2": 40
+                        }
+                    ]
+                }
+            },
+            "id": "check-threshold",
+            "name": "If Score Below 40",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 1,
+            "position": [
+                1060,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "={{ $env.SLACK_WEBHOOK_URL }}",
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={\"text\": \":rotating_light: *School Health Score Alert* ({{ $json.school_id }}): Score dropped to {{ $json.health_score }}/100. Immediate action may be required.\"}",
+                "options": {}
+            },
+            "id": "slack-alert",
+            "name": "Send Slack Alert",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
+            "position": [
+                1280,
+                200
+            ]
+        }
+    ],
+    "connections": {
+        "Schedule Trigger": {
+            "main": [
+                [
+                    {
+                        "node": "Calculate Health Score",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Calculate Health Score": {
+            "main": [
+                [
+                    {
+                        "node": "Compute Final Score",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Compute Final Score": {
+            "main": [
+                [
+                    {
+                        "node": "Update Schools Health Score",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Update Schools Health Score": {
+            "main": [
+                [
+                    {
+                        "node": "If Score Below 40",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "If Score Below 40": {
+            "main": [
+                [
+                    {
+                        "node": "Send Slack Alert",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                []
+            ]
+        }
+    },
+    "pinData": {},
+    "settings": {
+        "executionOrder": "v1"
+    },
+    "active": false
+}
