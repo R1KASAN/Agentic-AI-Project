@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -11,8 +12,6 @@ import {
     MessageSquare,
     BarChart3,
     ClipboardList,
-    Users,
-    Settings,
     Shield,
     LogOut,
     ChevronLeft,
@@ -35,26 +34,19 @@ const NAV_ITEMS: Record<UserRole, NavItem[]> = {
     ],
     teacher: [
         { label: "Dashboard", href: "/teacher", icon: <LayoutDashboard className="w-5 h-5" /> },
+        { label: "จัดการห้องเรียน", href: "/teacher/classes", icon: <ClipboardList className="w-5 h-5" /> },
         { label: "Recommendations", href: "/teacher/recommendations", icon: <MessageSquare className="w-5 h-5" /> },
-    ],
-    admin: [
-        { label: "Metrics", href: "/admin/metrics", icon: <BarChart3 className="w-5 h-5" /> },
-        { label: "Audit Log", href: "/admin/audit", icon: <ClipboardList className="w-5 h-5" /> },
-        { label: "Users", href: "/admin/users", icon: <Users className="w-5 h-5" /> },
-        { label: "⚙️ ตั้งค่าระบบ", href: "/admin/settings", icon: <Settings className="w-5 h-5" /> }
     ],
 };
 
 const ROLE_LABELS: Record<UserRole, string> = {
     student: "Student",
     teacher: "Teacher",
-    admin: "Admin",
 };
 
 const ROLE_COLORS: Record<UserRole, string> = {
     student: "from-indigo-500 to-indigo-600",
     teacher: "from-sky-500 to-sky-600",
-    admin: "from-violet-500 to-violet-600",
 };
 
 interface DashboardShellProps {
@@ -117,9 +109,14 @@ export function DashboardShell({
                 {/* Navigation */}
                 <nav className="flex-1 px-3 py-4 space-y-1">
                     {navItems.map((item) => {
-                        const isActive =
-                            pathname === item.href ||
-                            (item.href !== "/" && pathname.startsWith(item.href));
+                        // Exact match for root paths like "/teacher" or "/admin/metrics"
+                        // to prevent greedy matching of sub-routes like "/teacher/classes"
+                        const isExactMatch = pathname === item.href;
+                        const isSubPath =
+                            item.href !== "/" &&
+                            !item.href.match(/^\/[^/]+$/) && // not a root-level path
+                            pathname.startsWith(item.href);
+                        const isActive = isExactMatch || isSubPath;
                         return (
                             <Link
                                 key={item.href}
@@ -152,9 +149,11 @@ export function DashboardShell({
                     <div className="flex items-center gap-3 px-4 py-3">
                         <div className="w-8 h-8 rounded-full bg-gradient-to-br from-slate-600 to-slate-500 flex items-center justify-center flex-shrink-0 text-xs font-bold text-white">
                             {avatarUrl ? (
-                                <img
+                                <Image
                                     src={avatarUrl}
                                     alt={userName}
+                                    width={32}
+                                    height={32}
                                     className="w-full h-full rounded-full object-cover"
                                 />
                             ) : (

@@ -1,5 +1,4 @@
 ---
-
 description: "Task list template for feature implementation"
 ---
 
@@ -25,21 +24,21 @@ description: "Task list template for feature implementation"
 - **Mobile**: `api/src/`, `ios/src/` or `android/src/`
 - Paths shown below assume single project - adjust based on plan.md structure
 
-<!-- 
+<!--
   ============================================================================
   IMPORTANT: The tasks below are SAMPLE TASKS for illustration purposes only.
-  
+
   The /speckit.tasks command MUST replace these with actual tasks based on:
   - User stories from spec.md (with their priorities P1, P2, P3...)
   - Feature requirements from plan.md
   - Entities from data-model.md
   - Endpoints from contracts/
-  
+
   Tasks MUST be organized by user story so each story can be:
   - Implemented independently
   - Tested independently
   - Delivered as an MVP increment
-  
+
   DO NOT keep these sample tasks in the generated tasks.md file.
   ============================================================================
 -->
@@ -83,8 +82,17 @@ Examples of foundational tasks (adjust based on your project):
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T010 [P] [US1] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T011 [P] [US1] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T010 [P] [US1] Contract test for [endpoint] in tests/contract/test\_[name].py
+- [ ] T011 [P] [US1] Integration test for [user journey] in tests/integration/test\_[name].py
+
+### Agentic & Audit Tests (CONDITIONAL - only if feature involves L2+ autonomy or messaging)
+
+> **IF THIS FEATURE IMPLEMENTS**: Autonomous decisions, tool-using LLM patterns, teacher notifications, or loop closure tracking — add these tests BEFORE implementation:
+
+- [ ] T011a [US1] RLS integration test: verify agent reads only aggregated data (n ≥ 3), never raw student records. Test in tests/rls/test\_[featurename]\_rls.test.ts
+- [ ] T011b [US1] Agentic decision logging test: verify all agent decisions logged to `n8n_audit_log` with (timestamp, policy, confidence, tools*invoked, actions). Test in tests/agentic/test*[featurename]\_audit.test.ts
+- [ ] T011c [US1] Tool isolation test: verify LLM never invokes DB directly; all DB calls via toolWorkflow. Test in tests/agentic/test_tool_isolation.test.ts
+- [ ] T011d [US1] Loop closure metric test: verify loop closure % tracked correctly (check-ins → dashboard views → actions). Test in tests/agentic/test_loop_closure.test.ts
 
 ### Implementation for User Story 1
 
@@ -94,6 +102,27 @@ Examples of foundational tasks (adjust based on your project):
 - [ ] T015 [US1] Implement [endpoint/feature] in src/[location]/[file].py
 - [ ] T016 [US1] Add validation and error handling
 - [ ] T017 [US1] Add logging for user story 1 operations
+
+### Agentic Implementation (CONDITIONAL - only if feature involves L2+ autonomy)
+
+> **IF THIS FEATURE IMPLEMENTS**: Agent autonomy, notifications, or tool-using patterns — add these tasks AFTER core implementation:
+
+- [ ] T018 [US1] Create n8n agentic workflow in n8n/workflows/[featurename].json with `langchain.agent` node + sub-workflow tools
+- [ ] T019 [US1] Implement tool isolation: create sub-workflows for RPC calls in n8n/workflows/tools/tool-[featurename].json
+- [ ] T020 [US1] Create audit logging: ensure all agentic decisions logged to `n8n_audit_log` table with full decision trace
+- [ ] T021 [US1] Create self-evaluation metrics: dashboard showing notification sent, approval rate, action rate, loop closure %, teacher sanity score
+- [ ] T022 [US1] Add loop closure tracking: measure (check-ins submitted) → (teacher checks dashboard) → (teacher acts) in RPC views
+- [ ] T023 [US1] Implement notification approval gate: dashboard "Approve & Send" button + webhook to trigger send + log in audit trail
+- [ ] T024 [US1] Add self-evaluation alerts: if action_rate < 30% for 2+ weeks, log recommendation to reduce notification frequency OR revise message framing
+
+### Observability & Documentation (CONDITIONAL)
+
+> **IF THIS FEATURE AFFECTS**: Teacher engagement, notification frequency, or multi-school deployments — add these tasks:
+
+- [ ] T025 [US1] Create Grafana dashboard: agentic loop health (execution time, queue depth, success rate)
+- [ ] T026 [US1] Create teacher observability view: loop closure %, message approval rate, action rate, top action types
+- [ ] T027 [US1] Document multi-school configuration: workflow parameter setup, notification timing per school, federation governance
+- [ ] T028 [US1] Run scalability test: verify workflow executes successfully for [N] classes simultaneous
 
 **Checkpoint**: At this point, User Story 1 should be fully functional and testable independently
 
@@ -107,8 +136,8 @@ Examples of foundational tasks (adjust based on your project):
 
 ### Tests for User Story 2 (OPTIONAL - only if tests requested) ⚠️
 
-- [ ] T018 [P] [US2] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T019 [P] [US2] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T018 [P] [US2] Contract test for [endpoint] in tests/contract/test\_[name].py
+- [ ] T019 [P] [US2] Integration test for [user journey] in tests/integration/test\_[name].py
 
 ### Implementation for User Story 2
 
@@ -129,8 +158,8 @@ Examples of foundational tasks (adjust based on your project):
 
 ### Tests for User Story 3 (OPTIONAL - only if tests requested) ⚠️
 
-- [ ] T024 [P] [US3] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T025 [P] [US3] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T024 [P] [US3] Contract test for [endpoint] in tests/contract/test\_[name].py
+- [ ] T025 [P] [US3] Integration test for [user journey] in tests/integration/test\_[name].py
 
 ### Implementation for User Story 3
 

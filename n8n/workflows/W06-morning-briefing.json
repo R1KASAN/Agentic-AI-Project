@@ -1,0 +1,738 @@
+{
+  "name": "W06 Morning AI Briefing",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 7 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "ScheduleTrigger",
+      "name": "Schedule Trigger: 7:30 AM M-F",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [50, 50]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n        sd.is_school_day,\n        sd.school_id,\n        sd.date,\n        COALESCE(sd.reason, '') as reason\n      FROM school_days sd\n      WHERE sd.school_id = $1::uuid\n        AND sd.date = CURRENT_DATE\n      LIMIT 1",
+        "queryParameters": {
+          "0": "{{ $json.school_id }}"
+        }
+      },
+      "id": "CheckSchoolDay",
+      "name": "Check School Day",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [250, 50]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "booleanRules": [
+            {
+              "condition": "true",
+              "value1": "{{ $json.is_school_day }}",
+              "value2": true
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "IsSchoolDayDecision",
+      "name": "Is School Day?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [450, 50]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n        u.id as teacher_id,\n        u.email,\n        tp.notification_frequency_pref,\n        tp.notification_channel_pref,\n        tp.is_inquiry_mode,\n        tp.approval_rate_historical,\n        tp.implementation_rate_historical\n      FROM auth.users u\n      JOIN teacher_profiles tp ON u.id = tp.teacher_id\n      WHERE u.school_id = $1::uuid\n        AND tp.is_active = true\n        AND tp.availability_status != 'on_leave'\n      ORDER BY u.created_at ASC",
+        "queryParameters": {
+          "0": "{{ $json.school_id }}"
+        }
+      },
+      "id": "FetchActiveTeachers",
+      "name": "Fetch Active Teachers",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [450, 200]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {
+          "reset": false,
+          "sourceData": "input"
+        }
+      },
+      "id": "LoopSplitTeachers",
+      "name": "Loop: Split Teachers",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 1.1,
+      "position": [650, 200]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n        c.id as class_id,\n        c.name as class_name,\n        c.grade_level,\n        c.teacher_id,\n        COALESCE(c.active, true) as is_active\n      FROM classes c\n      WHERE c.teacher_id = $1::uuid\n        AND c.school_id = $2::uuid\n        AND c.active = true\n      ORDER BY c.name ASC",
+        "queryParameters": {
+          "0": "{{ $json.teacher_id }}",
+          "1": "{{ $json.school_id }}"
+        }
+      },
+      "id": "FetchTeacherClasses",
+      "name": "Fetch Teacher Classes",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [850, 200]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {
+          "reset": false,
+          "sourceData": "input"
+        }
+      },
+      "id": "LoopSplitClasses",
+      "name": "Loop: Split Classes",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 1.1,
+      "position": [1050, 200]
+    },
+    {
+      "parameters": {
+        "workflowId": "{{ workflow.id }}",
+        "mode": "map_workflow_tool",
+        "toolName": "get_class_climate_summary",
+        "description": "Fetch classroom climate aggregate (mood mean, std dev, trend) with k-anonymity protection",
+        "inputs": {
+          "class_id": "{{ $json.class_id }}",
+          "period": "24h",
+          "school_id": "{{ $json.school_id }}"
+        }
+      },
+      "id": "ToolGetClimateSummary",
+      "name": "Call Tool: Get Climate Summary",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 1.1,
+      "position": [1250, 100]
+    },
+    {
+      "parameters": {
+        "workflowId": "{{ workflow.id }}",
+        "mode": "map_workflow_tool",
+        "toolName": "get_past_recommendations",
+        "description": "Fetch past 7-day recommendations and closure metrics for context",
+        "inputs": {
+          "class_id": "{{ $json.class_id }}",
+          "days": 7,
+          "teacher_id": "{{ $json.teacher_id }}"
+        }
+      },
+      "id": "ToolGetPastRecommendations",
+      "name": "Call Tool: Get Past Recommendations",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 1.1,
+      "position": [1250, 250]
+    },
+    {
+      "parameters": {
+        "workflowId": "{{ workflow.id }}",
+        "mode": "map_workflow_tool",
+        "toolName": "get_teacher_action_rate",
+        "description": "Fetch teacher profile metrics and detection of inquiry mode",
+        "inputs": {
+          "teacher_id": "{{ $json.teacher_id }}"
+        }
+      },
+      "id": "ToolGetTeacherMetrics",
+      "name": "Call Tool: Get Teacher Metrics",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 1.1,
+      "position": [1250, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "booleanRules": [
+            {
+              "condition": "and",
+              "comparator": ">=",
+              "value1": "{{ $json.climate_summary.n_students }}",
+              "value2": 3
+            },
+            {
+              "condition": "and",
+              "comparator": "==",
+              "value1": "{{ $json.climate_summary.k_anonymity_safe }}",
+              "value2": true
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "KAnonymityCheck",
+      "name": "K-Anonymity Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1600, 200]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n        COUNT(CASE WHEN nal.created_at > NOW() - INTERVAL '1 day' THEN 1 END) as today_count,\n        COUNT(CASE WHEN nal.created_at > NOW() - INTERVAL '7 days' THEN 1 END) as week_count\n      FROM n8n_audit_log nal\n      WHERE nal.teacher_id = $1::uuid\n        AND nal.workflow_id = 'W06'\n        AND nal.action_taken = 'SEND_LINE_NOTIFICATION'",
+        "queryParameters": {
+          "0": "{{ $json.teacher_id }}"
+        }
+      },
+      "id": "CheckFrequencyGuard",
+      "name": "Check Frequency Guard",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1800, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "booleanRules": [
+            {
+              "condition": "and",
+              "comparator": "<",
+              "value1": "{{ $json.today_count }}",
+              "value2": 2
+            },
+            {
+              "condition": "and",
+              "comparator": "<",
+              "value1": "{{ $json.week_count }}",
+              "value2": 5
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "FrequencyGuardDecision",
+      "name": "Is Within Frequency Limits?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2000, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "booleanRules": [
+            {
+              "condition": "true",
+              "value1": "{{ $json.availability_status }}",
+              "value2": "on_leave",
+              "operation": "notEqual"
+            }
+          ]
+        }
+      },
+      "id": "CheckTeacherAvailability",
+      "name": "Check Teacher Availability",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2000, 50]
+    },
+    {
+      "parameters": {
+        "modelName": "gemini-1.5-flash",
+        "temperature": 0.8,
+        "options": {}
+      },
+      "id": "GeminiLLM",
+      "name": "Gemini-LLM",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [1900, 400]
+    },
+    {
+      "parameters": {
+        "agentType": "toolsAgent",
+        "options": {
+          "systemMessage": "You are a supportive classroom climate advisor working with teachers to improve student engagement and well-being.\n\n**Your Goal**: Suggest ONE specific teaching intervention based on classroom mood data.\n\n**Instruction**:\n- Analyze the classroom mood aggregate (mean, std dev, trend)\n- Consider teacher's past response patterns (approval/implementation rates)\n- If teacher is in Inquiry Mode (dismissal rate > 60%), ask clarifying questions instead\n- Frame suggestions with empowering language: \"Let's try...\", \"Consider...\", \"What if...\"\n- Never use words like \"warning\", \"alert\", \"critical\" (use \"opportunity\", \"invitation\")\n- Keep suggestion to 1-2 sentences max (150 chars)\n- Return a JSON object with fields:\n  - content: string (the suggestion)\n  - confidence: number (0-1, how confident you are in this suggestion)\n  - rationale: string (why you chose this suggestion)\n  - use_inquiry_mode: boolean (if true, ask clarifying question instead)\n\n**Context**:\n- Classroom Mean Mood: {{ $json.climate_summary.mean_mood }}/5 (±{{ $json.climate_summary.std_dev }})\n- Mood Trend: {{ $json.climate_summary.mood_trend }}\n- Students with data: {{ $json.climate_summary.n_students }}\n- Teacher Approval Rate (past 7d): {{ $json.teacher_metrics.approval_rate }}%\n- Teacher Implementation Rate (past 7d): {{ $json.teacher_metrics.implementation_rate }}%\n- Teacher in Inquiry Mode: {{ $json.teacher_metrics.is_inquiry_mode }}\n\nBe concise, empathetic, and actionable. Respond only with the JSON object.",
+          "maxIterations": 10,
+          "returnIntermediateSteps": false
+        }
+      },
+      "id": "LangChainAgent",
+      "name": "LangChain Agent: Generate Recommendation",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [2200, 200]
+    },
+    {
+      "parameters": {
+        "language": "javascript",
+        "jsCode": "// Parse LLM output\nlet lmOutput = $json.lm_output;\nlet recommendation = null;\nlet fallbackUsed = false;\n\ntry {\n  if (lmOutput && lmOutput.confidence >= 0.65) {\n    recommendation = {\n      content: lmOutput.content,\n      confidence: lmOutput.confidence,\n      source: 'lm',\n      rationale: lmOutput.rationale\n    };\n  } else {\n    throw new Error('Low confidence or invalid output');\n  }\n} catch(e) {\n  // Fallback suggestions (rule-based)\n  const fallbacks = [\n    'Consider a 5-min mood check—quick way to understand the climate.',\n    'Try a collaborative problem-solving activity to rebuild connection.',\n    'Take 2 mins to share something positive about each student today.'\n  ];\n  const idx = Math.floor(Math.random() * fallbacks.length);\n  recommendation = {\n    content: fallbacks[idx],\n    confidence: 0.5,\n    source: 'fallback',\n    lm_error: e.message\n  };\n  fallbackUsed = true;\n}\n\nreturn {\n  recommendation: recommendation,\n  fallback_used: fallbackUsed\n};"
+      },
+      "id": "ValidateAndFallback",
+      "name": "Validate & Fallback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2400, 200]
+    },
+    {
+      "parameters": {
+        "language": "javascript",
+        "jsCode": "const trend = $json.climate_summary.mood_trend || '';\nconst confidence = $json.recommendation.confidence || 0.5;\nconst trendMagnitude = parseFloat(trend) || 0;\n\nlet policy = 'ROUTINE';\nlet triggerReason = '';\n\nif (trendMagnitude < -15) {\n  policy = 'WARNING';\n  triggerReason = 'Significant mood decline detected (>' + Math.abs(trendMagnitude) + '%) vs baseline';\n} else if (confidence < 0.5) {\n  policy = 'ROUTINE';\n  triggerReason = 'Low confidence in recommendation; offering general guidance';\n} else {\n  policy = 'ROUTINE';\n  triggerReason = 'Daily climate briefing per schedule';\n}\n\nreturn {\n  policy: policy,\n  trigger_reason: triggerReason\n};"
+      },
+      "id": "ClassifyPolicy",
+      "name": "Classify Policy",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2400, 350]
+    },
+    {
+      "parameters": {
+        "language": "javascript",
+        "jsCode": "const alertKeywords = ['warning', 'danger', 'alert', 'failing', 'critical'];\nconst content = $json.recommendation.content.toLowerCase();\n\nlet toneWarning = false;\nlet flaggedKeywords = [];\n\nfor (const keyword of alertKeywords) {\n  if (content.includes(keyword)) {\n    toneWarning = true;\n    flaggedKeywords.push(keyword);\n  }\n}\n\nreturn {\n  tone_warning: toneWarning,\n  flagged_keywords: flaggedKeywords,\n  recommendation: toneWarning \n    ? $json.recommendation.content.replace(/warning|danger|alert|failing|critical/, word => 'Let\\'s ' + word)\n    : $json.recommendation.content\n};"
+      },
+      "id": "ToneAudit",
+      "name": "Tone Audit",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2600, 200]
+    },
+    {
+      "parameters": {
+        "language": "javascript",
+        "jsCode": "const climate = $json.climate_summary || {};\nconst rec = $json.recommendation || {};\nconst closure = $json.closure_metrics || {};\nconst teacher = $json.teacher_name || 'Teacher';\n\nconst message = `☀️ Good Morning, ${teacher}!\n\n📊 Classroom Climate (past 24h)\nMean Mood: ${climate.mean_mood?.toFixed(1) || '?'}/5 (±${climate.std_dev?.toFixed(1) || '?'})\nChange vs. last week: ${climate.mood_trend || '→'}\n\n💡 I suggest: ${rec.content || 'Check in with your class today.'}\nConfidence: ${(rec.confidence * 100).toFixed(0) || '?'}%\n\n✅ Last week: ${closure.total || 0} suggestions → ${closure.approved || 0} approved → ${closure.implemented || 0} implemented (${closure.closure_rate ? (closure.closure_rate * 100).toFixed(0) : 0}%)\n\nReady to try?\n`;\n\n// LINE Notify limits message to 1000 chars\nconst trimmed = message.length > 1000 ? message.substring(0, 997) + '...' : message;\n\nreturn {\n  line_message: trimmed,\n  message_length: trimmed.length\n};"
+      },
+      "id": "PrepareLineMessage",
+      "name": "Prepare LINE Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2800, 200]
+    },
+    {
+      "parameters": {
+        "url": "https://notify-api.line.me/api/notify",
+        "method": "POST",
+        "authentication": "bearer",
+        "sendBody": true,
+        "bodyContentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "message",
+              "value": "{{ $json.line_message }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "SendLineNotify",
+      "name": "Send LINE Notify",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3000, 200]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "recommendations",
+        "columns": [
+          "id",
+          "class_id",
+          "teacher_id",
+          "school_id",
+          "content",
+          "confidence_score",
+          "policy",
+          "ai_model",
+          "trigger_reason",
+          "climate_snapshot",
+          "teacher_response_pattern",
+          "sent_via",
+          "teacher_notification_sent_at",
+          "created_at"
+        ],
+        "fieldsUi": {
+          "values": {
+            "id": "{{ uuid() }}",
+            "class_id": "{{ $json.class_id }}",
+            "teacher_id": "{{ $json.teacher_id }}",
+            "school_id": "{{ $json.school_id }}",
+            "content": "{{ $json.recommendation.content }}",
+            "confidence_score": "{{ $json.recommendation.confidence }}",
+            "policy": "{{ $json.policy }}",
+            "ai_model": "gemini-1.5-flash",
+            "trigger_reason": "{{ $json.trigger_reason }}",
+            "climate_snapshot": "{{ stringify($json.climate_summary) }}",
+            "teacher_response_pattern": "{{ stringify($json.past_recommendations) }}",
+            "sent_via": "LINE",
+            "teacher_notification_sent_at": "{{ now() }}",
+            "created_at": "{{ now() }}"
+          }
+        }
+      },
+      "id": "InsertRecommendation",
+      "name": "Insert Recommendation",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [3200, 100]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "n8n_audit_log",
+        "columns": [
+          "id",
+          "timestamp",
+          "workflow_id",
+          "workflow_name",
+          "execution_id",
+          "school_id",
+          "class_id",
+          "teacher_id",
+          "decision_path_json",
+          "policy_applied",
+          "confidence_score",
+          "gates_passed",
+          "tools_invoked",
+          "tool_outputs",
+          "action_taken",
+          "recommendation_id",
+          "notification_sent_at"
+        ],
+        "fieldsUi": {
+          "values": {
+            "id": "{{ uuid() }}",
+            "timestamp": "{{ now() }}",
+            "workflow_id": "W06",
+            "workflow_name": "Morning AI Briefing",
+            "execution_id": "{{ $json.execution_id }}",
+            "school_id": "{{ $json.school_id }}",
+            "class_id": "{{ $json.class_id }}",
+            "teacher_id": "{{ $json.teacher_id }}",
+            "decision_path_json": "{{ stringify($json.full_decision_path) }}",
+            "policy_applied": "{{ $json.policy }}",
+            "confidence_score": "{{ $json.recommendation.confidence }}",
+            "gates_passed": "{{ stringify({k_anonymity: $json.k_anonymity_check, frequency: $json.frequency_check, availability: $json.availability_check}) }}",
+            "tools_invoked": "{{ stringify(['get_class_climate_summary', 'get_past_recommendations', 'get_teacher_action_rate']) }}",
+            "tool_outputs": "{{ stringify({climate: $json.climate_summary, recommendations: $json.past_recommendations, teacher: $json.teacher_metrics}) }}",
+            "action_taken": "SEND_LINE_NOTIFICATION",
+            "recommendation_id": "{{ $json.recommendation_id }}",
+            "notification_sent_at": "{{ now() }}"
+          }
+        }
+      },
+      "id": "InsertAuditLog",
+      "name": "Insert Audit Log",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [3200, 350]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:3000/api/n8n/webhook",
+        "method": "POST",
+        "authentication": "none",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "{\"workflow\": \"W06\", \"action\": \"briefing_sent\", \"teacher_id\": \"{{ $json.teacher_id }}\", \"class_id\": \"{{ $json.class_id }}\", \"recommendation_id\": \"{{ $json.recommendation_id }}\", \"sent_at\": \"{{ now() }}\", \"policy\": \"{{ $json.policy }}\"}",
+        "options": {}
+      },
+      "id": "RevalidateDashboard",
+      "name": "Revalidate Dashboard",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3400, 200]
+    }
+  ],
+  "connections": {
+    "ScheduleTrigger": {
+      "main": [
+        [
+          {
+            "node": "CheckSchoolDay",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CheckSchoolDay": {
+      "main": [
+        [
+          {
+            "node": "IsSchoolDayDecision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IsSchoolDayDecision": {
+      "main": [
+        [],
+        [
+          {
+            "node": "FetchActiveTeachers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FetchActiveTeachers": {
+      "main": [
+        [
+          {
+            "node": "LoopSplitTeachers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LoopSplitTeachers": {
+      "main": [
+        [
+          {
+            "node": "FetchTeacherClasses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FetchTeacherClasses": {
+      "main": [
+        [
+          {
+            "node": "LoopSplitClasses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LoopSplitClasses": {
+      "main": [
+        [
+          {
+            "node": "ToolGetClimateSummary",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "ToolGetPastRecommendations",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "ToolGetTeacherMetrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ToolGetClimateSummary": {
+      "main": [
+        [
+          {
+            "node": "KAnonymityCheck",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ToolGetPastRecommendations": {
+      "main": [
+        [
+          {
+            "node": "KAnonymityCheck",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ToolGetTeacherMetrics": {
+      "main": [
+        [
+          {
+            "node": "KAnonymityCheck",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "KAnonymityCheck": {
+      "main": [
+        [],
+        [
+          {
+            "node": "CheckFrequencyGuard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CheckFrequencyGuard": {
+      "main": [
+        [
+          {
+            "node": "FrequencyGuardDecision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FrequencyGuardDecision": {
+      "main": [
+        [],
+        [
+          {
+            "node": "CheckTeacherAvailability",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CheckTeacherAvailability": {
+      "main": [
+        [],
+        [
+          {
+            "node": "LangChainAgent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GeminiLLM": {
+      "main": [
+        [
+          {
+            "node": "LangChainAgent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LangChainAgent": {
+      "main": [
+        [
+          {
+            "node": "ValidateAndFallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ValidateAndFallback": {
+      "main": [
+        [
+          {
+            "node": "ClassifyPolicy",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "ToneAudit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ClassifyPolicy": {
+      "main": [
+        [
+          {
+            "node": "PrepareLineMessage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ToneAudit": {
+      "main": [
+        [
+          {
+            "node": "PrepareLineMessage",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "PrepareLineMessage": {
+      "main": [
+        [
+          {
+            "node": "SendLineNotify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SendLineNotify": {
+      "main": [
+        [
+          {
+            "node": "InsertRecommendation",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "InsertAuditLog",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "InsertRecommendation": {
+      "main": [
+        [
+          {
+            "node": "RevalidateDashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "InsertAuditLog": {
+      "main": [
+        [
+          {
+            "node": "RevalidateDashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

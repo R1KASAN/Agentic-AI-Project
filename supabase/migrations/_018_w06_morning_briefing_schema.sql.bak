@@ -1,0 +1,60 @@
+-- Migration: 018_w06_morning_briefing_schema
+-- Purpose: Create database schema for W06 Morning AI Briefing Feature
+-- Tables: recommendations (full), n8n_audit_log, school_days, teacher_profiles (new)
+-- RPC: get_class_climate_summary() with k-anonymity enforcement
+-- Date: 2026-03-16
+-- Dependencies: Requires users, classes, schools tables from previous migrations
+
+-- ============================================================
+-- PART 1: RECOMMENDATIONS TABLE EXTENSION (T005, T006, T007)
+-- Extend existing recommendations table for W06 loop closure
+-- Maps to: Loop3 (Act), Loop4 (Learn), Loop5 (Adapt)
+-- ============================================================
+
+ALTER TABLE public.recommendations
+  ADD COLUMN IF NOT EXISTS teacher_id uuid REFERENCES public.users(id),
+  ADD COLUMN IF NOT EXISTS teacher_approval_status text CHECK (
+    teacher_approval_status IN ('pending','approved','dismissed')
+  ),
+  ADD COLUMN IF NOT EXISTS policy text CHECK (
+    policy IN ('ROUTINE','WARNING','CRITICAL')
+  ),
+  ADD COLUMN IF NOT EXISTS confidence_score numeric(3,2),
+  ADD COLUMN IF NOT EXISTS sent_via text,               -- e.g. 'line','email'
+  ADD COLUMN IF NOT EXISTS action_source text,          -- e.g. 'W06','W07'
+  ADD COLUMN IF NOT EXISTS teacher_acted_at timestamptz,
+  ADD COLUMN IF NOT EXISTS teacher_action_note text;
+
+-- Index สำหรับ use-case W06: filter ตามครู + status
+CREATE INDEX IF NOT EXISTS idx_recommendations_teacher_status
+  ON public.recommendations(teacher_id, teacher_approval_status);
+
+-- Index สำหรับค้นหาตามห้อง + เวลา สรุปใน dashboard
+CREATE INDEX IF NOT EXISTS idx_recommendations_class_created
+  ON public.recommendations(class_id, created_at DESC);
+
+-- ============================================================
+-- PARTS 2-8: PENDING (n8n_audit_log, teacher_profiles, RPC, etc.)
+-- TODO: Create separate migrations for remaining components
+-- These will be split into 019, 020, etc. for better isolation
+-- ============================================================
+
+-- -- ============================================================
+-- -- PART 2: N8N_AUDIT_LOG TABLE (T008, T009, T010) [READY FOR 019]
+-- -- ============================================================
+-- -- [Uncomment when ready - see AGENTS.md for syntax debugging]
+--
+-- -- ============================================================
+-- -- PART 3: TEACHER_PROFILES TABLE (T012) [READY FOR 020]
+-- -- ============================================================
+-- -- [Uncomment when ready]
+--
+-- -- ============================================================
+-- -- PART 4: SCHOOL_DAYS TABLE (T011) [READY FOR 021]
+-- -- ============================================================
+-- -- [Uncomment when ready]
+--
+-- -- ============================================================
+-- -- PART 5-8: RPC + RLS POLICIES [READY FOR 022]
+-- -- ============================================================
+-- -- [Uncomment when ready]

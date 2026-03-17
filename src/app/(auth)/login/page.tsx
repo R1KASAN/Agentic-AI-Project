@@ -74,7 +74,7 @@ export default function LoginPage() {
                         Climate Agent
                     </h1>
                     <p className="text-muted-foreground text-sm">
-                        How's your classroom feeling today?
+                        How&apos;s your classroom feeling today?
                     </p>
                 </div>
 

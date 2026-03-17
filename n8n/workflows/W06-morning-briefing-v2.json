@@ -1,0 +1,488 @@
+{
+    "name": "W06 Morning AI Briefing",
+    "nodes": [
+        {
+            "parameters": {
+                "rule": {
+                    "interval": [
+                        {
+                            "field": "cronExpression",
+                            "expression": "30 7 * * 1-5"
+                        }
+                    ]
+                }
+            },
+            "id": "w06-trigger-001",
+            "name": "Schedule Trigger",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "typeVersion": 1.1,
+            "position": [
+                100,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "executeQuery",
+                "query": "SELECT u.id, u.email, tp.line_token, c.id as class_id, c.name as class_name FROM public.users u JOIN public.classes c ON c.teacher_id = u.id LEFT JOIN public.teacher_profiles tp ON tp.user_id = u.id WHERE u.role = 'teacher' AND c.archived_at IS NULL"
+            },
+            "id": "w06-teachers-002",
+            "name": "Get Active Teachers",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 2.4,
+            "position": [
+                320,
+                300
+            ],
+            "credentials": {
+                "postgres": {
+                    "id": "supabase-db",
+                    "name": "Supabase Postgres"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "batchSize": 1,
+                "options": {
+                    "reset": false
+                }
+            },
+            "id": "w06-loop-003",
+            "name": "Loop Over Teachers",
+            "type": "n8n-nodes-base.splitInBatches",
+            "typeVersion": 3,
+            "position": [
+                540,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "mode": "runOnceForEachItem",
+                "jsCode": "const t = $input.item.json;\nconst now = new Date().toISOString().split('T')[0];\nconst dayName = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'][new Date().getDay()];\n\nconst systemPrompt = `You are Climate Agent — an AI morning briefing assistant for Thai teachers.\nYour job is to produce a concise, actionable morning briefing about classroom climate.\n\n## OUTPUT FORMAT (JSON):\n{\n  \"status\": \"ROUTINE | WARNING | CRITICAL\",\n  \"insights_th\": \"2-3 sentence summary in Thai\",\n  \"recommendations\": [\n    { \"text_th\": \"actionable recommendation in Thai\", \"category\": \"engagement|wellbeing|collaboration|academic\", \"priority\": \"high|medium|low\" }\n  ],\n  \"data_quality\": \"note about data availability\"\n}\n\n## RULES:\n1. PRIVACY: If get_climate_summary returns privacy_locked=true, set status=ROUTINE and note insufficient data.\n2. Call get_past_recommendations to avoid duplicating pending items.\n3. Max 3 recommendations.\n4. Write insights and recommendations in THAI.\n5. Be warm, supportive, and specific.`;\n\nconst userPrompt = `สวัสดีตอนเช้าวัน${dayName} (${now})\n\nGenerate morning briefing for teacher's class \"${t.class_name}\" (class_id: ${t.class_id}).\n\nUse your tools to:\n1. get_class_climate_summary for current climate data\n2. get_past_recommendations to check existing recommendations\n3. get_teacher_action_rate to understand teacher engagement\n\nThen produce the briefing JSON.`;\n\nreturn {\n  json: {\n    ...t,\n    systemPrompt,\n    userPrompt\n  }\n};"
+            },
+            "id": "w06-context-004",
+            "name": "Build Briefing Context",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                760,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "agent": "toolsAgent",
+                "text": "={{ $json.userPrompt }}",
+                "options": {
+                    "systemMessage": "={{ $json.systemPrompt }}",
+                    "maxIterations": 8,
+                    "returnIntermediateSteps": true
+                }
+            },
+            "id": "w06-agent-005",
+            "name": "AI Briefing Agent",
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 1.7,
+            "position": [
+                1000,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "modelName": "gemini-2.0-flash",
+                "options": {
+                    "temperature": 0.4
+                }
+            },
+            "id": "w06-llm-006",
+            "name": "Google Gemini Chat Model",
+            "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+            "typeVersion": 1.4,
+            "position": [
+                900,
+                520
+            ],
+            "credentials": {
+                "googlePalmApi": {
+                    "id": "gemini-key",
+                    "name": "Google Gemini account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "name": "get_class_climate_summary",
+                "description": "Get aggregated climate summary for a class (avg mood, pace, fairness, response count). Returns privacy_locked=true if fewer than 3 responses. Input JSON: {\"class_id\": \"<uuid>\", \"weeks\": 4}",
+                "workflowId": "={{ $env.TOOL_WORKFLOW_CLIMATE_SUMMARY }}",
+                "fields": {
+                    "values": [
+                        {
+                            "name": "class_id",
+                            "stringValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('class_id', 'UUID of the class to get climate summary for', 'string') }}"
+                        },
+                        {
+                            "name": "weeks",
+                            "stringValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('weeks', 'Number of weeks to look back, default 4', 'number') }}"
+                        }
+                    ]
+                }
+            },
+            "id": "w06-tool-climate-007",
+            "name": "Tool: get_class_climate_summary",
+            "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+            "typeVersion": 1.2,
+            "position": [
+                820,
+                700
+            ]
+        },
+        {
+            "parameters": {
+                "name": "get_past_recommendations",
+                "description": "Get previous AI recommendations for a class with their teacher response status (pending/approved/dismissed/edited). Input JSON: {\"class_id\": \"<uuid>\", \"limit\": 10}",
+                "workflowId": "={{ $env.TOOL_WORKFLOW_PAST_RECS }}",
+                "fields": {
+                    "values": [
+                        {
+                            "name": "class_id",
+                            "stringValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('class_id', 'UUID of the class', 'string') }}"
+                        },
+                        {
+                            "name": "limit",
+                            "stringValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('limit', 'Max records to return, default 10', 'number') }}"
+                        }
+                    ]
+                }
+            },
+            "id": "w06-tool-recs-008",
+            "name": "Tool: get_past_recommendations",
+            "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+            "typeVersion": 1.2,
+            "position": [
+                960,
+                700
+            ]
+        },
+        {
+            "parameters": {
+                "name": "get_teacher_action_rate",
+                "description": "Calculate the teacher's action rate on AI recommendations (how many were approved/dismissed vs still pending). Input JSON: {\"class_id\": \"<uuid>\"}",
+                "workflowId": "={{ $env.TOOL_WORKFLOW_ACTION_RATE }}",
+                "fields": {
+                    "values": [
+                        {
+                            "name": "class_id",
+                            "stringValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('class_id', 'UUID of the class', 'string') }}"
+                        }
+                    ]
+                }
+            },
+            "id": "w06-tool-action-009",
+            "name": "Tool: get_teacher_action_rate",
+            "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+            "typeVersion": 1.2,
+            "position": [
+                1100,
+                700
+            ]
+        },
+        {
+            "parameters": {
+                "mode": "runOnceForEachItem",
+                "jsCode": "const output = $input.item.json;\nconst teacher = $('Build Briefing Context').item.json;\nconst agentOutput = output.output || output.text || '';\n\nlet parsed;\ntry {\n  const jsonMatch = agentOutput.match(/\\{[\\s\\S]*\\}/);\n  parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { status: 'ROUTINE', insights_th: agentOutput };\n} catch(e) {\n  parsed = { status: 'ROUTINE', insights_th: agentOutput, parse_error: true };\n}\n\n// Build LINE message\nconst statusEmoji = { CRITICAL: '🔴', WARNING: '🟡', ROUTINE: '🟢' };\nconst emoji = statusEmoji[parsed.status] || '🟢';\n\nlet message = `\\n${emoji} สรุปบรรยากาศห้องเรียนเช้านี้\\nห้อง: ${teacher.class_name}\\nสถานะ: ${parsed.status}\\n\\n${parsed.insights_th || ''}\\n`;\n\nif (parsed.recommendations && parsed.recommendations.length > 0) {\n  message += '\\n📋 แนะนำวันนี้:';\n  parsed.recommendations.forEach((r, i) => {\n    message += `\\n${i+1}. ${r.text_th}`;\n  });\n}\n\nreturn {\n  json: {\n    teacher_id: teacher.id,\n    teacher_email: teacher.email,\n    line_token: teacher.line_token,\n    class_id: teacher.class_id,\n    class_name: teacher.class_name,\n    status: parsed.status || 'ROUTINE',\n    insights_th: parsed.insights_th || '',\n    recommendations: parsed.recommendations || [],\n    line_message: message,\n    raw_output: agentOutput,\n    intermediate_steps: output.intermediateSteps || []\n  }\n};"
+            },
+            "id": "w06-parse-010",
+            "name": "Parse Briefing Output",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1220,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://notify-api.line.me/api/notify",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Authorization",
+                            "value": "=Bearer {{ $json.line_token }}"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={\"message\": \"{{ $json.line_message }}\"}",
+                "options": {}
+            },
+            "id": "w06-line-011",
+            "name": "Send LINE Notify",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
+            "position": [
+                1440,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "={{ $env.SUPABASE_URL }}/rest/v1/recommendations",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Authorization",
+                            "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+                        },
+                        {
+                            "name": "apikey",
+                            "value": "={{ $env.SUPABASE_SERVICE_KEY }}"
+                        },
+                        {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                        },
+                        {
+                            "name": "Prefer",
+                            "value": "return=minimal"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={{ JSON.stringify({ class_id: $json.class_id, content: $json.insights_th, category: 'wellbeing', priority: $json.status === 'CRITICAL' ? 'high' : $json.status === 'WARNING' ? 'medium' : 'low', source: 'w06_morning_briefing', status: 'pending' }) }}",
+                "options": {}
+            },
+            "id": "w06-rec-012",
+            "name": "Insert Recommendation",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
+            "position": [
+                1660,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "={{ $env.SUPABASE_URL }}/rest/v1/n8n_audit_log",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Authorization",
+                            "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+                        },
+                        {
+                            "name": "apikey",
+                            "value": "={{ $env.SUPABASE_SERVICE_KEY }}"
+                        },
+                        {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                        },
+                        {
+                            "name": "Prefer",
+                            "value": "return=minimal"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={{ JSON.stringify({ workflow_id: 'W06', event_type: 'morning_briefing_sent', class_id: $json.class_id, teacher_id: $json.teacher_id, payload: { status: $json.status, recommendations_count: ($json.recommendations || []).length, line_sent: !!$json.line_token } }) }}",
+                "options": {}
+            },
+            "id": "w06-audit-013",
+            "name": "Insert Audit Log",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
+            "position": [
+                1660,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "amount": 3,
+                "unit": "seconds"
+            },
+            "id": "w06-wait-014",
+            "name": "Rate Limit Cooldown",
+            "type": "n8n-nodes-base.wait",
+            "typeVersion": 1.1,
+            "position": [
+                1880,
+                300
+            ]
+        }
+    ],
+    "connections": {
+        "Schedule Trigger": {
+            "main": [
+                [
+                    {
+                        "node": "Get Active Teachers",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Get Active Teachers": {
+            "main": [
+                [
+                    {
+                        "node": "Loop Over Teachers",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Loop Over Teachers": {
+            "main": [
+                [
+                    {
+                        "node": "Build Briefing Context",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Insert Audit Log",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Build Briefing Context": {
+            "main": [
+                [
+                    {
+                        "node": "AI Briefing Agent",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "AI Briefing Agent": {
+            "main": [
+                [
+                    {
+                        "node": "Parse Briefing Output",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Google Gemini Chat Model": {
+            "ai_languageModel": [
+                [
+                    {
+                        "node": "AI Briefing Agent",
+                        "type": "ai_languageModel",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Tool: get_class_climate_summary": {
+            "ai_tool": [
+                [
+                    {
+                        "node": "AI Briefing Agent",
+                        "type": "ai_tool",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Tool: get_past_recommendations": {
+            "ai_tool": [
+                [
+                    {
+                        "node": "AI Briefing Agent",
+                        "type": "ai_tool",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Tool: get_teacher_action_rate": {
+            "ai_tool": [
+                [
+                    {
+                        "node": "AI Briefing Agent",
+                        "type": "ai_tool",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Parse Briefing Output": {
+            "main": [
+                [
+                    {
+                        "node": "Send LINE Notify",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Send LINE Notify": {
+            "main": [
+                [
+                    {
+                        "node": "Insert Recommendation",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "Insert Audit Log",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Insert Recommendation": {
+            "main": [
+                [
+                    {
+                        "node": "Rate Limit Cooldown",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Rate Limit Cooldown": {
+            "main": [
+                [
+                    {
+                        "node": "Loop Over Teachers",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "pinData": {},
+    "settings": {
+        "executionOrder": "v1"
+    },
+    "active": false
+}

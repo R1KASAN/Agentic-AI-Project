@@ -1,12 +1,11 @@
 "use client"
 
 import * as React from "react"
-import { enrollByEmail, removeStudent, archiveClass } from "./actions"
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card"
+import { enrollByEmail, removeStudent, archiveClass, regenerateInviteCode } from "./actions"
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { AlertCircle, Trash2, Users, Link as LinkIcon, Download, Loader2, ArrowLeft } from "lucide-react"
+import { AlertCircle, Trash2, Users, Link as LinkIcon, Loader2, ArrowLeft, RefreshCw } from "lucide-react"
 import Link from "next/link"
 import { toast } from "sonner"
 
@@ -27,6 +26,19 @@ export function ClassSettingsClient({
     const [isAdding, setIsAdding] = React.useState(false)
     const [removingId, setRemovingId] = React.useState<string | null>(null)
     const [isArchiving, setIsArchiving] = React.useState(false)
+    const [isRegenerating, setIsRegenerating] = React.useState(false)
+
+    const handleRegenerateCode = async () => {
+        if (!confirm("Are you sure you want to generate a new invite code? The old code will no longer work.")) return
+        setIsRegenerating(true)
+        const res = await regenerateInviteCode(classId)
+        if (res.success) {
+            toast.success("New invite code generated successfully")
+        } else {
+            toast.error(res.error)
+        }
+        setIsRegenerating(false)
+    }
 
     const handleAddStudent = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -93,12 +105,18 @@ export function ClassSettingsClient({
                                 <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-1">Class Invite Code</p>
                                 <p className="text-2xl font-mono tracking-widest font-bold">{inviteCode}</p>
                             </div>
-                            <Button variant="outline" onClick={() => {
-                                navigator.clipboard.writeText(inviteCode)
-                                toast.success("Invite code copied to clipboard!")
-                            }}>
-                                Copy Code
-                            </Button>
+                            <div className="flex items-center gap-2">
+                                <Button variant="outline" onClick={() => {
+                                    navigator.clipboard.writeText(inviteCode)
+                                    toast.success("Invite code copied to clipboard!")
+                                }}>
+                                    Copy Code
+                                </Button>
+                                <Button variant="secondary" onClick={handleRegenerateCode} disabled={isRegenerating}>
+                                    {isRegenerating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                                    Regenerate
+                                </Button>
+                            </div>
                         </div>
 
                         <p className="text-sm text-muted-foreground">Students can join your class by entering this code at <strong>/student/join</strong>.</p>

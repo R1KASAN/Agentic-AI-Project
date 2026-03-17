@@ -3,20 +3,18 @@ import { updateSession } from "@/lib/supabase/middleware";
 import { createClient } from "@supabase/supabase-js";
 
 // Routes that don't require authentication
-const PUBLIC_ROUTES = ["/login", "/auth/callback"];
+const PUBLIC_ROUTES = ["/login", "/auth/callback", "/qr"];
 
 // Role → default home page mapping
 const ROLE_HOME: Record<string, string> = {
     student: "/student/check-in",
     teacher: "/teacher",
-    admin: "/admin/metrics",
 };
 
 // Role → allowed path prefixes
 const ROLE_ROUTES: Record<string, string[]> = {
     student: ["/student"],
     teacher: ["/teacher"],
-    admin: ["/admin"],
 };
 
 export async function middleware(request: NextRequest) {
@@ -38,7 +36,7 @@ export async function middleware(request: NextRequest) {
     if (PUBLIC_ROUTES.some((route) => pathname.startsWith(route))) {
         // If already logged in, redirect to role home
         if (user) {
-            const role = await getUserRole(request, user.id);
+            const role = (user.user_metadata?.role as string) || await getUserRole(request, user.id);
             if (role && ROLE_HOME[role]) {
                 return NextResponse.redirect(new URL(ROLE_HOME[role], request.url));
             }
@@ -54,11 +52,23 @@ export async function middleware(request: NextRequest) {
     }
 
     // --- ROLE GUARD ---
-    const role = await getUserRole(request, user.id);
+    // Use JWT metadata role as primary source (same as DashboardLayout).
+    // Falls back to DB role if JWT metadata is missing.
+    const jwtRole = (user.user_metadata?.role as string) || null;
+    const dbRole = await getUserRole(request, user.id);
+
+    const role = jwtRole || dbRole;
 
     if (!role) {
         // User exists in auth but no profile yet — redirect to login
         return NextResponse.redirect(new URL("/login", request.url));
+    }
+
+    // Log role mismatch for debugging (remove once resolved)
+    if (dbRole && jwtRole && dbRole !== jwtRole) {
+        console.warn(
+            `[middleware] Role mismatch for user ${user.id}: JWT="${jwtRole}" DB="${dbRole}" — using JWT role "${role}". Path: ${pathname}`
+        );
     }
 
     // Root "/" → redirect to role home
@@ -73,6 +83,10 @@ export async function middleware(request: NextRequest) {
     );
 
     if (!isAllowed) {
+        // Log the redirect for debugging
+        console.warn(
+            `[middleware] Blocking ${pathname} for role="${role}" (allowed: ${allowedPrefixes.join(", ")}). Redirecting to ${ROLE_HOME[role]}`
+        );
         // Redirect unauthorized users to their own home
         return NextResponse.redirect(
             new URL(ROLE_HOME[role] || "/login", request.url)

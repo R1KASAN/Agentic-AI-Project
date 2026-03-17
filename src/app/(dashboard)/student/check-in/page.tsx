@@ -46,7 +46,7 @@ export default function StudentCheckInPage() {
         }
 
         fetchClass();
-    }, []);
+    }, [supabase]);
 
     async function handleSubmit(data: CheckInData) {
         if (!classId) return;

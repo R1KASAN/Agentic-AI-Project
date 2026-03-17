@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog"
-import { Bot, Check, X, Edit2, Loader2, Sparkles } from "lucide-react"
+import { Check, X, Edit2, Loader2, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 
 interface AIDraftActionCardProps {
@@ -41,7 +41,7 @@ export function AIDraftActionCard({ id, content, category, priority, aiGenerated
             } else {
                 toast.error(res.error || "Something went wrong")
             }
-        } catch (err) {
+        } catch {
             toast.error("An unexpected error occurred")
         } finally {
             setIsSubmitting(false)
@@ -102,7 +102,7 @@ export function AIDraftActionCard({ id, content, category, priority, aiGenerated
                         <DialogHeader>
                             <DialogTitle>Edit AI Suggestion</DialogTitle>
                             <DialogDescription>
-                                Modify this draft before approving it for your class. This text will be shown in the student's loop closure feed.
+                                Modify this draft before approving it for your class. This text will be shown in the student&apos;s loop closure feed.
                             </DialogDescription>
                         </DialogHeader>
                         <div className="py-4 mt-2">

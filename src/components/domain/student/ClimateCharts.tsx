@@ -161,7 +161,7 @@ function NotEnoughData() {
                     <p className="text-sm text-muted-foreground max-w-sm">
                         Waiting for more classmates to check in. Aggregate trends appear
                         when <strong>3 or more</strong> students have responded — this
-                        protects everyone's privacy.
+                        protects everyone&apos;s privacy.
                     </p>
                 </div>
                 <div className="bg-amber-100 dark:bg-amber-900/40 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2 text-xs text-amber-700 dark:text-amber-300">

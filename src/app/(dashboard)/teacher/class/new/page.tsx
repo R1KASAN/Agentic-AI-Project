@@ -27,7 +27,7 @@ export default function NewClassPage() {
                 setIsSubmitting(false)
             }
             // Success redirects automatically inside the server action
-        } catch (err) {
+        } catch {
             setError("An unexpected error occurred.")
             setIsSubmitting(false)
         }

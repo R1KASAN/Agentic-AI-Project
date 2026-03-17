@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import {
     approveRecommendation,
     dismissRecommendation,
@@ -15,9 +14,11 @@ import {
     TrendingUp,
     BarChart3,
     Settings,
+    Copy,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 interface ClimateSummary {
     class_id: string;
@@ -40,6 +41,7 @@ interface ClassDetailClientProps {
     classId: string;
     className: string;
     riskScore: number | null;
+    inviteCode: string;
     studentCount: number;
     climate: ClimateSummary[];
     initialRecommendations: Recommendation[];
@@ -49,12 +51,22 @@ export default function ClassDetailClient({
     classId,
     className,
     riskScore,
+    inviteCode,
     studentCount,
     climate,
     initialRecommendations,
 }: ClassDetailClientProps) {
     const router = useRouter();
-    const [recommendations, setRecommendations] = useState(initialRecommendations);
+
+    // Type guard to prevent runtime crashes if Supabase RPC returns malformed data
+    if (!Array.isArray(climate)) {
+        console.error("climate is not an array:", climate);
+        return (
+            <div className="text-sm text-muted-foreground p-4">
+                ไม่สามารถโหลดข้อมูลสภาพอากาศในชั้นเรียนได้ กรุณาลองใหม่อีกครั้ง
+            </div>
+        );
+    }
 
     // Latest week summary
     const latestWeek = climate.find((c) => c.avg_mood !== null);
@@ -85,10 +97,29 @@ export default function ClassDetailClient({
                         {className}
                         <RiskIndicator score={riskScore} size="md" />
                     </h1>
-                    <p className="text-muted-foreground text-sm flex items-center gap-2">
-                        <Users className="w-4 h-4" />
-                        {studentCount} students enrolled
-                    </p>
+                    <div className="flex flex-wrap items-center gap-4 pt-1">
+                        <p className="text-muted-foreground text-sm flex items-center gap-2">
+                            <Users className="w-4 h-4" />
+                            {studentCount} students enrolled
+                        </p>
+                        <div className="flex items-center gap-2 bg-muted px-3 py-1 rounded-md border text-sm">
+                            <span className="text-muted-foreground font-medium">Join Code:</span>
+                            <span className="font-mono font-bold tracking-widest">{inviteCode}</span>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                                onClick={() => {
+                                    navigator.clipboard.writeText(inviteCode);
+                                    toast.success("Invite code copied to clipboard!");
+                                }}
+                                title="Copy Invite Code"
+                            >
+                                <Copy className="w-3.5 h-3.5" />
+                                <span className="sr-only">Copy Code</span>
+                            </Button>
+                        </div>
+                    </div>
                 </div>
                 <Link href={`/teacher/class/${classId}/settings`} className="shrink-0 mt-2 sm:mt-0">
                     <Button variant="outline" size="sm" className="gap-2">

@@ -84,3 +84,31 @@ export async function archiveClass(classId: string) {
     revalidatePath("/teacher")
     redirect("/teacher")
 }
+
+export async function regenerateInviteCode(classId: string) {
+    const supabase = await createClient()
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+        return { success: false, error: "Unauthorized" }
+    }
+
+    // Random uppercase 8 chars (alphanumeric)
+    const newCode = Array.from({ length: 8 }, () => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'[Math.floor(Math.random() * 36)]).join('')
+
+    const { error } = await supabase
+        .from('classes')
+        .update({ invite_code: newCode })
+        .eq('id', classId)
+        .eq('teacher_id', user.id) // Security check
+
+    if (error) {
+        console.error("Error regenerating code:", error)
+        return { success: false, error: "Failed to regenerate code" }
+    }
+
+    // Revalidate the class paths to reflect the new code
+    revalidatePath(`/teacher/class/${classId}`, 'layout')
+
+    return { success: true, newCode }
+}

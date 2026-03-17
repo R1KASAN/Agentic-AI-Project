@@ -3,8 +3,6 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
 import { Shield, ShieldCheck, Send, Loader2 } from "lucide-react";
 
 const MOOD_EMOJIS = [
@@ -121,7 +119,7 @@ export function CheckInForm({ onSubmit, isSubmitting }: CheckInFormProps) {
             {/* Pace - Scale Buttons */}
             <div className="space-y-3">
                 <label className="text-sm font-semibold text-foreground">
-                    How's the pace?
+                    How&apos;s the pace?
                 </label>
                 <div className="flex flex-wrap gap-2">
                     {PACE_OPTIONS.map((item) => (

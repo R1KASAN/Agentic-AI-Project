@@ -10,7 +10,7 @@ import { revalidatePath } from 'next/cache';
 //   loop_closure_communicated  → W02 Loop Closure
 //   student_reminder_sent      → W05 Friday Reminder
 //   health_score_updated       → W06 Sunday Health Score
-//   settings_updated           → Admin settings change
+//   settings_updated           → System settings change
 
 const VALID_EVENTS = [
     'recommendations_generated',
@@ -56,12 +56,12 @@ export async function POST(request: Request) {
                 break;
 
             case 'health_score_updated':
-                revalidatePath('/admin/metrics');
+                revalidatePath('/teacher');
                 break;
 
             case 'settings_updated':
-                revalidatePath('/admin/settings');
-                revalidatePath('/admin/metrics');
+                revalidatePath('/teacher');
+                revalidatePath('/teacher/classes');
                 console.log('Schedule settings updated for school:', body.school_id);
                 break;
 

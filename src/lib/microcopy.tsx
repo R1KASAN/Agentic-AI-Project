@@ -12,8 +12,8 @@
 export const MICROCOPY = {
     teacher: {
         emptyState: {
-            th: "ยังไม่มีห้องเรียน — รอ Admin กำหนด",
-            en: "No classes assigned yet — contact your admin",
+            th: "ยังไม่มีห้องเรียน — สร้างห้องเรียนใหม่ได้เลย",
+            en: "No classes yet — create your first class",
         },
         dashboardTitle: {
             th: "ภาพรวมชั้นเรียน",
@@ -96,7 +96,7 @@ export const MICROCOPY = {
 /**
  * Render bilingual inline as a single string.
  * Usage: <p>{bi(MICROCOPY.teacher.emptyState)}</p>
- * Output: "ยังไม่มีห้องเรียน — รอ Admin กำหนด / No classes assigned yet"
+ * Output: "ยังไม่มีห้องเรียน — สร้างห้องเรียนใหม่ได้เลย / No classes yet"
  */
 export function bi(entry: { th: string; en: string }): string {
     return `${entry.th} / ${entry.en}`;

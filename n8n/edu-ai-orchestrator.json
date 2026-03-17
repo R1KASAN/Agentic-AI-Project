@@ -1,0 +1,394 @@
+{
+    "name": "EDU-AI-Unified-Orchestrator-v2",
+    "nodes": [
+        {
+            "parameters": {
+                "rule": {
+                    "interval": [
+                        {
+                            "field": "cronExpression",
+                            "expression": "0 8 * * 1-5"
+                        }
+                    ]
+                }
+            },
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "typeVersion": 1,
+            "position": [
+                0,
+                0
+            ],
+            "id": "trigger-daily",
+            "name": "Daily 8AM"
+        },
+        {
+            "parameters": {
+                "rule": {
+                    "interval": [
+                        {
+                            "field": "cronExpression",
+                            "expression": "0 17 * * 5"
+                        }
+                    ]
+                }
+            },
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "typeVersion": 1,
+            "position": [
+                0,
+                150
+            ],
+            "id": "trigger-friday",
+            "name": "Friday 5PM"
+        },
+        {
+            "parameters": {
+                "rule": {
+                    "interval": [
+                        {
+                            "field": "cronExpression",
+                            "expression": "0 20 * * 0"
+                        }
+                    ]
+                }
+            },
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "typeVersion": 1,
+            "position": [
+                0,
+                300
+            ],
+            "id": "trigger-sunday",
+            "name": "Sunday 8PM"
+        },
+        {
+            "parameters": {
+                "rule": {
+                    "interval": [
+                        {
+                            "field": "cronExpression",
+                            "expression": "0 9 * * 1"
+                        }
+                    ]
+                }
+            },
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "typeVersion": 1,
+            "position": [
+                0,
+                450
+            ],
+            "id": "trigger-monday",
+            "name": "Monday 9AM"
+        },
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "loop-closure",
+                "options": {}
+            },
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1,
+            "position": [
+                0,
+                600
+            ],
+            "id": "trigger-webhook",
+            "name": "Loop Closure Webhook",
+            "webhookId": "edu-ai-loop-closure"
+        },
+        {
+            "parameters": {
+                "jsCode": "const moment = require('moment-timezone');\nconst now = moment().tz('Asia/Bangkok');\nconst day = now.format('dddd');\nconst hour = now.hour();\n\nlet taskType = 'unknown';\n\nif ($input.item.json.body && $input.item.json.body.action === 'loop_closure') {\n  taskType = 'loop_closure';\n} else if (day === 'Friday' && hour >= 16) {\n  taskType = 'friday_reminder';\n} else if (day === 'Sunday' && hour >= 19) {\n  taskType = 'sunday_health';\n} else if (day === 'Monday' && hour >= 8 && hour < 10) {\n  taskType = 'teacher_email';\n} else {\n  taskType = 'daily';\n}\n\nreturn { json: { taskType: taskType, executionTime: now.format() } };"
+            },
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 1,
+            "position": [
+                250,
+                300
+            ],
+            "id": "code-routing",
+            "name": "Determine Execution Type"
+        },
+        {
+            "parameters": {
+                "dataType": "string",
+                "value1": "={{ $json.taskType }}",
+                "rules": {
+                    "rules": [
+                        {
+                            "value2": "daily",
+                            "output": 0
+                        },
+                        {
+                            "value2": "friday_reminder",
+                            "output": 1
+                        },
+                        {
+                            "value2": "sunday_health",
+                            "output": 2
+                        },
+                        {
+                            "value2": "teacher_email",
+                            "output": 3
+                        },
+                        {
+                            "value2": "loop_closure",
+                            "output": 4
+                        }
+                    ]
+                }
+            },
+            "type": "n8n-nodes-base.switch",
+            "typeVersion": 1,
+            "position": [
+                500,
+                300
+            ],
+            "id": "switch-routing",
+            "name": "Switch Task Type"
+        },
+        {
+            "parameters": {
+                "text": "Analyze the latest classroom climate data. Wait for my instructions.",
+                "options": {}
+            },
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 1,
+            "position": [
+                850,
+                0
+            ],
+            "id": "ai-agent",
+            "name": "Climate AI Agent"
+        },
+        {
+            "parameters": {
+                "model": "models/gemini-1.5-pro",
+                "options": {
+                    "systemPrompt": "You are the Climate Agent Orchestrator, an AI assistant analyzing classroom climate data. Your goal is to summarize trends and draft actionable, non-punitive suggestions for teachers. CRITICAL RULES: 1. NEVER identify individual students. 2. Maintain k-anonymity (never report data if n < 3). 3. Do NOT make predictive assessments of student risk. 4. Keep suggestions actionable and concise (under 3 sentences). Use your tools to gather required statistics before formulating the final recommendation. Finally, use the 'Submit Recommendation' tool to save your draft."
+                }
+            },
+            "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+            "typeVersion": 1,
+            "position": [
+                850,
+                200
+            ],
+            "id": "model-gemini",
+            "name": "Google Gemini Chat Model"
+        },
+        {
+            "parameters": {
+                "operation": "executeQuery",
+                "query": "SELECT count(*) FROM students WHERE class_id = $1;",
+                "description": "Returns the number of enrolled students. Input: class ID."
+            },
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 2.1,
+            "position": [
+                1050,
+                150
+            ],
+            "id": "tool-pg-count",
+            "name": "Count Enrolled Students"
+        },
+        {
+            "parameters": {
+                "operation": "executeQuery",
+                "query": "SELECT * FROM recommendations WHERE class_id = $1;",
+                "description": "Returns past recommendations for the class. Input: class ID."
+            },
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 2.1,
+            "position": [
+                1200,
+                150
+            ],
+            "id": "tool-pg-past",
+            "name": "Get Past Recommendations"
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://api.example.com/central-notify",
+                "sendBody": true,
+                "bodyParameters": {
+                    "parameters": [
+                        {
+                            "name": "message",
+                            "value": "={{ $json }}"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                1500,
+                300
+            ],
+            "id": "webhook-notify",
+            "name": "Central Notify Webhook"
+        },
+        {
+            "parameters": {},
+            "type": "n8n-nodes-base.errorTrigger",
+            "typeVersion": 1,
+            "position": [
+                0,
+                800
+            ],
+            "id": "error-trigger",
+            "name": "Global Error Trigger"
+        },
+        {
+            "parameters": {
+                "jsCode": "console.error('Workflow failed!', $input.all());\nreturn $input.all();"
+            },
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 1,
+            "position": [
+                250,
+                800
+            ],
+            "id": "error-logger",
+            "name": "Central Error Logger"
+        }
+    ],
+    "connections": {
+        "Daily 8AM": {
+            "main": [
+                [
+                    {
+                        "node": "Determine Execution Type",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Friday 5PM": {
+            "main": [
+                [
+                    {
+                        "node": "Determine Execution Type",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Sunday 8PM": {
+            "main": [
+                [
+                    {
+                        "node": "Determine Execution Type",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Monday 9AM": {
+            "main": [
+                [
+                    {
+                        "node": "Determine Execution Type",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Loop Closure Webhook": {
+            "main": [
+                [
+                    {
+                        "node": "Determine Execution Type",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Determine Execution Type": {
+            "main": [
+                [
+                    {
+                        "node": "Switch Task Type",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Switch Task Type": {
+            "main": [
+                [
+                    {
+                        "node": "Climate AI Agent",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Google Gemini Chat Model": {
+            "ai_languageModel": [
+                [
+                    {
+                        "node": "Climate AI Agent",
+                        "type": "ai_languageModel",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Count Enrolled Students": {
+            "ai_tool": [
+                [
+                    {
+                        "node": "Climate AI Agent",
+                        "type": "ai_tool",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Get Past Recommendations": {
+            "ai_tool": [
+                [
+                    {
+                        "node": "Climate AI Agent",
+                        "type": "ai_tool",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Climate AI Agent": {
+            "main": [
+                [
+                    {
+                        "node": "Central Notify Webhook",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Global Error Trigger": {
+            "main": [
+                [
+                    {
+                        "node": "Central Error Logger",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    }
+}

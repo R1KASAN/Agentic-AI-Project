@@ -29,7 +29,7 @@
   /* Role-specific accents */
   --student: #6366f1;
   --teacher: #0ea5e9;
-  --admin: #8b5cf6;
+
 
   /* Sidebar */
   --sidebar-bg: #1e293b;
@@ -75,7 +75,7 @@
   --color-ring: var(--ring);
   --color-student: var(--student);
   --color-teacher: var(--teacher);
-  --color-admin: var(--admin);
+
   --color-sidebar-bg: var(--sidebar-bg);
   --color-sidebar-fg: var(--sidebar-fg);
   --color-sidebar-active: var(--sidebar-active);

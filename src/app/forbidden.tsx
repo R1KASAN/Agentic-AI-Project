@@ -16,7 +16,7 @@ export default function ForbiddenPage() {
                         Access Denied
                     </h2>
                     <p className="text-muted-foreground text-sm">
-                        You don't have permission to view this page. You'll be redirected to
+                        You don&apos;t have permission to view this page. You&apos;ll be redirected to
                         your dashboard.
                     </p>
                 </div>

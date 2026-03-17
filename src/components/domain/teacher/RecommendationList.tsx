@@ -7,7 +7,6 @@ import { Badge } from "@/components/ui/badge";
 import {
     Check,
     X,
-    MessageSquare,
     Loader2,
     Sparkles,
     Clock,

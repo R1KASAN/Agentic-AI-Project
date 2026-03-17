@@ -34,7 +34,7 @@ export default async function TeacherClassSettingsPage({
         .order('enrolled_at', { ascending: false })
 
     const students = (enrollments || []).map(e => {
-        const user = e.users as any;
+        const user = e.users as unknown as { id: string; name: string | null; email: string };
         return {
             id: user.id,
             name: user.name || 'Unknown Student',

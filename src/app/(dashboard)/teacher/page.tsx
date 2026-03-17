@@ -5,8 +5,6 @@ import Link from "next/link";
 import {
     Card,
     CardContent,
-    CardHeader,
-    CardTitle,
 } from "@/components/ui/card";
 import { RiskIndicator } from "@/components/domain/teacher/RiskIndicator";
 import { Button } from "@/components/ui/button";
@@ -28,6 +26,7 @@ export default async function TeacherDashboardPage() {
         .from("classes")
         .select("id, name, risk_score, created_at")
         .eq("teacher_id", user.id)
+        .is("archived_at", null)
         .order("name");
 
     // Get enrollment counts per class

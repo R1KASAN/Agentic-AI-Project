@@ -26,7 +26,7 @@ export default async function ClassDetailPage({ params }: Props) {
         await Promise.all([
             supabase
                 .from("classes")
-                .select("name, risk_score")
+                .select("name, risk_score, invite_code")
                 .eq("id", id)
                 .single(),
             supabase
@@ -49,13 +49,17 @@ export default async function ClassDetailPage({ params }: Props) {
         notFound();
     }
 
+    const rawClimate = climateResult.data;
+    const climateData = Array.isArray(rawClimate) ? rawClimate : [];
+
     return (
         <ClassDetailClient
             classId={id}
             className={classResult.data.name}
+            inviteCode={classResult.data.invite_code}
             riskScore={classResult.data.risk_score}
             studentCount={countResult.count ?? 0}
-            climate={climateResult.data ?? []}
+            climate={climateData}
             initialRecommendations={recsResult.data ?? []}
         />
     );

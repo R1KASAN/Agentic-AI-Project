@@ -85,33 +85,13 @@ export async function POST(request: Request) {
         }
 
         // ── M01: Duplicate check-in guard ─────────────────────────────
-        // Pre-check: has this student already checked in for this class
-        // this week? (Monday-based ISO week via week_start generated column)
-        const weekStart = getISOWeekStart(new Date());
-
-        const { data: existing } = await supabase
-            .from("student_pulses")
-            .select("id, created_at")
-            .eq("student_id", user.id)
-            .eq("class_id", class_id)
-            .eq("week_start", weekStart)
-            .maybeSingle();
-
-        if (existing) {
-            // Already checked in this week — return friendly response (not error)
-            return NextResponse.json(
-                {
-                    success: true,
-                    alreadyCheckedIn: true,
-                    data: { id: existing.id, created_at: existing.created_at },
-                },
-                { status: 200 }
-            );
-        }
+        // Pre-check: we rely on the database unique constraint 
+        // student_pulses_one_per_week (student_id, class_id, week_start).
+        // A SELECT here would fail due to RLS blocking authenticated SELECT on student_pulses.
 
         // Insert into student_pulses (canonical table per C3/T035)
         // student_id is derived from auth session — NEVER from form body
-        const { data: pulse, error: insertError } = await supabase
+        const { error: insertError } = await supabase
             .from("student_pulses")
             .insert({
                 class_id,
@@ -119,9 +99,8 @@ export async function POST(request: Request) {
                 pace,                         // SMALLINT 1-5
                 fairness,                     // SMALLINT 1-5
                 optional_text: content?.trim() || null,
-            })
-            .select("id, created_at")
-            .single();
+                student_id: user.id,         // Explicitly set student_id
+            });
 
         if (insertError) {
             // Handle UNIQUE violation race condition (23505 = unique_violation)
@@ -146,7 +125,6 @@ export async function POST(request: Request) {
             {
                 success: true,
                 alreadyCheckedIn: false,
-                data: { id: pulse.id, created_at: pulse.created_at },
             },
             { status: 201 }
         );
@@ -159,15 +137,3 @@ export async function POST(request: Request) {
     }
 }
 
-/**
- * Get ISO week start (Monday) as YYYY-MM-DD string.
- * Matches PostgreSQL's date_trunc('week', ...) which returns Monday.
- */
-function getISOWeekStart(date: Date): string {
-    const d = new Date(date);
-    const day = d.getDay(); // 0=Sun, 1=Mon, ...
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday
-    d.setDate(diff);
-    d.setHours(0, 0, 0, 0);
-    return d.toISOString().split("T")[0];
-}

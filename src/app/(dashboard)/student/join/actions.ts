@@ -19,15 +19,16 @@ export async function joinClass(formData: FormData) {
 
     const inviteCode = code.trim().toUpperCase()
 
-    // Find class by code
+    // Find class by code — reject archived classes
     const { data: cls, error: clsError } = await supabase
         .from("classes")
         .select("id")
         .eq("invite_code", inviteCode)
+        .is("archived_at", null)
         .single()
 
     if (clsError || !cls) {
-        return { success: false, error: "No class found with this invite code." }
+        return { success: false, error: "No active class found with this invite code." }
     }
 
     // Insert enrollment
