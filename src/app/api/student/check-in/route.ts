@@ -87,9 +87,9 @@ export async function POST(request: Request) {
             );
         }
 
-        // ── M01: Duplicate check-in guard ─────────────────────────────
-        // Pre-check: we rely on the database unique constraint 
-        // student_pulses_one_per_week (student_id, class_id, week_start).
+        // ── Daily duplicate check-in guard ────────────────────────────
+        // Pre-check: we rely on the database unique constraint
+        // student_pulses_one_per_day (student_id, class_id, checkin_date).
         // A SELECT here would fail due to RLS blocking authenticated SELECT on student_pulses.
 
         // Insert into student_pulses (canonical table per C3/T035)

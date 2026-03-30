@@ -74,12 +74,12 @@ export const MICROCOPY = {
             en: "Your comments are auto-deleted after 60 days",
         },
         alreadyCheckedInTitle: {
-            th: "คุณเช็คอินรอบนี้แล้ว ✅",
-            en: "You've already checked in this week",
+            th: "คุณเช็คอินวันนี้แล้ว ✅",
+            en: "You've already checked in today",
         },
         alreadyCheckedInBody: {
-            th: "ขอบคุณที่กลับมาดูอีกครั้ง 🙌 คุณสามารถเช็คอินใหม่ได้ในสัปดาห์หน้า",
-            en: "Thanks for coming back! You can check in again next week.",
+            th: "ขอบคุณที่กลับมาดูอีกครั้ง 🙌 คุณสามารถเช็คอินใหม่ได้พรุ่งนี้",
+            en: "Thanks for coming back! You can check in again tomorrow.",
         },
     },
     common: {
