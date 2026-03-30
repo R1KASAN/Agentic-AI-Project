@@ -10,7 +10,7 @@
 |---|---|
 | `src/lib/supabase/server.ts` | **Server Client**: สำหรับใช้ใน Server Components, API Routes, Server Actions (จัดการ Cookies อัตโนมัติ) |
 | `src/lib/supabase/client.ts` | **Browser Client**: สำหรับใช้ใน Client Components (`use client`) |
-| `src/middleware.ts` | **Middleware**: ช่วย refresh session และจัดการ redirect ตาม Role |
+| `src/proxy.ts` | **Proxy**: ช่วย refresh session และจัดการ redirect ตาม Role |
 | `.env.local` | เก็บ `SUPABASE_URL` และ `ANON_KEY` |
 
 ---
@@ -29,18 +29,23 @@ export default function LoginPage() {
 
   const handleLogin = async () => {
     const { error } = await supabase.auth.signInWithPassword({
-      email: "student@example.com",
+      email: "student1@demo.com",
       password: "password123",
     });
     
     if (!error) {
-      window.location.href = "/"; // redirect ไปหน้าแรก
+      window.location.replace("/student/classes"); // redirect ไป student role home
     }
   };
 
   return <button onClick={handleLogin}>Login</button>;
 }
 ```
+
+### Demo credentials for preview / local seed
+
+- Teacher: `teacher@demo.com` / `password123`
+- Student: `student1@demo.com` / `password123`
 
 ---
 

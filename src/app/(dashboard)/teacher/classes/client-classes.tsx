@@ -7,19 +7,31 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Users, MoreVertical, Copy, Plus, Archive, Edit, Loader2, QrCode } from "lucide-react";
+import { Users, MoreVertical, Copy, Plus, Archive, Edit, Loader2, QrCode, BarChart3, HelpCircle, PauseCircle, ShieldCheck } from "lucide-react";
+import { ThaiRiskBadge } from "@/components/domain/teacher/ThaiRiskBadge";
 import { archiveClass, createClassAction } from "./actions";
 import { toast } from "sonner";
 import { QrCodeDialog } from "@/components/domain/teacher/QrCodeDialog";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Badge } from "@/components/ui/badge";
+
+type PolicyLevel = "ROUTINE" | "WARNING" | "CRITICAL";
 
 interface ClientClass {
-    id: string;
-    name: string;
-    invite_code: string;
-    created_at: string;
-    student_count: number;
+  id: string;
+  name: string;
+  invite_code: string;
+  created_at: string;
+  student_count: number;
+  risk_level: PolicyLevel | null;
+  risk_score: number | null;
+  pending_recommendations: number;
+  inquiry_mode_suggested: boolean;
+  blocked_reason: "frequency_limit_exceeded" | "k_anonymity" | null;
+  total_decided: number;
+  dismissal_rate: number;
+  latest_policy_selected: string | null;
 }
 
 interface ClientClassesProps {
@@ -128,13 +140,38 @@ export function ClientClasses({ classes }: ClientClassesProps) {
                                     <Loader2 className="w-6 h-6 animate-spin text-sky-500" />
                                 </div>
                             )}
-                            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                                <CardTitle className="text-base font-semibold truncate pr-2" title={cls.name}>
-                                    <Link href={`/teacher/class/${cls.id}`} className="hover:text-sky-500 transition-colors">
-                                        {cls.name}
-                                    </Link>
-                                </CardTitle>
-                                <DropdownMenu>
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+              <div className="flex-1 min-w-0">
+                <CardTitle className="text-base font-semibold truncate pr-2" title={cls.name}>
+                  <Link href={`/teacher/class/${cls.id}`} className="hover:text-sky-500 transition-colors">
+                    {cls.name}
+                  </Link>
+                </CardTitle>
+<div className="mt-1">
+                <ThaiRiskBadge score={cls.risk_score} policyLevel={cls.risk_level} size="sm" />
+              </div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {cls.inquiry_mode_suggested && (
+                  <Badge variant="secondary" className="bg-violet-50 text-violet-700 border-violet-200">
+                    <HelpCircle className="mr-1 h-3 w-3" />
+                    Inquiry Mode
+                  </Badge>
+                )}
+                {cls.blocked_reason === "frequency_limit_exceeded" && (
+                  <Badge variant="outline" className="border-slate-300 text-slate-600">
+                    <PauseCircle className="mr-1 h-3 w-3" />
+                    No new draft this cycle
+                  </Badge>
+                )}
+                {cls.blocked_reason === "k_anonymity" && (
+                  <Badge variant="outline" className="border-sky-300 text-sky-700">
+                    <ShieldCheck className="mr-1 h-3 w-3" />
+                    Waiting for safe aggregate signal
+                  </Badge>
+                )}
+              </div>
+              </div>
+              <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                         <Button variant="ghost" className="h-8 w-8 p-0">
                                             <span className="sr-only">Open menu</span>
@@ -157,14 +194,54 @@ export function ClientClasses({ classes }: ClientClassesProps) {
                                     </DropdownMenuContent>
                                 </DropdownMenu>
                             </CardHeader>
-                            <CardContent className="flex-1">
-                                <Link href={`/teacher/class/${cls.id}`} className="block h-full group">
-                                    <div className="flex items-center gap-2 text-2xl font-bold mt-2 group-hover:text-sky-600 transition-colors">
-                                        <Users className="w-5 h-5 text-muted-foreground" />
-                                        {cls.student_count} <span className="text-sm font-normal text-muted-foreground">Students</span>
-                                    </div>
-                                </Link>
-                            </CardContent>
+            <CardContent className="flex-1">
+              <Link href={`/teacher/class/${cls.id}`} className="block h-full group">
+                <div className="flex items-center gap-2 text-2xl font-bold mt-2 group-hover:text-sky-600 transition-colors">
+                  <Users className="w-5 h-5 text-muted-foreground" />
+                  {cls.student_count} <span className="text-sm font-normal text-muted-foreground">Students</span>
+                </div>
+                <div className="mt-3 flex items-center gap-2 text-sm">
+                  {cls.pending_recommendations > 0 ? (
+                    <span className="rounded-full bg-amber-100 px-2.5 py-1 font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                      {cls.pending_recommendations} pending draft
+                    </span>
+                  ) : (
+                    <span className="rounded-full bg-sky-100 px-2.5 py-1 font-medium text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">
+                      {cls.blocked_reason === "frequency_limit_exceeded"
+                        ? "no new draft this cycle"
+                        : cls.blocked_reason === "k_anonymity"
+                          ? "waiting for safe aggregate signal"
+                          : "all caught up"}
+                    </span>
+                  )}
+                </div>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  ตัดสินแล้ว {cls.total_decided} รายการ, ข้าม {Math.round(cls.dismissal_rate * 100)}%
+                </p>
+              </Link>
+<div className="flex gap-2 mt-4">
+              <Link href={`/teacher/class/${cls.id}/members`} className="flex-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                >
+                  <Users className="w-4 h-4 mr-2" />
+                  สมาชิก
+                </Button>
+              </Link>
+              <Link href={`/teacher/class/${cls.id}`} className="flex-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                >
+                  <BarChart3 className="w-4 h-4 mr-2" />
+                  ดูผลวิเคราะห์
+                </Button>
+              </Link>
+            </div>
+            </CardContent>
                             <CardFooter className="bg-slate-50 border-t p-3 flex items-center justify-between dark:bg-slate-900">
                                 <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">
                                     Code: <span className="text-foreground tracking-widest ml-1 font-mono bg-slate-200 dark:bg-slate-800 px-1.5 py-0.5 rounded">{cls.invite_code || "N/A"}</span>

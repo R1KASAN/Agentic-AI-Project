@@ -1,6 +1,10 @@
 import Link from "next/link";
-import { CloudSun, ArrowLeft, ShieldOff } from "lucide-react";
+import { ArrowLeft, ShieldOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+    APP_NAME,
+    BrandMark,
+} from "@/components/branding/ClassClimateAgentBrand";
 
 export default function ForbiddenPage() {
     return (
@@ -31,8 +35,8 @@ export default function ForbiddenPage() {
                 </div>
 
                 <div className="flex items-center justify-center gap-2 pt-4 text-muted-foreground/50">
-                    <CloudSun className="w-4 h-4" />
-                    <span className="text-xs">Climate Agent</span>
+                    <BrandMark size="xs" />
+                    <span className="text-xs">{APP_NAME}</span>
                 </div>
             </div>
         </div>

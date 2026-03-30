@@ -1,10 +1,55 @@
 {
   "version": 1,
   "skills": {
+    "api-documenter": {
+      "source": "404kidwiz/claude-supercode-skills",
+      "sourceType": "github",
+      "computedHash": "b468b53875e01ff0a3217f41f06c56d07c8765a7cdfdb88ad93b39add239644e"
+    },
+    "customaize-agent:thought-based-reasoning": {
+      "source": "neolabhq/context-engineering-kit",
+      "sourceType": "github",
+      "computedHash": "c3b15859f7f9141a5e299c00a8cbbd84006f4e55e32ca29d9551e7fcb323fa22"
+    },
+    "elegant-design": {
+      "source": "rand/cc-polymath",
+      "sourceType": "github",
+      "computedHash": "04216e0901837ab5259b1866ffe6853093ce278891d4a53940ef09d6cf51dd6d"
+    },
+    "frontend-design": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "computedHash": "063a0e6448123cd359ad0044cc46b0e490cc7964d45ef4bb9fd842bd2ffbca67"
+    },
+    "n8n-mcp-tools-expert": {
+      "source": "czlonkowski/n8n-skills",
+      "sourceType": "github",
+      "computedHash": "eba19c1fa6bacd0609b99a78d5883cb06a89b4c5442cb24c5482bd0513a0ee33"
+    },
+    "n8n-validation-expert": {
+      "source": "czlonkowski/n8n-skills",
+      "sourceType": "github",
+      "computedHash": "895f73b258213dcaf2c90ffd49e40df8c3f2d89cde7c6f616efc2506236b9bac"
+    },
+    "n8n-workflow-patterns": {
+      "source": "czlonkowski/n8n-skills",
+      "sourceType": "github",
+      "computedHash": "ca96b2c12c2712365e4e95ae07d7dac464d7810cf9781de542e57ded2a88c927"
+    },
     "next-best-practices": {
       "source": "vercel-labs/next-skills",
       "sourceType": "github",
       "computedHash": "515ba75178bd44875812d9a560bdf14651f86709f89cf1d4f209638e879807f3"
+    },
+    "prompt-engineer": {
+      "source": "shipshitdev/library",
+      "sourceType": "github",
+      "computedHash": "e1fbee53d677057783edb2d55b665f3f3a5fc4d40094115dcb935419571bb74b"
+    },
+    "workspace-documentation": {
+      "source": "qodex-ai/ai-agent-skills",
+      "sourceType": "github",
+      "computedHash": "8ec4ff3ce16f79135350fa015e753c25c26db5648fd70da9ccd9d08b02fe3218"
     }
   }
 }

@@ -7,18 +7,21 @@ import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import {
-    CloudSun,
     LayoutDashboard,
-    MessageSquare,
     BarChart3,
     ClipboardList,
     Shield,
     LogOut,
     ChevronLeft,
     ChevronRight,
+    Users,
 } from "lucide-react";
 import { useState } from "react";
 import type { UserRole } from "@/types";
+import {
+    APP_NAME,
+    BrandMark,
+} from "@/components/branding/ClassClimateAgentBrand";
 
 interface NavItem {
     label: string;
@@ -28,25 +31,19 @@ interface NavItem {
 
 const NAV_ITEMS: Record<UserRole, NavItem[]> = {
     student: [
-        { label: "Check-in", href: "/student/check-in", icon: <CloudSun className="w-5 h-5" /> },
+        { label: "ห้องเรียน", href: "/student/classes", icon: <Users className="w-5 h-5" /> },
         { label: "Feedback", href: "/student/feedback", icon: <BarChart3 className="w-5 h-5" /> },
         { label: "ความเป็นส่วนตัว", href: "/student/privacy", icon: <Shield className="w-5 h-5" /> },
     ],
     teacher: [
         { label: "Dashboard", href: "/teacher", icon: <LayoutDashboard className="w-5 h-5" /> },
         { label: "จัดการห้องเรียน", href: "/teacher/classes", icon: <ClipboardList className="w-5 h-5" /> },
-        { label: "Recommendations", href: "/teacher/recommendations", icon: <MessageSquare className="w-5 h-5" /> },
     ],
 };
 
 const ROLE_LABELS: Record<UserRole, string> = {
     student: "Student",
     teacher: "Teacher",
-};
-
-const ROLE_COLORS: Record<UserRole, string> = {
-    student: "from-indigo-500 to-indigo-600",
-    teacher: "from-sky-500 to-sky-600",
 };
 
 interface DashboardShellProps {
@@ -66,6 +63,7 @@ export function DashboardShell({
     const router = useRouter();
     const [collapsed, setCollapsed] = useState(false);
     const navItems = NAV_ITEMS[role] || [];
+    const isStudent = role === "student";
 
     async function handleSignOut() {
         const confirmed = window.confirm("ออกจากระบบ? / Sign out?");
@@ -76,30 +74,58 @@ export function DashboardShell({
     }
 
     return (
-        <div className="flex h-screen overflow-hidden bg-background">
+        <div
+            className={cn(
+                "flex h-screen overflow-hidden bg-background",
+                isStudent && "student-dashboard-shell"
+            )}
+        >
             {/* Sidebar */}
             <aside
                 className={cn(
-                    "flex flex-col bg-sidebar-bg text-sidebar-fg border-r border-slate-700/50 transition-all duration-300",
+                    "flex flex-col transition-all duration-300",
+                    isStudent
+                        ? "border-r border-[color:var(--student-dashboard-border)] bg-[var(--student-dashboard-sidebar)] text-[var(--student-dashboard-text)]"
+                        : "bg-sidebar-bg text-sidebar-fg border-r border-slate-700/50",
                     collapsed ? "w-[68px]" : "w-60"
                 )}
             >
                 {/* Brand */}
-                <div className="flex items-center gap-3 px-4 py-5 border-b border-slate-700/50">
-                    <div
+                <div
+                    className={cn(
+                        "flex items-center gap-3 border-b px-4 py-5",
+                        isStudent
+                            ? "border-[color:var(--student-dashboard-border)]"
+                            : "border-slate-700/50"
+                    )}
+                >
+                    <BrandMark
+                        size="sm"
                         className={cn(
-                            "flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br shadow-lg flex-shrink-0",
-                            ROLE_COLORS[role]
+                            "flex-shrink-0",
+                            isStudent
+                                ? "border-[color:var(--student-dashboard-border)] bg-[var(--student-dashboard-surface-raised)] text-[var(--student-dashboard-primary)]"
+                                : "border-sky-200/80 bg-sky-100 text-blue-700"
                         )}
-                    >
-                        <CloudSun className="w-5 h-5 text-white" />
-                    </div>
+                    />
                     {!collapsed && (
                         <div className="overflow-hidden">
-                            <h2 className="text-sm font-semibold text-white truncate">
-                                Climate Agent
+                            <h2
+                                className={cn(
+                                    "truncate text-sm font-semibold",
+                                    isStudent ? "text-[var(--student-dashboard-text)]" : "text-white"
+                                )}
+                            >
+                                {APP_NAME}
                             </h2>
-                            <p className="text-[11px] text-slate-400 truncate">
+                            <p
+                                className={cn(
+                                    "truncate text-[11px]",
+                                    isStudent
+                                        ? "text-[var(--student-dashboard-text-muted)]"
+                                        : "text-slate-400"
+                                )}
+                            >
                                 {ROLE_LABELS[role]} Dashboard
                             </p>
                         </div>
@@ -107,7 +133,7 @@ export function DashboardShell({
                 </div>
 
                 {/* Navigation */}
-                <nav className="flex-1 px-3 py-4 space-y-1">
+                <nav className="flex flex-1 flex-col gap-1 px-3 py-4">
                     {navItems.map((item) => {
                         // Exact match for root paths like "/teacher" or "/admin/metrics"
                         // to prevent greedy matching of sub-routes like "/teacher/classes"
@@ -122,17 +148,30 @@ export function DashboardShell({
                                 key={item.href}
                                 href={item.href}
                                 className={cn(
-                                    "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all",
-                                    isActive
-                                        ? "bg-sidebar-active/20 text-white shadow-sm"
-                                        : "text-slate-400 hover:text-white hover:bg-white/5"
+                                    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--student-dashboard-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
+                                    isStudent &&
+                                        "border border-transparent text-[var(--student-dashboard-text-muted)] hover:border-[color:var(--student-dashboard-border)] hover:bg-[var(--student-dashboard-surface)] hover:text-[var(--student-dashboard-text)]",
+                                    !isStudent &&
+                                        (isActive
+                                            ? "bg-sidebar-active/20 text-white shadow-sm"
+                                            : "text-slate-400 hover:text-white hover:bg-white/5"),
+                                    isStudent &&
+                                        isActive &&
+                                        "border-[color:var(--student-dashboard-border)] bg-[var(--student-dashboard-primary-soft)] text-[var(--student-dashboard-text)] shadow-sm",
+                                    !isStudent && isActive && "bg-sidebar-active/20 text-white shadow-sm"
                                 )}
                                 title={collapsed ? item.label : undefined}
                             >
                                 <span
                                     className={cn(
                                         "flex-shrink-0",
-                                        isActive ? "text-sidebar-active" : ""
+                                        isStudent
+                                            ? isActive
+                                                ? "text-[var(--student-dashboard-primary)]"
+                                                : "text-[var(--student-dashboard-text-muted)]"
+                                            : isActive
+                                              ? "text-sidebar-active"
+                                              : ""
                                     )}
                                 >
                                     {item.icon}
@@ -144,10 +183,24 @@ export function DashboardShell({
                 </nav>
 
                 {/* Bottom section */}
-                <div className="mt-auto border-t border-slate-700/50">
+                <div
+                    className={cn(
+                        "mt-auto border-t",
+                        isStudent
+                            ? "border-[color:var(--student-dashboard-border)]"
+                            : "border-slate-700/50"
+                    )}
+                >
                     {/* User */}
                     <div className="flex items-center gap-3 px-4 py-3">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-slate-600 to-slate-500 flex items-center justify-center flex-shrink-0 text-xs font-bold text-white">
+                        <div
+                            className={cn(
+                                "flex size-8 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold text-white",
+                                isStudent
+                                    ? "bg-gradient-to-br from-[var(--student-dashboard-surface-raised)] to-[var(--student-dashboard-surface-soft)]"
+                                    : "bg-gradient-to-br from-slate-600 to-slate-500"
+                            )}
+                        >
                             {avatarUrl ? (
                                 <Image
                                     src={avatarUrl}
@@ -162,11 +215,25 @@ export function DashboardShell({
                         </div>
                         {!collapsed && (
                             <div className="overflow-hidden flex-1">
-                                <p className="text-sm font-medium text-white truncate">
+                                <p
+                                    className={cn(
+                                        "truncate text-sm font-medium",
+                                        isStudent
+                                            ? "text-[var(--student-dashboard-text)]"
+                                            : "text-white"
+                                    )}
+                                >
                                     {userName}
                                 </p>
-                                <p className="text-[11px] text-slate-400 flex items-center gap-1">
-                                    <Shield className="w-3 h-3" />
+                                <p
+                                    className={cn(
+                                        "flex items-center gap-1 text-[11px]",
+                                        isStudent
+                                            ? "text-[var(--student-dashboard-text-muted)]"
+                                            : "text-slate-400"
+                                    )}
+                                >
+                                    <Shield className="size-3" />
                                     {ROLE_LABELS[role]}
                                 </p>
                             </div>
@@ -174,25 +241,35 @@ export function DashboardShell({
                     </div>
 
                     {/* Actions */}
-                    <div className="px-3 pb-3 space-y-1">
+                    <div className="flex flex-col gap-1 px-3 pb-3">
                         <button
                             onClick={handleSignOut}
-                            className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                            className={cn(
+                                "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--student-dashboard-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
+                                isStudent
+                                    ? "text-[var(--student-dashboard-text-muted)] hover:bg-[var(--student-dashboard-surface)] hover:text-[var(--student-dashboard-danger)]"
+                                    : "text-slate-400 hover:text-red-400 hover:bg-red-500/10"
+                            )}
                             title={collapsed ? "Sign Out" : undefined}
                         >
-                            <LogOut className="w-4 h-4 flex-shrink-0" />
+                            <LogOut className="size-4 flex-shrink-0" />
                             {!collapsed && <span>Sign Out</span>}
                         </button>
                         <button
                             onClick={() => setCollapsed(!collapsed)}
-                            className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all"
+                            className={cn(
+                                "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--student-dashboard-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
+                                isStudent
+                                    ? "text-[var(--student-dashboard-text-muted)] hover:bg-[var(--student-dashboard-surface)] hover:text-[var(--student-dashboard-text)]"
+                                    : "text-slate-400 hover:text-white hover:bg-white/5"
+                            )}
                             title={collapsed ? "Expand" : "Collapse"}
                         >
                             {collapsed ? (
-                                <ChevronRight className="w-4 h-4 flex-shrink-0" />
+                                <ChevronRight className="size-4 flex-shrink-0" />
                             ) : (
                                 <>
-                                    <ChevronLeft className="w-4 h-4 flex-shrink-0" />
+                                    <ChevronLeft className="size-4 flex-shrink-0" />
                                     <span>Collapse</span>
                                 </>
                             )}
@@ -202,8 +279,13 @@ export function DashboardShell({
             </aside>
 
             {/* Main content */}
-            <main className="flex-1 overflow-auto">
-                <div className="max-w-6xl mx-auto px-6 py-8">{children}</div>
+            <main
+                className={cn(
+                    "flex-1 overflow-auto",
+                    isStudent && "bg-[var(--student-dashboard-bg)] text-[var(--student-dashboard-text)]"
+                )}
+            >
+                <div className="mx-auto max-w-6xl px-6 py-8">{children}</div>
             </main>
         </div>
     );

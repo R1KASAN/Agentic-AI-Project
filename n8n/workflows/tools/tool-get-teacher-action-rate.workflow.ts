@@ -11,9 +11,11 @@ import { workflow, node, links } from '@n8n-as-code/core';
  * {
  *   approval_rate: number (0-1),
  *   implementation_rate: number (0-1),
- *   is_inquiry_mode: boolean,
+ *   teacher_flag_inquiry_mode: boolean,
  *   dismissal_count: number,
- *   dismissal_pattern_consecutive: number
+ *   dismissal_pattern_consecutive: number,
+ *   dismissal_rate: number,
+ *   inquiry_reason: string | null
  * }
  * 
  * Inquiry Mode Logic:
@@ -108,6 +110,12 @@ return {
   dismissal_count: dismissalCount,
   dismissal_pattern_consecutive: consecutivePattern,
   is_inquiry_mode: isInquiryMode,
+  teacher_flag_inquiry_mode: profile.is_inquiry_mode || false,
+  inquiry_reason: profile.is_inquiry_mode
+    ? 'teacher_flag'
+    : dismissalRate > 0.6 && consecutivePattern >= 2
+    ? 'dismissal_pattern'
+    : null,
   inquiry_mode_triggered_at: profile.inquiry_mode_triggered_at || null
 };
 `

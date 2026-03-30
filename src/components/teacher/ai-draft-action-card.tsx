@@ -77,6 +77,9 @@ export function AIDraftActionCard({ id, content, category, priority, aiGenerated
                         {content}
                     </p>
                 </div>
+                <p className="text-xs text-muted-foreground">
+                    ข้อความที่ครูอนุมัติจากการ์ดนี้จะถูกแชร์ให้นักเรียนเห็นในหน้า feedback ของห้อง
+                </p>
             </CardContent>
 
             <CardFooter className="flex justify-end gap-2 pt-2 pb-4 px-6 relative z-10 border-t bg-muted/10 mt-2">
@@ -88,21 +91,21 @@ export function AIDraftActionCard({ id, content, category, priority, aiGenerated
                     onClick={() => handleAction('dismissed', undefined, 'Dismissed by Teacher')}
                 >
                     {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <X className="w-4 h-4 mr-2" />}
-                    Dismiss
+                    ไม่ใช้ข้อความนี้
                 </Button>
 
                 <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
                     <DialogTrigger asChild>
                         <Button variant="outline" size="sm" className="bg-background" disabled={isSubmitting}>
                             <Edit2 className="w-4 h-4 mr-2" />
-                            Edit
+                            แก้ไขข้อความ
                         </Button>
                     </DialogTrigger>
                     <DialogContent className="sm:max-w-[425px]">
                         <DialogHeader>
-                            <DialogTitle>Edit AI Suggestion</DialogTitle>
+                            <DialogTitle>แก้ไขข้อความก่อนแชร์</DialogTitle>
                             <DialogDescription>
-                                Modify this draft before approving it for your class. This text will be shown in the student&apos;s loop closure feed.
+                                แก้ไขข้อความนี้ก่อนอนุมัติได้ เมื่อยืนยันแล้ว นักเรียนจะเห็นข้อความนี้ในหน้า feedback ของห้อง
                             </DialogDescription>
                         </DialogHeader>
                         <div className="py-4 mt-2">
@@ -113,9 +116,9 @@ export function AIDraftActionCard({ id, content, category, priority, aiGenerated
                             />
                         </div>
                         <DialogFooter>
-                            <Button variant="outline" onClick={() => setIsEditOpen(false)}>Cancel</Button>
+                            <Button variant="outline" onClick={() => setIsEditOpen(false)}>ยกเลิก</Button>
                             <Button onClick={() => handleAction('edited', editedContent)} disabled={isSubmitting || !editedContent.trim()}>
-                                {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : "Approve with Edits"}
+                                {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : "อนุมัติและแชร์ถึงนักเรียน"}
                             </Button>
                         </DialogFooter>
                     </DialogContent>
@@ -128,7 +131,7 @@ export function AIDraftActionCard({ id, content, category, priority, aiGenerated
                     className="bg-indigo-600 hover:bg-indigo-700 text-white"
                 >
                     {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Check className="w-4 h-4 mr-2" />}
-                    Approve Action
+                    อนุมัติและแชร์ถึงนักเรียน
                 </Button>
             </CardFooter>
         </Card>

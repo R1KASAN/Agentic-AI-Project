@@ -10,8 +10,8 @@
 ## Executive Overview
 
 Phase 2 transforms Climate Agent from a reporting tool (Level 1) into an autonomous proactive agent (Level 2) with:
-- **W06 Morning AI Briefing** — Daily 7:30 AM personalized climate briefing via LINE with teacher approval gate
-- **W07 Mood Anomaly Alert** — Real-time (30min intervals) anomaly detection with immediate LINE notification & rapid interventions
+- **W06 Morning AI Briefing** — Daily 7:30 AM personalized climate briefing (Email-first) with teacher approval gate
+- **W07 Mood Anomaly Alert** — Real-time (30min intervals) anomaly detection with immediate notification (Email-first) & rapid interventions
 - **Loop Closure UI** — Dashboard enhancement tracking "Mark as Done" workflow with feedback collection
 
 All three features **close the agentic loop** (Sense → Reason → Act → Self-Evaluate → Learn) required by Constitution v2.0 and feed metrics back into continuous improvement.
@@ -51,22 +51,22 @@ All three features **close the agentic loop** (Sense → Reason → Act → Self
 │ W07: Mood Anomaly Alert               [NEW - Phase 2]              │
 │   → Every 30 min trigger OR webhook on new check-in               │
 │   → Rule-based detection (mood drop >30%) + LLM severity class    │
-│   → Output: high/medium alert → LINE (gated by daily max)         │
+│   → Output: high/medium alert → Notification (gated by daily max)      │
 │                                                                     │
 │ Shared Tools:                                                       │
 │   • tool-get-climate-summary (RPC call)                           │
 │   • tool-anomaly-detection (rule-based + LLM)                     │
-│   • tool-line-notify (LINE API abstraction)                       │
+│   • tool-line-notify (Optional - LINE API abstraction)            │
 │   • tool-frequency-guard (daily notification guard)               │
 └─────────────────────────────────────────────────────────────────────┘
            ↓
 ┌─────────────────────────────────────────────────────────────────────┐
 │ ACTION LAYER (Act)                                                  │
 ├─────────────────────────────────────────────────────────────────────┤
-│ W06: LINE message → Dashboard → Teacher approval gate              │
-│      POST /api/briefings/approve → LINE send confirmation         │
+│ W06: Email/Notification → Dashboard → Teacher approval gate        │
+│      POST /api/briefings/approve → Action confirmation             │
 │                                                                     │
-│ W07: LINE message (immediate, guarded by frequency)               │
+│ W07: Notification (immediate, guarded by frequency)                 │
 │      POST /api/alerts/:id/acknowledge (dashboard response)        │
 │                                                                     │
 │ Common: Webhook receiver (POST /api/n8n/webhook)                 │
@@ -120,9 +120,9 @@ PHASE 2 AGENTIC LOOP (5-Step Closure)
    ├─ W06: Store briefing_queue "pending" → POST /api/n8n/webhook
    │   ├─ Dashboard shows: "Approve & Send" button
    │   └─ Teacher clicks → POST /api/briefings/approve
-   │       → LINE send → briefing_queue.status = "sent"
+   │       → Briefing sent → briefing_queue.status = "sent"
    │
-   ├─ W07: Immediately (within 2 min): LINE send (if guard ok)
+   ├─ W07: Immediately (within 2 min): Notification send (if guard ok)
    │   ├─ Alert stores in mood_alerts table
    │   └─ Dashboard shows: "Acknowledged" button & optional modal
    │       → Teacher clicks → POST /api/alerts/:id/acknowledge
@@ -161,7 +161,7 @@ PHASE 2 AGENTIC LOOP (5-Step Closure)
 
 ## Shared Infrastructure (Common to All Features)
 
-### 1. LINE API Abstraction Layer
+### 1. LINE API Abstraction Layer (Optional - Future)
 
 **File**: `src/lib/line-notify.ts`
 
@@ -181,7 +181,7 @@ export async function sendLineNotify(
 ): Promise<{ messageId: string; status: "success" | "error" }>;
 
 // Usage in n8n: n8n-nodes-base.httpRequest → {baseUrl, endpoint, method, auth}
-// n8n will use env vars: LINE_NOTIFY_TOKEN, LINE_CHANNEL_ACCESS_TOKEN
+// n8n will use env vars: LINE_NOTIFY_TOKEN (Optional)
 ```
 
 ### 2. Notification Frequency Guard
@@ -201,10 +201,11 @@ CREATE TABLE notification_log (
   UNIQUE(school_id, class_id, notification_type, sent_date)
 );
 
--- Guard logic: before LINE send, check:
+-- Guard logic: before notification send, check:
 -- SELECT COUNT(*) FROM notification_log 
 -- WHERE class_id = $1 AND sent_date = now()::date
 -- IF count >= 2 THEN queue for next day OR skip
+-- (Common across Email/LINE/Other)
 ```
 
 **N8N Node Pattern** (used in both W06 & W07):
@@ -217,7 +218,7 @@ Output: {notification_count: 1}
 Node: "IF Guard Passed"
 Type: n8n-nodes-base.if
 Condition: notification_count < 2
-Branch 0 (true): proceed to LINE send
+Branch 0 (true): proceed to notification send
 Branch 1 (false): queue for next day
 ```
 
@@ -297,7 +298,7 @@ WEBHOOK → N8N triggered on approval
            ├─ Trigger: Schedule every 30 min (or webhook on check-in)
            ├─ Check frequency guard: max 2 alerts/day per class
            ├─ If guard: proceed to anomaly detection
-           └─ Output: mood_alerts table + LINE send (immediate, no approval gate)
+           └─ Output: mood_alerts table + Notification send (immediate, no approval gate)
                 ↓
 DASHBOARD → Teacher acknowledges alert
            └─ Captures interval action ("I'll try this"), response_latency
@@ -320,7 +321,7 @@ Nightly (01:00 UTC) — Aggregation Job (Phase 2 enhancement to existing summary
 ### Week 1-2: Shared Infrastructure
 - [ ] Create `src/lib/line-notify.ts` (LINE API client)
 - [ ] Migrations 020-024 (DB schema)
-- [ ] Set up n8n environment variables (LINE_NOTIFY_TOKEN)
+- [ ] Set up n8n environment variables (LINE_NOTIFY_TOKEN - Optional)
 - [ ] Create shared tool sub-workflows:
   - [ ] `tool-get-climate-summary` (existing? verify)
   - [ ] `tool-anomaly-detection` (new rule engine)
@@ -377,7 +378,7 @@ Nightly (01:00 UTC) — Aggregation Job (Phase 2 enhancement to existing summary
 | **W07 False-Positive Rate** | <20% dismissals due to "not relevant" feedback | Admin: mood_alerts.dismissed_reason analysis |
 | **W07 Response Latency** | 50th percentile <10 min (time from alert to acknowledgment) | Audit log: response_latency_seconds aggregation |
 | **Loop Closure Rate** | ≥60% of daily recommendations → marked done within 48h (Principle III) | Audit log: closure_latency_hours aggregation |
-| **Availability** | >99.5% (W06 & W07 workflows, LINE delivery) | n8n monitoring, webhook retry logs |
+| **Availability** | >99.5% (W06 & W07 workflows, Notification delivery) | n8n monitoring, webhook retry logs |
 | **Data Privacy** | 0 violations (no raw student names in notifications, k≥3 enforced) | Audit: random sampling of 100 messages sent |
 
 ### Rollout Strategy

@@ -1,0 +1,548 @@
+{
+  "name": "Climate Agent - Morning Briefing",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "ca-trigger-001",
+      "name": "Daily Climate Check Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "" },
+          "conditions": [
+            {
+              "id": "school-day-check",
+              "leftValue": "={{ $now.weekday() }}",
+              "rightValue": 1,
+              "operator": { "type": "number", "operation": "gte" }
+            },
+            {
+              "id": "school-day-check-2",
+              "leftValue": "={{ $now.weekday() }}",
+              "rightValue": 5,
+              "operator": { "type": "number", "operation": "lte" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ca-if-schoolday-002",
+      "name": "Check School Day",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/rpc/get_aggregated_climate_data",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_date\": \"{{ $now.format('YYYY-MM-DD') }}\", \"p_min_n\": 3 }",
+        "options": {
+          "timeout": 30000,
+          "retry": { "maxTries": 3, "waitBetweenTries": 2000 }
+        }
+      },
+      "id": "ca-http-climate-003",
+      "name": "Get Aggregated Climate Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "" },
+          "conditions": [
+            {
+              "id": "validate-data-count",
+              "leftValue": "={{ $json.total_responses }}",
+              "rightValue": 3,
+              "operator": { "type": "number", "operation": "gte" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ca-if-validate-004",
+      "name": "Validate n >= 3",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "workflowId": "={{ $env.TOOL_GET_TEACHER_METRICS_ID }}",
+        "options": {},
+        "workflowInputs": {
+          "values": [
+            { "name": "class_id", "value": "={{ $json[0].class_id }}" },
+            { "name": "lookback_days", "value": "=30" }
+          ]
+        }
+      },
+      "id": "ca-exec-teacher-005",
+      "name": "Tool: Get Teacher Metrics",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "workflowId": "={{ $env.TOOL_GET_PAST_RECS_ID }}",
+        "options": {},
+        "workflowInputs": {
+          "values": [
+            { "name": "class_id", "value": "={{ $node['Get Aggregated Climate Data'].json[0].class_id }}" },
+            { "name": "lookback_days", "value": "=30" }
+          ]
+        }
+      },
+      "id": "ca-exec-pastrecs-006",
+      "name": "Tool: Get Past Recommendations",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [1050, 500]
+    },
+    {
+      "parameters": {
+        "agent": "toolsAgent",
+        "text": "={{ JSON.stringify({ climate_data: $node['Get Aggregated Climate Data'].json, teacher_metrics: $node['Tool: Get Teacher Metrics'].json, past_recommendations: $node['Tool: Get Past Recommendations'].json, current_date: $now.format('YYYY-MM-DD') }) }}",
+        "options": {
+          "systemMessage": "You are Climate Agent — an AI assistant for Thai classroom mental health support.\n\nYour Mission:\nAnalyze aggregated k-anonymized student mood data and recommend specific, compassionate actions for teachers. You provide informed drafts for teacher review — you are NOT a replacement for teacher judgment.\n\nConstitution Rules (MUST FOLLOW ALL):\n1. PRIVACY FIRST: Never mention, reference, or imply individual student identities. All data is k-anonymized (minimum n=3 responses aggregated). Never say \"a student\" or \"some students.\"\n2. ACTIONABLE: Provide exactly 1-3 specific, measurable actions teachers can take today.\n3. POLICY SELECTION — choose exactly ONE based on avg_mood_score:\n   - ROUTINE: avg_mood_score >= 3.5 → positive, supportive tone\n   - WARNING: 2.5 <= avg_mood_score < 3.5 → gentle concern, monitoring focus\n   - CRITICAL: avg_mood_score < 2.5 → urgent but calm tone, clear immediate steps\n4. INQUIRY MODE: If teacher dismissal_rate > 0.60, set inquiry_mode=true and replace actions with 1-2 empathetic clarifying questions about their classroom context.\n5. CONTEXTUAL: If last_action_date is more than 7 days ago, acknowledge teacher workload briefly before recommendations.\n6. LANGUAGE: message_draft MUST be in Thai (max 280 chars). reasoning may be Thai or English.\n7. OUTPUT FORMAT: Respond ONLY with valid JSON. No markdown fences. No explanation outside JSON.\n\nOutput format (strict):\n{\"policy_level\":\"ROUTINE|WARNING|CRITICAL\",\"confidence\":0.0,\"reasoning\":\"\",\"actions\":[\"\"],\"message_draft\":\"\",\"inquiry_mode\":false}",
+          "maxIterations": 5,
+          "returnIntermediateSteps": false
+        }
+      },
+      "id": "ca-agent-007",
+      "name": "Climate Analysis Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.6,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "modelName": "gemini-2.0-flash",
+        "options": {
+          "temperature": 0.3,
+          "maxOutputTokens": 1500
+        }
+      },
+      "id": "ca-gemini-llm-007b",
+      "name": "Google Gemini Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.4,
+      "position": [1150, 520],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "gemini-key",
+          "name": "Google Gemini API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "" },
+          "conditions": [
+            {
+              "id": "confidence-check",
+              "leftValue": "={{ $json.confidence }}",
+              "rightValue": 0.65,
+              "operator": { "type": "number", "operation": "gte" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ca-if-confidence-008",
+      "name": "Check AI Confidence",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1450, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const data = $input.all()[0].json;\nconst avgMood = (data.climate_data && data.climate_data[0])\n  ? data.climate_data[0].avg_mood_score\n  : (data.avg_mood_score || 3.0);\n\nlet policy = \"ROUTINE\";\nlet message = \"✅ สวัสดีครับคุณครู วันนี้บรรยากาศห้องเรียนอยู่ในเกณฑ์ดีค่ะ\";\n\nif (avgMood < 2.5) {\n  policy = \"CRITICAL\";\n  message = \"⚠️ สวัสดีครับคุณครู พบสัญญาณที่น่าเป็นห่วงในห้องเรียน กรุณาเข้า Dashboard เพื่อตรวจสอบด่วนค่ะ\";\n} else if (avgMood < 3.5) {\n  policy = \"WARNING\";\n  message = \"🔔 สวัสดีครับคุณครู บรรยากาศห้องเรียนต่ำกว่าปกติ ขอแนะนำให้ติดตามค่ะ\";\n}\n\nreturn [{ json: {\n  policy_level: policy,\n  confidence: 0.60,\n  reasoning: \"Rule-based fallback: AI confidence below 0.65 threshold.\",\n  actions: [\n    \"สังเกตบรรยากาศและพฤติกรรมนักเรียนในช่วงเช้า\",\n    \"ให้กำลังใจนักเรียนที่ดูเครียด\",\n    \"ติดตามผลภายใน 2-3 วัน\"\n  ],\n  message_draft: message,\n  inquiry_mode: false,\n  fallback_used: true\n}}];"
+      },
+      "id": "ca-code-fallback-009",
+      "name": "Fallback Policy Engine",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1450, 500]
+    },
+    {
+      "parameters": {
+        "mode": "rules",
+        "rules": {
+          "values": [
+            { "outputIndex": 0, "value": "ROUTINE" },
+            { "outputIndex": 1, "value": "WARNING" },
+            { "outputIndex": 2, "value": "CRITICAL" }
+          ]
+        },
+        "dataPropertyName": "={{ $json.policy_level }}",
+        "options": { "fallbackOutput": "none" }
+      },
+      "id": "ca-switch-policy-010",
+      "name": "Route by Policy Level",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [1650, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/rpc/check_frequency_limit",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_class_id\": \"{{ $node['Get Aggregated Climate Data'].json[0].class_id }}\", \"p_max_daily\": 2, \"p_max_weekly\": 5 }",
+        "options": {
+          "timeout": 15000,
+          "retry": { "maxTries": 3, "waitBetweenTries": 2000 }
+        }
+      },
+      "id": "ca-http-freq-011",
+      "name": "Check Frequency Limits",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1750, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/recommendations",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"class_id\": \"{{ $node['Get Aggregated Climate Data'].json[0].class_id }}\", \"policy_level\": \"ROUTINE\", \"ai_message_draft\": \"{{ $json.message_draft }}\", \"actions_json\": {{ JSON.stringify($json.actions) }}, \"confidence_score\": {{ $json.confidence }}, \"reasoning\": \"{{ $json.reasoning }}\", \"inquiry_mode\": {{ $json.inquiry_mode }}, \"fallback_used\": {{ $json.fallback_used || false }}, \"status\": \"PENDING_APPROVAL\", \"priority\": \"NORMAL\", \"created_at\": \"{{ $now.toISO() }}\" }",
+        "options": {
+          "timeout": 15000,
+          "retry": { "maxTries": 3, "waitBetweenTries": 2000 }
+        }
+      },
+      "id": "ca-http-insert-routine-012",
+      "name": "Insert Draft Recommendation (ROUTINE)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1950, 100]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/recommendations",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"class_id\": \"{{ $node['Get Aggregated Climate Data'].json[0].class_id }}\", \"policy_level\": \"WARNING\", \"ai_message_draft\": \"{{ $json.message_draft }}\", \"actions_json\": {{ JSON.stringify($json.actions) }}, \"confidence_score\": {{ $json.confidence }}, \"reasoning\": \"{{ $json.reasoning }}\", \"inquiry_mode\": {{ $json.inquiry_mode }}, \"fallback_used\": {{ $json.fallback_used || false }}, \"status\": \"PENDING_APPROVAL\", \"priority\": \"HIGH\", \"alert_sent_at\": \"{{ $now.toISO() }}\", \"created_at\": \"{{ $now.toISO() }}\" }",
+        "options": {
+          "timeout": 15000,
+          "retry": { "maxTries": 3, "waitBetweenTries": 2000 }
+        }
+      },
+      "id": "ca-http-insert-warning-013",
+      "name": "Insert Draft Recommendation (WARNING)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1950, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://notify-api.line.me/api/notify",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.LINE_NOTIFY_TOKEN }}" },
+            { "name": "Content-Type", "value": "application/x-www-form-urlencoded" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "=message=⚠️ [Climate Agent] พบสัญญาณเตือนห้องเรียนวันนี้ กรุณาเข้า Dashboard เพื่อตรวจสอบและอนุมัติข้อเสนอแนะครับ",
+        "options": {
+          "timeout": 15000,
+          "retry": { "maxTries": 3, "waitBetweenTries": 2000 }
+        }
+      },
+      "id": "ca-http-line-warning-014",
+      "name": "LINE Alert - Dashboard Action Required",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2150, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/recommendations",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"class_id\": \"{{ $node['Get Aggregated Climate Data'].json[0].class_id }}\", \"policy_level\": \"CRITICAL\", \"ai_message_draft\": \"{{ $json.message_draft }}\", \"actions_json\": {{ JSON.stringify($json.actions) }}, \"confidence_score\": {{ $json.confidence }}, \"reasoning\": \"{{ $json.reasoning }}\", \"inquiry_mode\": {{ $json.inquiry_mode }}, \"fallback_used\": {{ $json.fallback_used || false }}, \"status\": \"PENDING_APPROVAL\", \"priority\": \"URGENT\", \"alert_sent_at\": \"{{ $now.toISO() }}\", \"created_at\": \"{{ $now.toISO() }}\" }",
+        "options": {
+          "timeout": 15000,
+          "retry": { "maxTries": 3, "waitBetweenTries": 2000 }
+        }
+      },
+      "id": "ca-http-insert-critical-015",
+      "name": "Insert Draft Recommendation (CRITICAL)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1950, 500]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://notify-api.line.me/api/notify",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.LINE_ADMIN_TOKEN }}" },
+            { "name": "Content-Type", "value": "application/x-www-form-urlencoded" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "=message=🚨 URGENT [Climate Agent] พบสัญญาณวิกฤตในห้องเรียน Avg Mood: {{ $node['Get Aggregated Climate Data'].json[0].avg_mood_score }} — กรุณาเข้า Dashboard ด่วนครับ",
+        "options": {
+          "timeout": 15000,
+          "retry": { "maxTries": 3, "waitBetweenTries": 2000 }
+        }
+      },
+      "id": "ca-http-line-critical-016",
+      "name": "CRITICAL Alert to Admin",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2150, 500]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/n8n_audit_log",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"workflow_id\": \"{{ $workflow.id }}\", \"execution_id\": \"{{ $execution.id }}\", \"trigger_time\": \"{{ $now.toISO() }}\", \"policy_selected\": \"{{ $json.policy_level }}\", \"confidence_score\": {{ $json.confidence }}, \"actions_taken\": {{ JSON.stringify($json.actions) }}, \"decision_path_json\": {{ JSON.stringify({ sense_data: $node['Get Aggregated Climate Data'].json, teacher_metrics: $node['Tool: Get Teacher Metrics'].json, ai_reasoning: $json.reasoning, inquiry_mode: $json.inquiry_mode, fallback_used: $json.fallback_used || false }) }}, \"status\": \"COMPLETED\" }",
+        "options": {
+          "timeout": 15000,
+          "retry": { "maxTries": 3, "waitBetweenTries": 2000 }
+        }
+      },
+      "id": "ca-http-audit-017",
+      "name": "Insert Audit Log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2350, 300]
+    },
+    {
+      "parameters": {},
+      "id": "ca-error-trigger-018",
+      "name": "Workflow Error Handler",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [250, 600]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/error_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"workflow_id\": \"{{ $workflow.id }}\", \"execution_id\": \"{{ $execution.id }}\", \"error_node\": \"{{ $json.node }}\", \"error_message\": \"{{ $json.message }}\", \"error_stack\": \"{{ $json.stack }}\", \"timestamp\": \"{{ $now.toISO() }}\" }",
+        "options": {
+          "timeout": 15000,
+          "retry": { "maxTries": 3, "waitBetweenTries": 2000 }
+        }
+      },
+      "id": "ca-http-errorlog-019",
+      "name": "Insert Error Log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [450, 600]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.ADMIN_WEBHOOK }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"alert_type\": \"SYSTEM_ERROR\", \"workflow\": \"Climate Agent\", \"error_node\": \"{{ $json.node }}\", \"error\": \"{{ $json.message }}\", \"timestamp\": \"{{ $now.toISO() }}\" }",
+        "options": {
+          "timeout": 15000,
+          "retry": { "maxTries": 3, "waitBetweenTries": 2000 }
+        }
+      },
+      "id": "ca-http-admin-notify-020",
+      "name": "Notify Admin - System Error",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [650, 600]
+    }
+  ],
+  "connections": {
+    "Daily Climate Check Trigger": {
+      "main": [[{ "node": "Check School Day", "type": "main", "index": 0 }]]
+    },
+    "Check School Day": {
+      "main": [
+        [{ "node": "Get Aggregated Climate Data", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Get Aggregated Climate Data": {
+      "main": [[{ "node": "Validate n >= 3", "type": "main", "index": 0 }]]
+    },
+    "Validate n >= 3": {
+      "main": [
+        [{ "node": "Tool: Get Teacher Metrics", "type": "main", "index": 0 }],
+        [{ "node": "Insert Audit Log", "type": "main", "index": 0 }]
+      ]
+    },
+    "Tool: Get Teacher Metrics": {
+      "main": [[{ "node": "Tool: Get Past Recommendations", "type": "main", "index": 0 }]]
+    },
+    "Tool: Get Past Recommendations": {
+      "main": [[{ "node": "Climate Analysis Agent", "type": "main", "index": 0 }]]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [[{ "node": "Climate Analysis Agent", "type": "ai_languageModel", "index": 0 }]]
+    },
+    "Climate Analysis Agent": {
+      "main": [[{ "node": "Check AI Confidence", "type": "main", "index": 0 }]]
+    },
+    "Check AI Confidence": {
+      "main": [
+        [{ "node": "Route by Policy Level", "type": "main", "index": 0 }],
+        [{ "node": "Fallback Policy Engine", "type": "main", "index": 0 }]
+      ]
+    },
+    "Fallback Policy Engine": {
+      "main": [[{ "node": "Route by Policy Level", "type": "main", "index": 0 }]]
+    },
+    "Route by Policy Level": {
+      "main": [
+        [{ "node": "Check Frequency Limits", "type": "main", "index": 0 }],
+        [{ "node": "Check Frequency Limits", "type": "main", "index": 0 }],
+        [{ "node": "Check Frequency Limits", "type": "main", "index": 0 }]
+      ]
+    },
+    "Check Frequency Limits": {
+      "main": [[
+        { "node": "Insert Draft Recommendation (ROUTINE)", "type": "main", "index": 0 },
+        { "node": "Insert Draft Recommendation (WARNING)", "type": "main", "index": 0 },
+        { "node": "Insert Draft Recommendation (CRITICAL)", "type": "main", "index": 0 }
+      ]]
+    },
+    "Insert Draft Recommendation (ROUTINE)": {
+      "main": [[{ "node": "Insert Audit Log", "type": "main", "index": 0 }]]
+    },
+    "Insert Draft Recommendation (WARNING)": {
+      "main": [[{ "node": "LINE Alert - Dashboard Action Required", "type": "main", "index": 0 }]]
+    },
+    "LINE Alert - Dashboard Action Required": {
+      "main": [[{ "node": "Insert Audit Log", "type": "main", "index": 0 }]]
+    },
+    "Insert Draft Recommendation (CRITICAL)": {
+      "main": [[{ "node": "CRITICAL Alert to Admin", "type": "main", "index": 0 }]]
+    },
+    "CRITICAL Alert to Admin": {
+      "main": [[{ "node": "Insert Audit Log", "type": "main", "index": 0 }]]
+    },
+    "Workflow Error Handler": {
+      "main": [[{ "node": "Insert Error Log", "type": "main", "index": 0 }]]
+    },
+    "Insert Error Log": {
+      "main": [[{ "node": "Notify Admin - System Error", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "active": false
+}

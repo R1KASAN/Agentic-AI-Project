@@ -1,0 +1,70 @@
+{
+  "name": "Tool: Get Past Recommendations",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "tool-pr-trigger-001",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [100, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/recommendations",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "class_id", "value": "=eq.{{ $input.all()[0].json.class_id }}" },
+            { "name": "created_at", "value": "=gte.{{ $now.minus({{ $input.all()[0].json.lookback_days || 30 }}, 'days').format('YYYY-MM-DD') }}" },
+            { "name": "order", "value": "created_at.desc" },
+            { "name": "limit", "value": "10" },
+            { "name": "select", "value": "id,class_id,policy_level,ai_message_draft,confidence_score,status,priority,fallback_used,inquiry_mode,created_at,updated_at" }
+          ]
+        },
+        "options": {
+          "timeout": 15000,
+          "retry": { "maxTries": 3, "waitBetweenTries": 2000 }
+        }
+      },
+      "id": "tool-pr-http-002",
+      "name": "Fetch Past Recommendations",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [320, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const recs = Array.isArray($json) ? $json : [$json];\n\nconst total = recs.length;\nconst approved = recs.filter(r => r.status === 'APPROVED' || r.status === 'SENT').length;\nconst dismissed = recs.filter(r => r.status === 'DISMISSED').length;\nconst pending = recs.filter(r => r.status === 'PENDING_APPROVAL').length;\n\nreturn [{ json: {\n  past_recommendations: recs,\n  summary: {\n    total: total,\n    approved: approved,\n    dismissed: dismissed,\n    pending: pending,\n    approval_rate: total > 0 ? parseFloat((approved / total).toFixed(2)) : 0,\n    dismissal_rate: total > 0 ? parseFloat((dismissed / total).toFixed(2)) : 0\n  }\n}}];"
+      },
+      "id": "tool-pr-code-003",
+      "name": "Summarize Past Recommendations",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [540, 300]
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [[{ "node": "Fetch Past Recommendations", "type": "main", "index": 0 }]]
+    },
+    "Fetch Past Recommendations": {
+      "main": [[{ "node": "Summarize Past Recommendations", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "active": false
+}

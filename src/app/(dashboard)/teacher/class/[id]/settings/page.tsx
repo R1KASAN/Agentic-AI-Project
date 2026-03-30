@@ -25,22 +25,21 @@ export default async function TeacherClassSettingsPage({
     // We use our class_enrollments table and join the users table
     const { data: enrollments } = await supabase
         .from('class_enrollments')
-        .select(`
-      id,
-      student_id,
-      users!inner(id, name, email)
-    `)
+.select(`
+    student_id,
+    users!inner(id, full_name, email)
+  `)
         .eq('class_id', classId)
-        .order('enrolled_at', { ascending: false })
+        .order('created_at', { ascending: false })
 
-    const students = (enrollments || []).map(e => {
-        const user = e.users as unknown as { id: string; name: string | null; email: string };
-        return {
-            id: user.id,
-            name: user.name || 'Unknown Student',
-            email: user.email
-        };
-    })
+const students = (enrollments || []).map(e => {
+    const user = e.users as unknown as { id: string; full_name: string | null; email: string };
+    return {
+      id: user.id,
+      name: user.full_name || 'Unknown Student',
+      email: user.email
+    };
+  })
 
     return (
         <ClassSettingsClient

@@ -78,7 +78,7 @@ export default function JoinClassPage() {
                                     <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> กำลังเข้าร่วม...</>
                                 ) : "เข้าร่วมห้องเรียน / Join Class"}
                             </Button>
-                            <Link href="/student/check-in" className="w-full block">
+                            <Link href="/student/classes" className="w-full block">
                                 <Button type="button" variant="ghost" className="w-full" disabled={isSubmitting}>
                                     ยกเลิก / Cancel
                                 </Button>

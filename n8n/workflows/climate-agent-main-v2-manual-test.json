@@ -1,0 +1,1305 @@
+{
+  "id": "QqYvM6dJ8pR1aTnK",
+  "updatedAt": "2026-03-26T08:34:52.661Z",
+  "createdAt": "2026-03-17T21:02:06.062Z",
+  "name": "climate-agent-main-v2-manual-test",
+  "description": null,
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger-climate-main-v2-test",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -352
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const scenario = 'ai_happy_path';\nconst scenarios = {\n  ai_happy_path: {\n    class_id: '994e8327-f00f-4117-af75-5a838d5c48d9',\n    avg_mood_score: 2.7,\n    total_responses: 4,\n    sentiment_distribution: { very_low: 0, low: 2, okay: 1, good: 1, great: 0 },\n    raw_comments: [],\n    test_force_low_confidence: false,\n    test_force_invalid_ai_json: false,\n    test_force_valid_ai_output: true,\n    test_label: 'manual_ai_happy_path',\n  },\n  fallback_low_confidence: {\n    class_id: 'ed977559-a16e-468f-8628-137a5b2d9d9e',\n    avg_mood_score: 2.4,\n    total_responses: 4,\n    sentiment_distribution: { very_low: 1, low: 2, okay: 1, good: 0, great: 0 },\n    raw_comments: [],\n    test_force_low_confidence: true,\n    test_force_invalid_ai_json: false,\n    test_force_valid_ai_output: false,\n    test_label: 'manual_force_low_confidence',\n  },\n  fallback_invalid_json: {\n    class_id: '994e8327-f00f-4117-af75-5a838d5c48d9',\n    avg_mood_score: 2.7,\n    total_responses: 4,\n    sentiment_distribution: { very_low: 0, low: 2, okay: 1, good: 1, great: 0 },\n    raw_comments: [],\n    test_force_low_confidence: false,\n    test_force_invalid_ai_json: true,\n    test_force_valid_ai_output: false,\n    test_label: 'manual_force_invalid_json',\n  },\n  frequency_block: {\n    class_id: '10000000-0000-0000-0000-000000000001',\n    avg_mood_score: 2.7,\n    total_responses: 4,\n    sentiment_distribution: { very_low: 0, low: 2, okay: 1, good: 1, great: 0 },\n    raw_comments: [],\n    test_force_low_confidence: false,\n    test_force_invalid_ai_json: false,\n    test_force_valid_ai_output: false,\n    test_label: 'manual_frequency_block',\n  },\n  k_anonymity_block: {\n    class_id: 'ed977559-a16e-468f-8628-137a5b2d9d9e',\n    avg_mood_score: 2.9,\n    total_responses: 2,\n    sentiment_distribution: { very_low: 0, low: 1, okay: 1, good: 0, great: 0 },\n    raw_comments: [],\n    test_force_low_confidence: false,\n    test_force_invalid_ai_json: false,\n    test_force_valid_ai_output: false,\n    test_label: 'manual_k_anonymity_block',\n  },\n};\nconst chosen = scenarios[scenario] || scenarios.ai_happy_path;\nreturn { json: { ...chosen, source: 'manual_test_override', scenario } };"
+      },
+      "id": "test-input-override-climate-main-v2-test",
+      "name": "Test Input Override",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        -352
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/rpc/get_aggregated_climate_data",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"p_date\": \"{{ $now.minus({ days: 1 }).toFormat('yyyy-MM-dd') }}\",\n  \"p_min_n\": 3\n}",
+        "options": {}
+      },
+      "id": "e7b0e14a-f32f-488b-b1e7-2cd7a1a0f8d0",
+      "name": "Get Aggregated Climate Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        224,
+        -352
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "668Eac9gOdjgSW7d",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {},
+          "conditions": [
+            {
+              "id": "valid-n",
+              "leftValue": "={{ $json.total_responses }}",
+              "rightValue": 3,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "dedb9921-2ba5-4fbf-abda-0ffba50dcf2f",
+      "name": "Validate n >= 3",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        448,
+        -352
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return { json: { blocked_reason: \"k_anonymity\", decision_path_json: { route: \"blocked_by_k_anonymity\", blocked_reason: \"k_anonymity\" } } };"
+      },
+      "id": "766ab9ec-04ac-4830-bd5b-b54130097a8e",
+      "name": "Meta: Blocked By k-anonymity",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2592,
+        -352
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "value": "={{ $env.TOOL_GET_TEACHER_METRICS_ID }}"
+        },
+        "options": {}
+      },
+      "id": "1d8ae078-4ab6-41b1-bd2b-58bb94f6f81a",
+      "name": "Tool: Get Teacher Metrics",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        672,
+        -208
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "value": "={{ $env.TOOL_GET_PAST_RECS_ID }}"
+        },
+        "options": {}
+      },
+      "id": "c6a1e3bf-2374-42b7-aeb8-7eeb3fc3c0b0",
+      "name": "Call 'Tool: Get Past Recommendations'",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        896,
+        -208
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "let metrics = {};\ntry { metrics = $('Tool: Get Teacher Metrics').item.json || {}; } catch(e){}\nlet summary = {};\ntry { summary = $(\"Call 'Tool: Get Past Recommendations'\").item.json || {}; } catch(e){}\nlet climate = {};\ntry { climate = $('Test Input Override').item.json || {}; } catch(e){}\n\nlet avg_mood = (metrics.avg_mood_score !== undefined && metrics.avg_mood_score !== null)\n  ? metrics.avg_mood_score\n  : (climate.avg_mood_score !== undefined && climate.avg_mood_score !== null)\n    ? climate.avg_mood_score\n    : $input.item.json.avg_mood_score;\n\nreturn {\n  json: {\n    ...climate,\n    ...$input.item.json,\n    teacher_metrics: metrics,\n    past_summary: summary,\n    avg_mood_score: avg_mood\n  }\n};"
+      },
+      "id": "673f32c9-e747-4cf0-8809-7b3b38c234a5",
+      "name": "Merge Metrics Into Item",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1184,
+        -208
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {},
+                "conditions": [
+                  {
+                    "id": "r",
+                    "leftValue": "={{ $json.policy_level }}",
+                    "rightValue": "ROUTINE",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "ROUTINE"
+            },
+            {
+              "conditions": {
+                "options": {},
+                "conditions": [
+                  {
+                    "id": "w",
+                    "leftValue": "={{ $json.policy_level }}",
+                    "rightValue": "WARNING",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "WARNING"
+            },
+            {
+              "conditions": {
+                "options": {},
+                "conditions": [
+                  {
+                    "id": "c",
+                    "leftValue": "={{ $json.policy_level }}",
+                    "rightValue": "CRITICAL",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "CRITICAL"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b3bf5131-ab17-4861-ab7b-a496f8c2cd70",
+      "name": "Route by Policy Level",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        1696,
+        276
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/rpc/check_frequency_limit",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"p_class_id\": \"{{ $(`Test Input Override`).item.json.class_id }}\",\n  \"p_max_daily\": 2,\n  \"p_max_weekly\": 5\n}",
+        "options": {}
+      },
+      "id": "97b1a23b-5b58-45b6-bf25-cc7cd831ce89",
+      "name": "Check Frequency Limits (ROUTINE)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2144,
+        -88
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "668Eac9gOdjgSW7d",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/rpc/check_frequency_limit",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"p_class_id\": \"{{ $(`Test Input Override`).item.json.class_id }}\",\n  \"p_max_daily\": 2,\n  \"p_max_weekly\": 5\n}",
+        "options": {}
+      },
+      "id": "b3e32e8b-b72e-4b68-b755-e5e6e3ceba3c",
+      "name": "Check Frequency Limits (WARNING)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1920,
+        296
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "668Eac9gOdjgSW7d",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/rpc/check_frequency_limit",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"p_class_id\": \"{{ $(`Test Input Override`).item.json.class_id }}\",\n  \"p_max_daily\": 2,\n  \"p_max_weekly\": 5\n}",
+        "options": {}
+      },
+      "id": "ae5b6c8f-223d-42bc-9fe1-026c278fb483",
+      "name": "Check Frequency Limits (CRITICAL)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1920,
+        680
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "668Eac9gOdjgSW7d",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {},
+          "conditions": [
+            {
+              "id": "g-r",
+              "leftValue": "={{ $json.limit_exceeded === false }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "5dc9eaef-6d30-4e3f-a63f-9eb7c71f98d4",
+      "name": "Frequency Guard (ROUTINE)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2368,
+        -88
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {},
+          "conditions": [
+            {
+              "id": "g-w",
+              "leftValue": "={{ $json.limit_exceeded === false }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "fb212ae1-055f-4cd1-9c17-d5d1d6aabe90",
+      "name": "Frequency Guard (WARNING)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2144,
+        296
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {},
+          "conditions": [
+            {
+              "id": "g-c",
+              "leftValue": "={{ $json.limit_exceeded === false }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ce51bbfa-41dc-4965-bcf7-24a0d8e87dcb",
+      "name": "Frequency Guard (CRITICAL)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2144,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return { json: { blocked_reason: \"frequency_limit_exceeded\", decision_path_json: { route: \"blocked_by_frequency_guard\", blocked_reason: \"frequency_limit_exceeded\" } } };"
+      },
+      "id": "3e9b1c7f-f7cc-444a-bee5-6ad6fe4a7707",
+      "name": "Meta: Blocked By Frequency ROUTINE",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2592,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return { json: { blocked_reason: \"frequency_limit_exceeded\", decision_path_json: { route: \"blocked_by_frequency_guard\", blocked_reason: \"frequency_limit_exceeded\" } } };"
+      },
+      "id": "dedb9921-2ba5-4fbf-abda-0ffba50dcf2f2",
+      "name": "Meta: Blocked By Frequency WARNING",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2592,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return { json: { blocked_reason: \"frequency_limit_exceeded\", decision_path_json: { route: \"blocked_by_frequency_guard\", blocked_reason: \"frequency_limit_exceeded\" } } };"
+      },
+      "id": "766ab9ec-04ac-4830-bd5b-b54130097a8e2",
+      "name": "Meta: Blocked By Frequency CRITICAL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2592,
+        608
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.resend.com/emails",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.RESEND_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"from\": \"{{ $env.EMAIL_FROM }}\",\n  \"to\": [\"{{ $env.EMAIL_TEACHER }}\"],\n  \"subject\": \"Action Required: WARNING Climate Recommendation\",\n  \"html\": \"<p>There is a new WARNING recommendation for your class.</p>\"\n}",
+        "options": {}
+      },
+      "id": "e0b57e79-ce4e-4f36-9b5f-9e79d1a8cbed2",
+      "name": "Email Alert - WARNING to Teacher",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2592,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.resend.com/emails",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.RESEND_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"from\": \"{{ $env.EMAIL_FROM }}\",\n  \"to\": [\"{{ $env.EMAIL_ADMIN }}\"],\n  \"subject\": \"CRITICAL: Immediate Action Required\",\n  \"html\": \"<p>A CRITICAL alert requires admin attention.</p>\"\n}",
+        "options": {}
+      },
+      "id": "452b414f-42ee-4180-87b4-3a9ecf4aebd92",
+      "name": "Email Alert - CRITICAL to Admin",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2592,
+        800
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "aacc41c5-ed0e-4ab6-aeaa-9a73bd7adad72",
+      "name": "Workflow Error Handler",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        1040
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL + '/rest/v1/error_logs?apikey=' + $env.SUPABASE_SERVICE_KEY }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ ({ workflow_id: $workflow.id, execution_id: $execution.id, error_node: $json.execution?.error?.node || '', error_message: $json.execution?.error?.message || '', error_stack: $json.execution?.error?.stack || '', timestamp: $now.toISO() }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "06fd9b1c-c76d-49d7-83d8-fbac9748b6c42",
+      "name": "Insert Error Log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        224,
+        1040
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.resend.com/emails",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.RESEND_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"from\": \"{{ $env.EMAIL_FROM }}\",\n  \"to\": [\"{{ $env.EMAIL_ADMIN }}\"],\n  \"subject\": \"WORKFLOW ERROR: climate-agent-main-v2\",\n  \"html\": \"<p>An error occurred matching execution id: {{ $execution.id }}.</p>\"\n}",
+        "options": {}
+      },
+      "id": "b3bf5131-ab17-4861-ab7b-a496f8c2cd702",
+      "name": "Email Alert - System Error",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        448,
+        1040
+      ]
+    },
+    {
+      "id": "8f2a1f70-4a93-4305-b9d8-ea46f5f4f001",
+      "name": "Build Ollama Analysis Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        -208
+      ],
+      "parameters": {
+        "jsCode": "const item = $json || {};\nconst metrics = item.teacher_metrics || {};\nconst summary = item.past_summary || {};\nconst avgMood = Number(item.avg_mood_score ?? metrics.avg_mood_score ?? 3.5);\nconst totalResponses = Number(item.total_responses ?? 0);\nconst sentiment = item.sentiment_distribution || {};\nconst dismissalRate = Number(metrics.dismissal_rate ?? summary.dismissal_rate ?? 0);\nconst consecutiveDismissals = Number(metrics.dismissal_pattern_consecutive ?? 0);\nconst inquiryModeSuggested = metrics.inquiry_mode_suggested === true || metrics.teacher_flag_inquiry_mode === true || metrics.is_inquiry_mode === true;\nconst sentimentLine = `very_low=${Number(sentiment.very_low ?? 0)}, low=${Number(sentiment.low ?? 0)}, okay=${Number(sentiment.okay ?? 0)}, good=${Number(sentiment.good ?? 0)}, great=${Number(sentiment.great ?? 0)}`;\nconst contextBlock = [\n  'ข้อมูลห้องเรียนวันนี้:',\n  `- class_id: ${item.class_id || 'unknown'}`,\n  `- avg_mood_score: ${Number.isFinite(avgMood) ? avgMood.toFixed(2) : 'null'} / 5`,\n  `- total_responses: ${totalResponses} นักเรียน`,\n  `- sentiment_distribution: ${sentimentLine}`,\n  '  (very_low / low / okay / good / great)',\n  `- dismissal_rate: ${dismissalRate.toFixed(2)}`,\n  `- dismissal_pattern_consecutive: ${consecutiveDismissals}`,\n  `- inquiry_mode_suggested: ${inquiryModeSuggested}`,\n  `- teacher_flag_inquiry_mode: ${metrics.teacher_flag_inquiry_mode === true}`,\n  `- inquiry_reason: ${metrics.inquiry_reason || 'none'}`,\n  `- recent_recommendation_summary: ${summary.summary_text || summary.reasoning || 'none'}`,\n  'กฎการตีความ:',\n  '- avg_mood ≤ 2.0 → policy_level = CRITICAL',\n  '- avg_mood ≤ 3.0 → policy_level = WARNING',\n  '- avg_mood > 3.0 → policy_level = ROUTINE',\n];\nif (Object.prototype.hasOwnProperty.call(item, 'test_force_low_confidence')) {\n  contextBlock.push(`- test_force_low_confidence: ${item.test_force_low_confidence === true}`);\n}\nif (Object.prototype.hasOwnProperty.call(item, 'test_force_invalid_ai_json')) {\n  contextBlock.push(`- test_force_invalid_ai_json: ${item.test_force_invalid_ai_json === true}`);\n}\nif (Object.prototype.hasOwnProperty.call(item, 'test_force_valid_ai_output')) {\n  contextBlock.push(`- test_force_valid_ai_output: ${item.test_force_valid_ai_output === true}`);\n}\nconst prompt = [\n  'You are the Climate Analysis Agent for a privacy-first classroom climate system.',\n  'Use only the aggregated classroom metrics below. Never mention any individual student or invent student-level facts.',\n  'Your reasoning and recommendation must be anchored to the actual mood numbers and sentiment distribution.',\n  '',\n  ...contextBlock,\n  '',\n  'ข้อกำหนดสำคัญ:',\n  '1. reasoning ต้องอ้างอิงสัญญาณจริงของห้อง เช่น avg_mood_score, คะแนนเฉลี่ย, หรือสัดส่วน low/okay/good อย่างชัดเจน',\n  '2. recommendation_content ต้องบอกบริบทอารมณ์ของห้องอย่างเฉพาะเจาะจง เช่น นักเรียนส่วนใหญ่อยู่ในช่วง low–okay หรือมี very_low/low เด่น',\n  '3. recommendation_content ต้องเสนอเพียง 1 การกระทำที่ครูทำได้ทันทีและผูกกับระดับอารมณ์นั้น',\n  '4. recommendation_content ต้องเป็นภาษาไทย, ยาวไม่เกิน 280 ตัวอักษร, ไม่มีชื่อหรือข้อมูลระบุตัวตน',\n  '5. ห้ามใช้ถ้อยคำกว้าง ๆ เช่น ตรวจสอบสภาพคล่องของห้องเรียน, สภาพอากาศ, ให้แน่ใจว่าพวกเขาอยู่ในสภาพที่ดี',\n  '6. หากสัญญาณอ่อนหรือกำกวม ให้ยังตอบเป็น JSON ที่ถูกต้องได้ แต่ลด confidence_score ให้ต่ำกว่า 0.65 เพื่อให้ workflow fallback เอง',\n  '',\n  'ตัวอย่างดี (avg_mood = 2.7, low/okay เด่น):',\n  'recommendation_content: \"นักเรียนส่วนใหญ่รู้สึกกลาง ๆ ถึงต่ำในวันนี้ ลองเปิดพื้นที่ให้แชร์ความรู้สึกก่อนเริ่มคาบ หรือลดปริมาณงานชิ้นแรกลง\"',\n  '',\n  'ตัวอย่างไม่ดี (generic, ห้ามใช้):',\n  'recommendation_content: \"โปรดตรวจสอบสภาพคล่องของห้องเรียนและสภาพอากาศเพื่อให้แน่ใจว่าพวกเขาอยู่ในสภาพที่ดี\"',\n  '',\n  'ถ้า test_force_low_confidence เป็น true ให้ยังตอบ JSON ที่ถูกต้อง แต่ตั้ง confidence_score ไม่เกิน 0.20',\n  'ถ้า test_force_invalid_ai_json เป็น true ให้ตอบ JSON ที่ recommendation_content ว่างเพื่อให้ parser ปฏิเสธ',\n  'ถ้า test_force_valid_ai_output เป็น true ให้ตอบ JSON ที่สมบูรณ์และ recommendation_content ต้องไม่ว่าง',\n  '',\n  'ตอบกลับ ONLY valid JSON ต่อไปนี้ ห้ามมีข้อความอื่น:',\n  '{',\n  '  \"policy_level\": \"ROUTINE|WARNING|CRITICAL\",',\n  '  \"confidence_score\": 0.0,',\n  '  \"recommendation_content\": \"Thai <=280 chars, mood-specific, one concrete action\",',\n  '  \"reasoning\": \"short Thai explanation referencing avg_mood and sentiment\",',\n  '  \"actions_json\": null,',\n  '  \"decision_path\": {',\n  '    \"route\": \"ai\",',\n  '    \"generated_by\": \"ollama\",',\n  '    \"steps\": []',\n  '  },',\n  '  \"inquiry_mode\": false,',\n  '  \"fallback_used\": false',\n  '}',\n].join('\\n');\nreturn {\n  json: {\n    ...item,\n    llm_prompt: prompt,\n    llm_provider: 'ollama',\n    llm_model: 'qwen2.5:3b',\n  },\n};"
+      }
+    },
+    {
+      "id": "e0b57e79-ce4e-4f36-9b5f-9e79d1a8cbed",
+      "name": "Climate Analysis Agent",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "onError": "continueRegularOutput",
+      "position": [
+        1200,
+        0
+      ],
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.llm_prompt }}",
+        "batching": {
+          "batchSize": 1,
+          "delayBetweenBatches": 0
+        }
+      }
+    },
+    {
+      "id": "452b414f-42ee-4180-87b4-3a9ecf4aebd9",
+      "name": "Ollama Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        1200,
+        200
+      ],
+      "parameters": {
+        "model": "qwen2.5:3b",
+        "options": {
+          "temperature": 0.2,
+          "topP": 0.9,
+          "numPredict": 420,
+          "numCtx": 4096,
+          "repeatPenalty": 1.1,
+          "keepAlive": "10m"
+        }
+      },
+      "credentials": {
+        "ollamaApi": {
+          "id": "4erpivhFAadoV8nb",
+          "name": "Ollama Local Dev"
+        }
+      }
+    },
+    {
+      "id": "0e6994d6-c9b8-4863-b428-cf9f572d9910",
+      "name": "Parse AI Recommendation Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const source = $('Build Ollama Analysis Prompt').first().json || $('Merge Metrics Into Item').first().json || {};\nconst normalizePolicy = (value) => {\n  const text = String(value || '').trim().toUpperCase();\n  return ['ROUTINE', 'WARNING', 'CRITICAL'].includes(text) ? text : null;\n};\nconst coerceConfidence = (value) => {\n  const numeric = Number(value);\n  if (!Number.isFinite(numeric)) return 0;\n  return Math.max(0, Math.min(1, numeric));\n};\nconst deriveInquiryMode = (item, fallbackPolicy) => {\n  if (typeof item.inquiry_mode === 'boolean') return item.inquiry_mode;\n  const metrics = source.teacher_metrics || {};\n  if (metrics.inquiry_mode_suggested === true || metrics.teacher_flag_inquiry_mode === true || metrics.is_inquiry_mode === true) return true;\n  const dismissalRate = Number(metrics.dismissal_rate ?? source.past_summary?.dismissal_rate ?? 0);\n  return dismissalRate > 0.6 && ['WARNING', 'CRITICAL'].includes(fallbackPolicy || '');\n};\nconst defaultDraftForPolicy = (policyLevel) => {\n  if (policyLevel === 'CRITICAL') return 'วันนี้มีสัญญาณความรู้สึกต่ำค่อนข้างมาก ลองหยุดเช็กอินสั้น ๆ และลดงานที่กดดันก่อนเริ่มกิจกรรมหลัก';\n  if (policyLevel === 'WARNING') return 'นักเรียนส่วนใหญ่ดูอยู่ในช่วงต่ำถึงปานกลาง ลองเริ่มคาบด้วยการเช็กอารมณ์สั้น ๆ และลดงานชิ้นแรกให้เบาลง';\n  return 'ภาพรวมอารมณ์ยังพอไปได้ ลองชวนสะท้อนสิ่งที่ทำได้ดี 1 อย่างก่อนเริ่มกิจกรรมถัดไป';\n};\nconst buildRejectedResult = (policyLevel, recommendationContent, reasoning, actions, rejectionReason, fallbackReason = 'generic_content') => ({\n  json: {\n    ...source,\n    policy_level: policyLevel,\n    confidence_score: 0,\n    recommendation_content: recommendationContent,\n    ai_message_draft: recommendationContent,\n    reasoning: reasoning || rejectionReason,\n    actions_json: actions,\n    inquiry_mode: deriveInquiryMode(parsed || {}, policyLevel),\n    fallback_used: false,\n    ai_attempted: true,\n    ai_fallback_reason: fallbackReason,\n    decision_path: {\n      route: fallbackReason,\n      generated_by: 'ollama',\n      llm_provider: 'ollama',\n      llm_model: 'qwen2.5:3b',\n      llm_enabled: true,\n      llm_output_rejected: true,\n      _rejection_reason: rejectionReason,\n    },\n  },\n});\nconst rawOutput = typeof $json.text === 'string'\n  ? $json.text\n  : typeof $json.output === 'string'\n    ? $json.output\n    : typeof $json.response?.text === 'string'\n      ? $json.response.text\n      : typeof $json.error === 'string'\n        ? ''\n        : JSON.stringify($json || {});\nif ($json.error) {\n  return {\n    json: {\n      ...source,\n      policy_level: null,\n      confidence_score: 0,\n      recommendation_content: '',\n      ai_message_draft: '',\n      reasoning: `ollama_error:${String($json.error).slice(0, 160)}`,\n      actions_json: {},\n      inquiry_mode: false,\n      fallback_used: false,\n      ai_attempted: true,\n      ai_fallback_reason: 'ollama_error',\n      decision_path: {\n        route: 'ollama_error',\n        generated_by: 'ollama',\n        llm_provider: 'ollama',\n        llm_model: 'qwen2.5:3b',\n        llm_enabled: true,\n        llm_output_rejected: true,\n        _rejection_reason: 'ollama_error',\n      },\n    },\n  };\n}\nlet parsed;\ntry {\n  const cleaned = rawOutput.replace(/```json/g, '').replace(/```/g, '').trim();\n  parsed = JSON.parse(cleaned);\n} catch (error) {\n  parsed = null;\n}\nif (source.test_force_invalid_ai_json === true) {\n  parsed = { ...(parsed || {}), recommendation_content: '', reasoning: 'forced_invalid_json_for_manual_test' };\n}\nconst policyLevel = normalizePolicy(parsed?.policy_level);\nlet confidenceScore = coerceConfidence(parsed?.confidence_score);\nif (source.test_force_low_confidence === true) confidenceScore = 0.2;\nlet recommendationContent = typeof parsed?.recommendation_content === 'string' ? parsed.recommendation_content.replace(/\\s+/g, ' ').trim() : '';\nconst reasoning = typeof parsed?.reasoning === 'string' ? parsed.reasoning.replace(/\\s+/g, ' ').trim().slice(0, 500) : '';\nconst actions = parsed?.actions_json == null\n  ? null\n  : typeof parsed.actions_json === 'object' && !Array.isArray(parsed.actions_json)\n    ? parsed.actions_json\n    : Array.isArray(parsed.actions_json)\n      ? parsed.actions_json\n      : {};\nif (!recommendationContent && source.test_force_valid_ai_output === true && policyLevel) {\n  recommendationContent = defaultDraftForPolicy(policyLevel);\n  confidenceScore = Math.max(confidenceScore, 0.72);\n}\nconst genericPhrases = [\n  'ตรวจสอบสภาพคล่อง',\n  'สภาพอากาศ',\n  'ให้แน่ใจว่าพวกเขาอยู่ในสภาพที่ดี',\n  'ensure they are in good condition',\n];\nconst moodAnchors = ['avg_mood', 'คะแนน', 'อารมณ์', 'บรรยากาศ', 'ต่ำ', 'ปานกลาง', 'low', 'okay'];\nconst contentLower = recommendationContent.toLowerCase();\nconst reasoningLower = reasoning.toLowerCase();\nconst isGeneric = genericPhrases.some((phrase) => recommendationContent.includes(phrase) || contentLower.includes(String(phrase).toLowerCase()));\nconst isTooShort = recommendationContent.length < 20;\nconst hasMoodAnchor = moodAnchors.some((anchor) => reasoning.includes(anchor) || reasoningLower.includes(String(anchor).toLowerCase()));\nconst valid = Boolean(policyLevel && recommendationContent && reasoning);\nif (!valid) {\n  return buildRejectedResult(policyLevel, recommendationContent, reasoning || 'ollama_output_invalid', actions, parsed ? 'ollama_output_invalid' : 'ollama_parse_failed', parsed ? 'ollama_output_invalid' : 'ollama_parse_failed');\n}\nif (isGeneric || isTooShort || !hasMoodAnchor) {\n  return buildRejectedResult(policyLevel, recommendationContent, reasoning || 'generic_content', actions, 'generic_content');\n}\nconst decisionPath = parsed?.decision_path && typeof parsed.decision_path === 'object' && !Array.isArray(parsed.decision_path)\n  ? parsed.decision_path\n  : {};\nreturn {\n  json: {\n    ...source,\n    policy_level: policyLevel,\n    confidence_score: confidenceScore,\n    recommendation_content: recommendationContent,\n    ai_message_draft: recommendationContent,\n    reasoning,\n    actions_json: actions,\n    inquiry_mode: deriveInquiryMode(parsed, policyLevel),\n    fallback_used: false,\n    ai_attempted: true,\n    ai_fallback_reason: null,\n    decision_path: {\n      ...decisionPath,\n      route: decisionPath.route || 'ai',\n      generated_by: 'ollama',\n      llm_provider: 'ollama',\n      llm_model: 'qwen2.5:3b',\n      llm_enabled: true,\n      llm_output_rejected: false,\n    },\n  },\n};"
+      }
+    },
+    {
+      "id": "766ab9ec-04ac-4830-bd5b-b54130097a9f",
+      "name": "Fallback Policy Engine",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const metrics = $json.teacher_metrics || {};\nconst summary = $json.past_summary || {};\nconst avgMood = Number($json.avg_mood_score ?? metrics.avg_mood_score ?? 3.5);\nconst dismissalRate = Number(metrics.dismissal_rate ?? summary.dismissal_rate ?? 0);\nconst consecutiveDismissals = Number(metrics.dismissal_pattern_consecutive ?? 0);\nconst teacherFlagInquiryMode = metrics.teacher_flag_inquiry_mode === true || metrics.is_inquiry_mode === true;\nconst inquiryReason = metrics.inquiry_reason || (teacherFlagInquiryMode ? 'teacher_flag' : dismissalRate > 0.6 && consecutiveDismissals >= 2 ? 'dismissal_pattern' : null);\nconst aiFallbackReason = $json.ai_fallback_reason || null;\nconst aiAttempted = $json.ai_attempted === true;\n\nlet policyLevel = 'ROUTINE';\nlet priority = 'low';\n\nif (avgMood <= 2.0) {\n  policyLevel = 'CRITICAL';\n  priority = 'high';\n} else if (avgMood <= 3.0) {\n  policyLevel = 'WARNING';\n  priority = 'medium';\n}\n\nconst inquiryMode = teacherFlagInquiryMode || (\n  dismissalRate > 0.6 &&\n  consecutiveDismissals >= 2 &&\n  ['WARNING', 'CRITICAL'].includes(policyLevel)\n);\n\nlet templateKey = policyLevel.toLowerCase();\nlet recommendationContent = 'วันนี้บรรยากาศห้องเรียนอยู่ในเกณฑ์ปกติ ลองชวนเด็กสะท้อนสิ่งที่ทำได้ดีสัก 1 อย่างในคาบนี้';\n\nif (policyLevel === 'WARNING') {\n  templateKey = inquiryMode ? 'warning_inquiry_th' : 'warning_standard_th';\n  recommendationContent = inquiryMode\n    ? 'บรรยากาศเริ่มต่ำลง คุณครูคิดว่าอะไรอาจเป็นสาเหตุ และอยากให้ระบบเสนอการช่วยเหลือแบบไหนบ้าง?'\n    : 'บรรยากาศเริ่มต่ำกว่าปกติ ลองถามนักเรียนว่าอะไรทำให้ไม่ค่อยมีส่วนร่วม และจะลองปรับอะไรในคาบต่อไป';\n}\n\nif (policyLevel === 'CRITICAL') {\n  templateKey = inquiryMode ? 'critical_inquiry_th' : 'critical_standard_th';\n  recommendationContent = inquiryMode\n    ? 'ระบบเห็นสัญญาณที่น่ากังวล คุณครูมองว่าสถานการณ์ห้องตอนนี้เป็นอย่างไร และอยากให้ระบบช่วยแบบไหนมากกว่ากัน?'\n    : 'ระบบเห็นสัญญาณน่ากังวลต่อเนื่อง ลองเปิดพื้นที่พูดคุยสั้น ๆ ให้เด็กเล่าเรื่องที่กังวล แล้ววางแผนช่วยเหลือร่วมกัน';\n}\n\nconst rulesFired = [];\nif (avgMood <= 3.0) rulesFired.push('avg_mood_low');\nif (avgMood <= 2.0) rulesFired.push('avg_mood_critical');\nif (dismissalRate > 0.6) rulesFired.push('high_dismissal');\nif (teacherFlagInquiryMode) rulesFired.push('teacher_flag_inquiry_mode');\nif (inquiryMode && !teacherFlagInquiryMode) rulesFired.push('dismissal_pattern_inquiry_mode');\nif (aiAttempted) rulesFired.push('ollama_fallback');\nif (aiFallbackReason) rulesFired.push(`fallback_reason:${aiFallbackReason}`);\n\nconst reasoning = [\n  'rule_core',\n  'avg_mood_score=' + avgMood.toFixed(2),\n  'dismissal_rate=' + dismissalRate.toFixed(2),\n  'dismissal_pattern_consecutive=' + consecutiveDismissals,\n  'policy_level=' + policyLevel,\n  'inquiry_mode=' + inquiryMode,\n  aiFallbackReason ? 'fallback_reason=' + aiFallbackReason : null,\n].filter(Boolean).join(' | ');\n\nconst decisionPath = {\n  generated_by: 'fallback',\n  route: aiFallbackReason ? 'fallback_after_ollama' : 'rules_only',\n  policy_level: policyLevel,\n  mode: inquiryMode ? 'inquiry' : policyLevel.toLowerCase(),\n  inquiry_mode: inquiryMode,\n  llm_enabled: aiAttempted,\n  llm_provider: aiAttempted ? 'ollama' : null,\n  llm_model: aiAttempted ? 'qwen2.5:3b' : null,\n  fallback_reason: aiFallbackReason,\n  template_key: templateKey,\n  rules_fired: rulesFired,\n  thresholds: {\n    avg_mood_score: avgMood,\n    dismissal_rate: dismissalRate,\n    dismissal_pattern_consecutive: consecutiveDismissals,\n  },\n  teacher_flag_inquiry_mode: teacherFlagInquiryMode,\n  inquiry_reason: inquiryReason,\n  priority,\n};\n\nreturn {\n  json: {\n    ...$json,\n    policy_level: policyLevel,\n    priority,\n    confidence_score: inquiryMode ? 0.78 : 0.75,\n    recommendation_content: recommendationContent,\n    ai_message_draft: recommendationContent,\n    reasoning,\n    actions_json: {\n      recommended_action: inquiryMode ? 'reflective_prompt' : 'teacher_follow_up',\n      priority,\n    },\n    decision_path: decisionPath,\n    inquiry_mode: inquiryMode,\n    fallback_used: true,\n  },\n};"
+      }
+    },
+    {
+      "id": "aacc41c5-ed0e-4ab6-aeaa-9a73bd7adad7",
+      "name": "Check AI Confidence",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1600,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {},
+          "conditions": [
+            {
+              "id": "conf-score-check",
+              "leftValue": "={{ $json.confidence_score }}",
+              "rightValue": 0.65,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "06fd9b1c-c76d-49d7-83d8-fbac9748b6c4",
+      "name": "Fallback Low Confidence",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1600,
+        200
+      ],
+      "parameters": {
+        "jsCode": "const item = { ...$json };\nitem.ai_attempted = true;\nitem.ai_fallback_reason = item.ai_fallback_reason || 'low_ai_confidence';\nitem.decision_path = {\n  ...(item.decision_path || {}),\n  route: item.ai_fallback_reason,\n  generated_by: 'ollama',\n  llm_provider: 'ollama',\n  llm_model: 'qwen2.5:3b',\n  llm_enabled: true,\n  llm_output_rejected: item.ai_fallback_reason !== 'low_ai_confidence',\n};\nreturn { json: item };"
+      }
+    },
+    {
+      "id": "1d8ae078-4ab6-41b1-bd2b-58bb94f6f81a2",
+      "name": "Insert Draft Recommendation (ROUTINE)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2400,
+        -200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/recommendations",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"class_id\": \"{{ $(`Test Input Override`).item.json.class_id }}\",\n  \"policy_level\": \"{{ $('Mark AI/Fallback Path').item.json.policy_level }}\",\n  \"content\": \"{{ (($('Mark AI/Fallback Path').item.json.recommendation_content || $('Mark AI/Fallback Path').item.json.ai_message_draft || '')).toString().replace(/\\\\\"/g, '\\\\\\\"') }}\",\n  \"ai_message_draft\": \"{{ (($('Mark AI/Fallback Path').item.json.ai_message_draft || $('Mark AI/Fallback Path').item.json.recommendation_content || '')).toString().replace(/\\\\\"/g, '\\\\\\\"') }}\",\n  \"confidence_score\": {{ Number($('Mark AI/Fallback Path').item.json.confidence_score || 0) }},\n  \"reasoning\": \"{{ (($('Mark AI/Fallback Path').item.json.reasoning || '')).toString().replace(/\\\\\"/g, '\\\\\\\"') }}\",\n  \"inquiry_mode\": {{ $('Mark AI/Fallback Path').item.json.inquiry_mode || false }},\n  \"fallback_used\": {{ $('Mark AI/Fallback Path').item.json.fallback_used || false }},\n  \"status\": \"pending\"\n}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "668Eac9gOdjgSW7d",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "id": "c6a1e3bf-2374-42b7-aeb8-7eeb3fc3c0b02",
+      "name": "Insert Draft Recommendation (WARNING)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2400,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/recommendations",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"class_id\": \"{{ $(`Test Input Override`).item.json.class_id }}\",\n  \"policy_level\": \"{{ $('Mark AI/Fallback Path').item.json.policy_level }}\",\n  \"content\": \"{{ (($('Mark AI/Fallback Path').item.json.recommendation_content || $('Mark AI/Fallback Path').item.json.ai_message_draft || '')).toString().replace(/\\\\\"/g, '\\\\\\\"') }}\",\n  \"ai_message_draft\": \"{{ (($('Mark AI/Fallback Path').item.json.ai_message_draft || $('Mark AI/Fallback Path').item.json.recommendation_content || '')).toString().replace(/\\\\\"/g, '\\\\\\\"') }}\",\n  \"confidence_score\": {{ Number($('Mark AI/Fallback Path').item.json.confidence_score || 0) }},\n  \"reasoning\": \"{{ (($('Mark AI/Fallback Path').item.json.reasoning || '')).toString().replace(/\\\\\"/g, '\\\\\\\"') }}\",\n  \"inquiry_mode\": {{ $('Mark AI/Fallback Path').item.json.inquiry_mode || false }},\n  \"fallback_used\": {{ $('Mark AI/Fallback Path').item.json.fallback_used || false }},\n  \"status\": \"pending\"\n}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "668Eac9gOdjgSW7d",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "id": "673f32c9-e747-4cf0-8809-7b3b38c234a52",
+      "name": "Insert Draft Recommendation (CRITICAL)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2400,
+        200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/recommendations",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"class_id\": \"{{ $(`Test Input Override`).item.json.class_id }}\",\n  \"policy_level\": \"{{ $('Mark AI/Fallback Path').item.json.policy_level }}\",\n  \"content\": \"{{ (($('Mark AI/Fallback Path').item.json.recommendation_content || $('Mark AI/Fallback Path').item.json.ai_message_draft || '')).toString().replace(/\\\\\"/g, '\\\\\\\"') }}\",\n  \"ai_message_draft\": \"{{ (($('Mark AI/Fallback Path').item.json.ai_message_draft || $('Mark AI/Fallback Path').item.json.recommendation_content || '')).toString().replace(/\\\\\"/g, '\\\\\\\"') }}\",\n  \"confidence_score\": {{ Number($('Mark AI/Fallback Path').item.json.confidence_score || 0) }},\n  \"reasoning\": \"{{ (($('Mark AI/Fallback Path').item.json.reasoning || '')).toString().replace(/\\\\\"/g, '\\\\\\\"') }}\",\n  \"inquiry_mode\": {{ $('Mark AI/Fallback Path').item.json.inquiry_mode || false }},\n  \"fallback_used\": {{ $('Mark AI/Fallback Path').item.json.fallback_used || false }},\n  \"status\": \"pending\"\n}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "668Eac9gOdjgSW7d",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "id": "766ab9ec-04ac-4830-bd5b-b54130097a9f2",
+      "name": "Insert Audit Log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2800,
+        -100
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL + '/rest/v1/n8n_audit_logs?apikey=' + $env.SUPABASE_SERVICE_KEY }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ ({ workflow_id: $workflow.id, execution_id: $execution.id, trigger_time: $now.toISO(), class_id: $('Test Input Override').item.json.class_id || null, policy_selected: $json.policy_level || $('Mark AI/Fallback Path').item.json.policy_level || null, confidence_score: Number($json.confidence_score || $('Mark AI/Fallback Path').item.json.confidence_score || 0), triggered_by: ($('Test Input Override').item.json.test_label || 'climate_agent_manual_test'), inquiry_mode: $json.inquiry_mode || $('Mark AI/Fallback Path').item.json.inquiry_mode || false, event_type: 'recommendation_generated', decision_path_json: $json.decision_path_json || $json.decision_path || $('Mark AI/Fallback Path').item.json.decision_path_json || $('Mark AI/Fallback Path').item.json.decision_path || {}, error_message: $json.error_message || '', blocked_reason: $json.blocked_reason || '' }) }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "668Eac9gOdjgSW7d",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const decisionPath = ($json.decision_path && typeof $json.decision_path === 'object') ? { ...$json.decision_path } : {};\nconst usingFallback = $json.fallback_used === true || $json.ai_fallback_reason != null;\ndecisionPath.generated_by = usingFallback ? 'fallback' : 'ollama';\ndecisionPath.route = decisionPath.route || (usingFallback ? 'fallback_after_ollama' : 'ollama_primary');\nreturn {\n  json: {\n    ...$json,\n    fallback_used: usingFallback,\n    decision_path: decisionPath,\n    decision_path_json: decisionPath,\n  },\n};"
+      },
+      "id": "mark-ai-fallback-path-climate-main-v2-test",
+      "name": "Mark AI/Fallback Path",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1840,
+        140
+      ]
+    }
+  ],
+  "connections": {
+    "Get Aggregated Climate Data": {
+      "main": [
+        [
+          {
+            "node": "Validate n >= 3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate n >= 3": {
+      "main": [
+        [
+          {
+            "node": "Tool: Get Teacher Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Meta: Blocked By k-anonymity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta: Blocked By k-anonymity": {
+      "main": [
+        [
+          {
+            "node": "Insert Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Get Teacher Metrics": {
+      "main": [
+        [
+          {
+            "node": "Call 'Tool: Get Past Recommendations'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Tool: Get Past Recommendations'": {
+      "main": [
+        [
+          {
+            "node": "Merge Metrics Into Item",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Metrics Into Item": {
+      "main": [
+        [
+          {
+            "node": "Build Ollama Analysis Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Climate Analysis Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Recommendation Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fallback Policy Engine": {
+      "main": [
+        [
+          {
+            "node": "Mark AI/Fallback Path",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check AI Confidence": {
+      "main": [
+        [
+          {
+            "node": "Mark AI/Fallback Path",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fallback Low Confidence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fallback Low Confidence": {
+      "main": [
+        [
+          {
+            "node": "Fallback Policy Engine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Policy Level": {
+      "main": [
+        [
+          {
+            "node": "Check Frequency Limits (ROUTINE)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check Frequency Limits (WARNING)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check Frequency Limits (CRITICAL)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Frequency Limits (ROUTINE)": {
+      "main": [
+        [
+          {
+            "node": "Frequency Guard (ROUTINE)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Frequency Limits (WARNING)": {
+      "main": [
+        [
+          {
+            "node": "Frequency Guard (WARNING)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Frequency Limits (CRITICAL)": {
+      "main": [
+        [
+          {
+            "node": "Frequency Guard (CRITICAL)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Frequency Guard (ROUTINE)": {
+      "main": [
+        [
+          {
+            "node": "Insert Draft Recommendation (ROUTINE)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Meta: Blocked By Frequency ROUTINE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Frequency Guard (WARNING)": {
+      "main": [
+        [
+          {
+            "node": "Insert Draft Recommendation (WARNING)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Meta: Blocked By Frequency WARNING",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Frequency Guard (CRITICAL)": {
+      "main": [
+        [
+          {
+            "node": "Insert Draft Recommendation (CRITICAL)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Meta: Blocked By Frequency CRITICAL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta: Blocked By Frequency ROUTINE": {
+      "main": [
+        [
+          {
+            "node": "Insert Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta: Blocked By Frequency WARNING": {
+      "main": [
+        [
+          {
+            "node": "Insert Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta: Blocked By Frequency CRITICAL": {
+      "main": [
+        [
+          {
+            "node": "Insert Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Draft Recommendation (ROUTINE)": {
+      "main": [
+        [
+          {
+            "node": "Insert Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Draft Recommendation (WARNING)": {
+      "main": [
+        [
+          {
+            "node": "Email Alert - WARNING to Teacher",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Draft Recommendation (CRITICAL)": {
+      "main": [
+        [
+          {
+            "node": "Email Alert - CRITICAL to Admin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Alert - WARNING to Teacher": {
+      "main": [
+        [
+          {
+            "node": "Insert Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Alert - CRITICAL to Admin": {
+      "main": [
+        [
+          {
+            "node": "Insert Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow Error Handler": {
+      "main": [
+        [
+          {
+            "node": "Insert Error Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Error Log": {
+      "main": [
+        [
+          {
+            "node": "Email Alert - System Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Ollama Analysis Prompt": {
+      "main": [
+        [
+          {
+            "node": "Climate Analysis Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Recommendation Output": {
+      "main": [
+        [
+          {
+            "node": "Check AI Confidence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Climate Analysis Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Test Input Override",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test Input Override": {
+      "main": [
+        [
+          {
+            "node": "Validate n >= 3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark AI/Fallback Path": {
+      "main": [
+        [
+          {
+            "node": "Route by Policy Level",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "activeVersionId": "8599a460-a2b3-4799-9fd9-ba27d9cee84a",
+  "versionCounter": 840,
+  "versionMetadata": {
+    "name": null,
+    "description": null
+  }
+}

@@ -1,29 +1,31 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { useSearchParams, useRouter } from "next/navigation";
+import { createClient, getSessionUser } from "@/lib/supabase/client";
 import { CheckInForm, type CheckInData } from "@/components/domain/student/CheckInForm";
 import { CheckInSuccess } from "@/components/domain/student/CheckInSuccess";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CloudSun, Loader2, CheckCircle2 } from "lucide-react";
+import { GraduationCap, Loader2, CheckCircle2 } from "lucide-react";
 import { MICROCOPY, BiText } from "@/lib/microcopy";
 
 export default function StudentCheckInPage() {
+    const searchParams = useSearchParams();
+    const router = useRouter();
+    const queryClassId = searchParams.get("classId");
+
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
     const [alreadyCheckedIn, setAlreadyCheckedIn] = useState(false);
     const [classId, setClassId] = useState<string | null>(null);
+    const [className, setClassName] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    const supabase = createClient();
-
-    // Fetch student's enrolled class
+    // Determine which class to check into
     useEffect(() => {
-        async function fetchClass() {
-            const {
-                data: { user },
-            } = await supabase.auth.getUser();
+        async function resolveClass() {
+            const user = await getSessionUser();
 
             if (!user) {
                 setError("Not authenticated");
@@ -31,22 +33,54 @@ export default function StudentCheckInPage() {
                 return;
             }
 
+            const supabase = createClient();
+
+            // If classId was given via query param, validate enrollment
+            if (queryClassId) {
+                const { data: enrollment } = await supabase
+                    .from("class_enrollments")
+                    .select("class_id, classes(name)")
+                    .eq("student_id", user.id)
+                    .eq("class_id", queryClassId)
+                    .single();
+
+                if (enrollment) {
+                    setClassId(enrollment.class_id);
+                    const cls = enrollment.classes as unknown as Record<string, unknown> | null;
+                    setClassName((cls?.name as string) || null);
+                    setLoading(false);
+                    return;
+                }
+                // Not enrolled in this class — fall through to general logic
+            }
+
+            // No classId or invalid → check how many enrollments
             const { data: enrollments } = await supabase
                 .from("class_enrollments")
                 .select("class_id, classes(name)")
-                .eq("student_id", user.id)
-                .limit(1);
+                .eq("student_id", user.id);
 
-            if (enrollments && enrollments.length > 0) {
-                setClassId(enrollments[0].class_id);
-            } else {
-                setError("not_enrolled");
+            if (!enrollments || enrollments.length === 0) {
+                // 0 classes → redirect to join
+                router.replace("/student/join");
+                return;
             }
-            setLoading(false);
+
+            if (enrollments.length === 1) {
+                // 1 class → auto-select (backward compatible)
+                setClassId(enrollments[0].class_id);
+                const cls = enrollments[0].classes as unknown as Record<string, unknown> | null;
+                setClassName((cls?.name as string) || null);
+                setLoading(false);
+                return;
+            }
+
+            // >1 classes without classId → redirect to class list
+            router.replace("/student/classes");
         }
 
-        fetchClass();
-    }, [supabase]);
+        resolveClass();
+    }, [queryClassId, router]);
 
     async function handleSubmit(data: CheckInData) {
         if (!classId) return;
@@ -94,6 +128,10 @@ export default function StudentCheckInPage() {
     }
 
     if (alreadyCheckedIn) {
+        const feedbackHref = classId
+            ? `/student/feedback?classId=${encodeURIComponent(classId)}`
+            : "/student/feedback";
+
         return (
             <div className="flex flex-col items-center justify-center text-center py-12 px-6 space-y-6 animate-in fade-in-0 slide-in-from-bottom-4 duration-500">
                 <div className="w-16 h-16 rounded-full bg-gradient-to-br from-indigo-400 to-indigo-600 flex items-center justify-center shadow-lg">
@@ -108,7 +146,7 @@ export default function StudentCheckInPage() {
                     </p>
                 </div>
                 <div className="flex gap-3 pt-2">
-                    <a href="/student/feedback">
+                    <a href={feedbackHref}>
                         <button className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md font-medium text-sm transition-colors">
                             ดูความคิดเห็น / View Feedback
                         </button>
@@ -119,7 +157,7 @@ export default function StudentCheckInPage() {
     }
 
     if (isSuccess) {
-        return <CheckInSuccess />;
+        return <CheckInSuccess classId={classId} />;
     }
 
     return (
@@ -134,11 +172,19 @@ export default function StudentCheckInPage() {
                 </p>
             </div>
 
+            {/* Show which class we're checking into */}
+            {className && (
+                <div className="text-sm text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/30 px-3 py-2 rounded-lg border border-indigo-200 dark:border-indigo-800 flex items-center gap-2">
+                    <GraduationCap className="w-4 h-4" />
+                    <span className="font-medium">{className}</span>
+                </div>
+            )}
+
             {error === "not_enrolled" ? (
                 <Card className="border-2 border-indigo-100 shadow-sm mt-8">
                     <CardContent className="pt-6 flex flex-col items-center justify-center text-center space-y-4">
                         <div className="mx-auto w-12 h-12 bg-indigo-50 text-indigo-500 rounded-full flex items-center justify-center mb-2">
-                            <CloudSun className="w-6 h-6" />
+                            <GraduationCap className="w-6 h-6" />
                         </div>
                         <div className="space-y-1">
                             <h3 className="text-lg font-semibold">
@@ -163,7 +209,7 @@ export default function StudentCheckInPage() {
                 <Card>
                     <CardHeader className="pb-4">
                         <CardTitle className="flex items-center gap-2 text-lg">
-                            <CloudSun className="w-5 h-5 text-indigo-500" />
+                            <GraduationCap className="w-5 h-5 text-indigo-500" />
                             <BiText entry={MICROCOPY.student.climateCheckIn} />
                         </CardTitle>
                     </CardHeader>

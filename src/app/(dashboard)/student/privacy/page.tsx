@@ -15,7 +15,7 @@ export default function StudentPrivacyPage() {
                     <span className="block text-lg font-medium text-muted-foreground mt-1">Your Privacy, First.</span>
                 </h1>
                 <p className="text-muted-foreground max-w-xl mx-auto">
-                    <span className="block">Climate Agent ถูกสร้างมาเพื่อปกป้องตัวตนของคุณ ขณะช่วยให้ครูปรับปรุงห้องเรียน</span>
+                    <span className="block">Class Climate Agent ถูกสร้างมาเพื่อปกป้องตัวตนของคุณ ขณะช่วยให้ครูปรับปรุงห้องเรียน</span>
                     <span className="block text-sm mt-1">Built from the ground up to protect your identity while helping your teacher improve the class.</span>
                 </p>
             </div>

@@ -14,7 +14,7 @@ Daily autonomous n8n workflow (7:30 AM UTC) that:
 2. Invokes Gemini LLM for personalized briefing + topic-specific recommendations
 3. Stores briefing in `briefing_queue` with status "pending"
 4. Posts webhook to dashboard for teacher approval
-5. After teacher approval, sends LINE message + updates status to "sent"
+5. After teacher approval, sends Email/Notification + updates status to "sent" (LINE Optional)
 6. Logs all decisions to `n8n_audit_log` for self-evaluation
 
 **Constitutional Alignment**: Loop0 (Sense) → Loop2 (Reason) → Loop3 (Act/Notify) → Loop4 (Self-Evaluate via teacher response latency).
@@ -631,7 +631,7 @@ AuditLogBriefing → LoopClasses.loop
 
 ### 1. POST /api/briefings/approve
 
-**Purpose**: Teacher approves briefing and triggers LINE send
+**Purpose**: Teacher approves briefing and triggers notification send (Email-first)
 
 **Route Handler**: `src/app/api/briefings/approve/route.ts`
 
@@ -664,7 +664,7 @@ export async function POST(request: Request) {
     })
     .eq('id', briefing_id);
   
-  // 3. Trigger n8n workflow for LINE send
+  // 3. Trigger n8n workflow for notification send (Email/Other)
   const n8nTrigger = await fetch('http://localhost:5678/webhook/...', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1010,7 +1010,7 @@ test('Teacher receives and approves morning briefing', async ({ page }) => {
   // 4. Click approve
   await page.click('[data-testid="approve-button"]');
   
-  // 5. Verify LINE message was sent (check audit log or LINE API mock)
+  // 5. Verify email was sent (check audit log or Resend API mock)
   await page.waitForTimeout(2000);
   const auditLog = await fetch('http://localhost:3000/api/admin/audit-log?workflow=W06&limit=1');
   const logs = await auditLog.json();
@@ -1078,7 +1078,7 @@ export default function () {
 - [ ] Briefing storage latency (Postgres INSERT time)
 - [ ] Webhook response time (POST to dashboard)
 - [ ] Teacher approval rate (% of pending → approved within 2h)
-- [ ] LINE delivery success rate (target 99%+)
+- [ ] Email delivery success rate (target 99%+)
 - [ ] LLM token usage & cost (Gemini API)
 - [ ] Audit log completeness (every decision logged)
 
@@ -1102,7 +1102,7 @@ IF teacher approval rate < 60% for >2 days THEN notify PM (may indicate UX issue
 | LLM confidence | Average ≥0.75 | briefing_queue.llm_confidence aggregation |
 | False rejects (validation fails) | <5% of briefings | n8n_audit_log count of 'briefing_rejected' |
 | Pilot adoption | ≥80% of teachers in pilot school approve ≥3 briefings | Teacher engagement dashboard |
-| Line delivery latency | P95 <5 seconds | LINE API delivery receipts |
+| Email delivery latency | P95 <5 seconds | Email API delivery receipts |
 
 ---
 

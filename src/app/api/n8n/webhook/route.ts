@@ -11,6 +11,7 @@ import { revalidatePath } from 'next/cache';
 //   student_reminder_sent      → W05 Friday Reminder
 //   health_score_updated       → W06 Sunday Health Score
 //   settings_updated           → System settings change
+//   redacted_voice_updated     → Phase C redacted voice refresh
 
 const VALID_EVENTS = [
     'recommendations_generated',
@@ -18,6 +19,7 @@ const VALID_EVENTS = [
     'student_reminder_sent',
     'health_score_updated',
     'settings_updated',
+    'redacted_voice_updated',
 ] as const;
 
 export async function POST(request: Request) {
@@ -63,6 +65,15 @@ export async function POST(request: Request) {
                 revalidatePath('/teacher');
                 revalidatePath('/teacher/classes');
                 console.log('Schedule settings updated for school:', body.school_id);
+                break;
+
+            case 'redacted_voice_updated':
+                revalidatePath('/teacher');
+                revalidatePath('/teacher/classes');
+                if (typeof body.class_id === 'string' && body.class_id.length > 0) {
+                    revalidatePath(`/teacher/class/${body.class_id}`);
+                    revalidatePath(`/teacher/class/${body.class_id}/responses`);
+                }
                 break;
 
             default:

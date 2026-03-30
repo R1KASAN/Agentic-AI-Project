@@ -2,8 +2,13 @@ import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ClientClasses } from "./client-classes";
+import {
+  deriveTeacherDisplayRiskLevel,
+  getRiskScoreFromLevel,
+  getTeacherDashboardOverviewData,
+} from "@/lib/teacherDashboard";
 
-export const metadata: Metadata = { title: "Manage Classrooms | Climate Agent" };
+export const metadata: Metadata = { title: "Manage Classrooms | Class Climate Agent" };
 
 export default async function TeacherClassesPage() {
     const supabase = await createClient();
@@ -13,37 +18,44 @@ export default async function TeacherClassesPage() {
 
     if (!user) redirect("/login");
 
-    // Fetch active classes for the teacher
-    const { data: classes, error: classesError } = await supabase
-        .from("classes")
-        .select("id, name, invite_code, created_at")
-        .eq("teacher_id", user.id)
-        .is("archived_at", null)
-        .order("name");
+  const {
+    classRows,
+    enrollmentCounts,
+    metricsByClassId,
+    auditByClassId,
+    climateByClassId,
+  } = await getTeacherDashboardOverviewData(user.id, 4, supabase);
 
-    if (classesError) {
-        throw new Error(`Failed to fetch classes: ${classesError.message}`);
-    }
+  const mappedClasses = classRows.map((cls) => ({
+    ...(() => {
+      const pendingRecs = (cls.recommendations || []).filter(
+        (recommendation: { status: string | null }) => recommendation.status === "pending"
+      );
+      const riskLevel = deriveTeacherDisplayRiskLevel(
+        climateByClassId[cls.id] ?? [],
+        pendingRecs.map(
+          (recommendation: { policy_level?: string | null }) =>
+            recommendation.policy_level ?? null
+        )
+      );
 
-    // We fetch enrollment counts separately to ensure robustness and aggregate properly
-    const classIds = (classes || []).map((c) => c.id);
-    const { data: enrollments } = await supabase
-        .from("class_enrollments")
-        .select("class_id")
-        .in("class_id", classIds.length > 0 ? classIds : ["none"]);
-
-    const enrollmentCounts: Record<string, number> = {};
-    (enrollments || []).forEach((e) => {
-        enrollmentCounts[e.class_id] = (enrollmentCounts[e.class_id] || 0) + 1;
-    });
-
-    const mappedClasses = (classes || []).map((cls) => ({
-        id: cls.id,
-        name: cls.name,
-        invite_code: cls.invite_code || "",
-        created_at: cls.created_at,
-        student_count: enrollmentCounts[cls.id] || 0,
-    }));
+      return {
+        risk_level: riskLevel === "NO_DATA" ? null : riskLevel,
+        risk_score: getRiskScoreFromLevel(riskLevel),
+        pending_recommendations: pendingRecs.length,
+      };
+    })(),
+    id: cls.id,
+    name: cls.name,
+    invite_code: cls.invite_code || "",
+    created_at: cls.created_at,
+    student_count: enrollmentCounts[cls.id] || 0,
+    inquiry_mode_suggested: metricsByClassId[cls.id]?.inquiryModeSuggested ?? false,
+    blocked_reason: auditByClassId[cls.id]?.blockedReason ?? null,
+    total_decided: metricsByClassId[cls.id]?.totalDecided ?? 0,
+    dismissal_rate: metricsByClassId[cls.id]?.dismissalRate ?? 0,
+    latest_policy_selected: auditByClassId[cls.id]?.policySelected ?? null,
+  }));
 
     return (
         <ClientClasses classes={mappedClasses} />

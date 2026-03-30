@@ -1,0 +1,531 @@
+{
+  "name": "phase-c-redaction-batch",
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "phasec-manual-trigger",
+      "name": "When clicking 'Execute workflow'",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1360,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/classes?select=id,name,teacher_id&order=name.asc",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "phasec-fetch-classes",
+      "name": "Fetch Target Classes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1120,
+        160
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "668Eac9gOdjgSW7d",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "phasec-loop-classes",
+      "name": "Loop Over Classes",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -880,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst classId = input.id;\nconst className = input.name || 'Unnamed class';\nreturn {\n  json: {\n    class_id: classId,\n    class_name: className,\n    weeks: 4,\n    limit: 12,\n    llm_provider: 'ollama',\n    llm_model: 'qwen2.5:3b'\n  }\n};"
+      },
+      "id": "phasec-build-context",
+      "name": "Build Redaction Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -640,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "value": "KdhdMyDyXeXQEHZI"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "class_id": "={{ $json.class_id }}",
+            "weeks": "={{ Number($json.weeks || 4) }}",
+            "limit": "={{ Number($json.limit || 12) }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "class_id",
+              "displayName": "class_id",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "required": false,
+              "display": true,
+              "type": "string"
+            },
+            {
+              "id": "weeks",
+              "displayName": "weeks",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "required": false,
+              "display": true,
+              "type": "number"
+            },
+            {
+              "id": "limit",
+              "displayName": "limit",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "required": false,
+              "display": true,
+              "type": "number"
+            }
+          ],
+          "attemptToConvertTypes": true,
+          "convertFieldsToString": false
+        }
+      },
+      "id": "phasec-call-raw",
+      "name": "Call Tool: Get Raw Snippet Batch",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -400,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json || {};\nconst classMeta = $('Build Redaction Context').first().json;\nconst rows = Array.isArray(raw.rows) ? raw.rows : [];\nconst sourceWindow = raw.source_window && typeof raw.source_window === 'object' ? raw.source_window : { weeks: classMeta.weeks, n: 0, class_id: classMeta.class_id };\nconst weekStart = raw.week_start || null;\nconst batchCount = Number(raw.batch_size || rows.length || 0);\nconst commentsBlock = rows.length > 0\n  ? rows.map((row, index) => `- ความเห็นที่ ${index + 1}: ${String(row.comment_text || '').replace(/\\s+/g, ' ').trim()}`).join('\\n')\n  : '- ไม่มี batch ที่ปลอดภัยพอสำหรับใช้ redaction ในรอบนี้';\nconst contextBlock = [\n  `class_id: ${classMeta.class_id}`,\n  `class_name: ${classMeta.class_name}`,\n  `week_start: ${weekStart || 'unknown'}`,\n  `window_weeks: ${Number(classMeta.weeks || 4)}`,\n  `contributing_students_count: ${Number(raw.contributing_students_count || sourceWindow.n || 0)}`,\n  `batch_size: ${batchCount}`,\n  `avg_mood: ${rows[0]?.avg_mood ?? 'null'}`,\n  `avg_pace: ${rows[0]?.avg_pace ?? 'null'}`,\n  `avg_fairness: ${rows[0]?.avg_fairness ?? 'null'}`,\n].join('\\n');\nconst prompt = raw.status === 'ready' && rows.length > 0\n  ? [\n      'คุณคือระบบ redaction pipeline สำหรับเสียงนักเรียนแบบ privacy-first ของครู',\n      'งานของคุณคือแปลง batch ของความคิดเห็นดิบให้เป็นเสียงรวมแบบลบข้อมูลระบุตัวตนแล้ว',\n      '',\n      'กติกาความปลอดภัยที่ต้องทำตามอย่างเคร่งครัด:',\n      '1. ห้ามคัดลอกข้อความใด ๆ จาก input แบบ verbatim',\n      '2. ต้องถอดความและรวมสัญญาณจากหลายคนเสมอ',\n      '3. ลบชื่อ ชื่อเล่น username id room number วันที่ เวลา และรายละเอียดที่ชี้ไปยังบุคคลเดียวได้',\n      '4. ห้ามทำให้ดูเหมือนนักเรียนคนเดียวพูดประโยคนี้ตรง ๆ',\n      '5. เขียนเป็นภาษาไทยสั้น ๆ ที่ครูอ่านเข้าใจง่าย',\n      '6. ถ้าปลอดภัยไม่พอ ให้คืน snippets เป็น array ว่าง พร้อม reason สั้น ๆ',\n      '7. ทุก snippet ต้องเป็นสัญญาณเชิงห้องเรียนที่ครูใช้สะท้อนการสอนได้ เช่น ความชัดเจนของคำอธิบาย จังหวะการสอน งานหรือกิจกรรม การมีส่วนร่วม ความมั่นใจ ภาระงาน การช่วยเหลือ หรือการทำงานร่วมกัน',\n      '8. หลีกเลี่ยงข้อความกว้าง ๆ ที่ไม่มีประโยชน์ เช่น เรียนรู้อะไรหลายอย่าง สนุกดี โอเคขึ้น หรือดีขึ้นเฉย ๆ',\n      '9. ถ้าหา snippet ที่ปลอดภัยและมีความหมายจริงไม่ได้ ให้คืน snippets เป็น array ว่าง',\n      '10. ต้องคืนเป็น JSON object ที่มี key ชื่อ snippets และ reason เท่านั้น ห้ามคืน array เป็น root โดยตรง',\n      '11. ถ้าสัญญาณมีทั้งด้านบวกและข้อกังวล ให้รวมเป็นประโยคเดียวที่ชี้ประเด็นห้องเรียนชัดเจน เช่น กิจกรรมกลุ่มช่วยให้มีส่วนร่วม แต่บางส่วนยังรู้สึกว่าจังหวะคาบค่อนข้างเร็ว',\n      '12. ห้ามขึ้นต้นด้วยคำกว้าง ๆ เช่น วันนี้ นักเรียนหลายคน ชื่อเรียนนี้ โดยไม่บอกว่าประเด็นห้องเรียนคืออะไร',\n      '',\n      'ตัวอย่างที่ดี:',\n      '{\"snippets\":[{\"text_redacted\":\"กิจกรรมกลุ่มช่วยให้หลายคนมีส่วนร่วมมากขึ้น แต่บางส่วนยังอยากได้ช่วงทบทวนที่ช้าลงเล็กน้อย\",\"tone\":\"mixed\",\"week_start\":\"2026-03-16\",\"source_window\":{\"weeks\":4,\"n\":3},\"contributing_students_count\":3,\"safety_notes\":\"aggregate classroom pace and participation signal\"}],\"reason\":null}',\n      'ตัวอย่างที่ไม่ดี:',\n      '{\"snippets\":[{\"text_redacted\":\"เรียนรู้อะไรหลายอย่างในวันนี้\",\"tone\":\"positive\",\"week_start\":\"2026-03-16\",\"source_window\":{\"weeks\":4,\"n\":3},\"contributing_students_count\":3,\"safety_notes\":\"too generic\"}],\"reason\":null}',\n      '',\n      'รูปแบบผลลัพธ์ที่ต้องคืนเท่านั้น:',\n      '{',\n      '  \"snippets\": [',\n      '    {',\n      '      \"text_redacted\": \"...\",',\n      '      \"tone\": \"low|mixed|positive\",',\n      '      \"week_start\": \"YYYY-MM-DD\",',\n      '      \"source_window\": {\"weeks\": 4, \"n\": 5},',\n      '      \"contributing_students_count\": 5,',\n      '      \"safety_notes\": \"คำอธิบายสั้น ๆ\"',\n      '    }',\n      '  ],',\n      '  \"reason\": null',\n      '}',\n      '',\n      'ให้สร้าง 1-3 snippets เท่านั้น',\n      'ถ้ามีมากกว่า 1 snippet แต่ละ snippet ต้องสะท้อนคนละประเด็นและห้ามซ้ำความหมายกัน',\n      'ถ้าข้อมูลจริงมีประเด็นที่ผ่านเกณฑ์เพียง 1 ข้อ ให้ตอบเพียง 1 snippet และไม่ต้องเติมข้อความกว้าง ๆ เพื่อให้ครบจำนวน',\n      'ห้ามมีข้อความอธิบายก่อนหรือหลัง JSON',\n      '',\n      '[Aggregate Context]',\n      contextBlock,\n      '',\n      '[Raw Comment Batch For Redaction]',\n      commentsBlock,\n    ].join('\\n')\n  : [\n      'ไม่มี raw batch ที่ปลอดภัยพอสำหรับทำ redaction ในรอบนี้',\n      'ให้ตอบเป็น JSON object เท่านั้นตามรูปแบบด้านล่าง และห้ามเพิ่มข้อความอื่น',\n      '{\"snippets\":[],\"reason\":\"no_safe_batch\"}'\n    ].join('\\n');\nreturn {\n  json: {\n    ...classMeta,\n    status_from_raw: raw.status || 'no_safe_batch',\n    raw_reason: raw.reason || null,\n    batch_size: batchCount,\n    week_start: weekStart,\n    source_window: sourceWindow,\n    contributing_students_count: Number(raw.contributing_students_count || sourceWindow.n || 0),\n    raw_rows: rows,\n    llm_prompt: prompt,\n  }\n};"
+      },
+      "id": "phasec-build-prompt",
+      "name": "Build Ollama Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -160,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.llm_prompt }}",
+        "batching": {
+          "batchSize": 1,
+          "delayBetweenBatches": 0
+        }
+      },
+      "id": "phasec-chain",
+      "name": "Redaction LLM Chain",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "onError": "continueRegularOutput",
+      "position": [
+        80,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:3b",
+        "options": {
+          "temperature": 0.2,
+          "topP": 0.9,
+          "numPredict": 380,
+          "numCtx": 4096,
+          "repeatPenalty": 1.1,
+          "keepAlive": "10m"
+        }
+      },
+      "id": "phasec-ollama",
+      "name": "Ollama Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        80,
+        400
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "4erpivhFAadoV8nb",
+          "name": "Ollama Local Dev"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $('Build Ollama Prompt').first().json;\nconst sourceTexts = Array.isArray(input.raw_rows) ? input.raw_rows.map((row) => String(row.comment_text || '').replace(/\\s+/g, ' ').trim()).filter(Boolean) : [];\nconst normalize = (value) => String(value || '').replace(/[`\"“”'']/g, '').replace(/\\s+/g, ' ').trim().toLowerCase();\nconst rawOutput = typeof $json.text === 'string'\n  ? $json.text\n  : typeof $json.output === 'string'\n    ? $json.output\n    : typeof $json.response?.text === 'string'\n      ? $json.response.text\n      : typeof $json.error === 'string'\n        ? ''\n        : JSON.stringify($json || {});\nif (input.status_from_raw !== 'ready' || !Array.isArray(input.raw_rows) || input.raw_rows.length === 0) {\n  return {\n    json: {\n      class_id: input.class_id,\n      class_name: input.class_name,\n      status: 'no_safe_batch',\n      batch_size: Number(input.batch_size || 0),\n      snippets_written: 0,\n      week_start: input.week_start,\n      source_window: input.source_window,\n      snippets: [],\n      reason: input.raw_reason || 'no_safe_batch',\n      llm_output_rejected: false,\n      llm_provider: input.llm_provider,\n      llm_model: input.llm_model,\n    }\n  };\n}\nif ($json.error) {\n  return {\n    json: {\n      class_id: input.class_id,\n      class_name: input.class_name,\n      status: 'unsafe_output',\n      batch_size: Number(input.batch_size || 0),\n      snippets_written: 0,\n      week_start: input.week_start,\n      source_window: input.source_window,\n      snippets: [],\n      reason: `ollama_error:${String($json.error).slice(0, 180)}`,\n      llm_output_rejected: true,\n      llm_provider: input.llm_provider,\n      llm_model: input.llm_model,\n    }\n  };\n}\nlet parsed;\ntry {\n  const cleaned = rawOutput.replace(/```json/g, '').replace(/```/g, '').trim();\n  parsed = JSON.parse(cleaned);\n  if (Array.isArray(parsed)) {\n    parsed = { snippets: parsed, reason: null };\n  }\n} catch (error) {\n  parsed = { snippets: [], reason: `ollama_parse_failed:${error.message}` };\n}\nconst snippetArray = Array.isArray(parsed?.snippets) ? parsed.snippets : [];\nconst isQuoteLike = (text) => {\n  const normalized = normalize(text);\n  if (!normalized) return true;\n  if (/[\"“”]/.test(text)) return true;\n  return sourceTexts.some((source) => {\n    const candidate = normalize(source);\n    return candidate && (candidate === normalized || candidate.includes(normalized) || normalized.includes(candidate));\n  });\n};\nconst isOverSpecific = (text) => {\n  return /@[A-Za-z0-9_]+/.test(text)\n    || /\\b\\d{4}-\\d{2}-\\d{2}\\b/.test(text)\n    || /\\b\\d{1,2}:\\d{2}\\b/.test(text)\n    || /ห้อง\\s*\\d+/i.test(text)\n    || /รหัส\\s*\\d+/i.test(text)\n    || /เลขที่\\s*\\d+/i.test(text)\n    || /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}/.test(text);\n};\nconst impliesSingleStudent = (text) => /(คนหนึ่ง|หนึ่งคน|คนเดียว|รายเดียว)/i.test(text);\nconst genericPatterns = [\n  /เรียนรู้อะไรหลาย/i,\n  /เรียนรู้หลายอย่าง/i,\n  /เรียนรู้หลายสิ่ง/i,\n  /สนุกดี/i,\n  /โอเคขึ้น/i,\n  /ดีขึ้นเฉย/i,\n  /เข้าใจมากขึ้น$/i,\n  /วันนี้ดี/i,\n  /โดยรวมดี/i,\n  /^นักเรียนหลายคน$/i,\n];\nconst classroomSignalPattern = /(อธิบาย|คำถาม|งาน|กิจกรรม|กลุ่ม|เพื่อน|เวลา|จังหวะ|เนื้อหา|ตัวอย่าง|ทบทวน|ร่วม|มั่นใจ|กดดัน|ไม่ทัน|เร็ว|ช้า|ตาม|สนับสนุน|ช่วย|อภิปราย|มีส่วนร่วม|ฟัง|เข้าใจ|สับสน|ภาระงาน|บรรยากาศ|ตอบคำถาม|ทำงานร่วม|ความชัดเจน|ยุติธรรม)/i;\nconst isLowInformation = (text, safetyNotes) => {\n  const normalized = normalize(text);\n  if (!normalized) return true;\n  if (genericPatterns.some((pattern) => pattern.test(text))) return true;\n  const compact = normalized.replace(/\\s+/g, '');\n  if (compact.length < 24) return true;\n  if (!classroomSignalPattern.test(text) && !classroomSignalPattern.test(safetyNotes || '')) return true;\n  return false;\n};\nconst similarityScore = (left, right) => {\n  if (!left || !right) return 0;\n  if (left === right || left.includes(right) || right.includes(left)) return 1;\n  const leftParts = left.split(/\\s+/).filter(Boolean);\n  const rightParts = right.split(/\\s+/).filter(Boolean);\n  if (leftParts.length === 0 || rightParts.length === 0) return 0;\n  const leftSet = new Set(leftParts);\n  const overlap = rightParts.filter((part) => leftSet.has(part)).length;\n  return overlap / Math.max(leftParts.length, rightParts.length);\n};\nconst validated = snippetArray\n  .map((snippet) => {\n    const text = typeof snippet?.text_redacted === 'string' ? snippet.text_redacted.replace(/\\s+/g, ' ').trim() : '';\n    const tone = typeof snippet?.tone === 'string' ? snippet.tone.trim().toLowerCase() : 'mixed';\n    const safetyNotes = typeof snippet?.safety_notes === 'string' ? snippet.safety_notes.replace(/\\s+/g, ' ').trim().slice(0, 160) : 'aggregated_paraphrase';\n    if (!text || text.length < 16 || text.length > 280) return null;\n    if (isQuoteLike(text) || isOverSpecific(text) || impliesSingleStudent(text) || isLowInformation(text, safetyNotes)) return null;\n    return {\n      text_redacted: text,\n      tone: ['low', 'mixed', 'positive', 'negative'].includes(tone) ? (tone === 'negative' ? 'low' : tone) : 'mixed',\n      week_start: input.week_start,\n      source_window: input.source_window,\n      contributing_students_count: Number(input.contributing_students_count || input.source_window?.n || 0),\n      safety_notes: safetyNotes,\n    };\n  })\n  .filter(Boolean);\nconst deduped = [];\nfor (const snippet of validated) {\n  const key = normalize(snippet.text_redacted);\n  if (!key) continue;\n  const isNearDuplicate = deduped.some((existing) => similarityScore(normalize(existing.text_redacted), key) >= 0.7);\n  if (isNearDuplicate) continue;\n  deduped.push(snippet);\n}\nconst finalSnippets = deduped.slice(0, 3);\nconst rejected = snippetArray.length > 0 && finalSnippets.length === 0;\nreturn {\n  json: {\n    class_id: input.class_id,\n    class_name: input.class_name,\n    status: finalSnippets.length > 0 ? 'ready_to_write' : 'unsafe_output',\n    batch_size: Number(input.batch_size || 0),\n    snippets_written: finalSnippets.length,\n    week_start: input.week_start,\n    source_window: input.source_window,\n    snippets: finalSnippets,\n    reason: finalSnippets.length > 0 ? null : (parsed?.reason || 'ollama_output_rejected'),\n    llm_output_rejected: rejected || finalSnippets.length === 0,\n    llm_provider: input.llm_provider,\n    llm_model: input.llm_model,\n  }\n};"
+      },
+      "id": "phasec-parse-output",
+      "name": "Parse Redaction Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        320,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "value": "XkX8fmUHUPBks3Ka"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "class_id": "={{ $json.class_id }}",
+            "week_start": "={{ $json.week_start || null }}",
+            "source_window": "={{ $json.source_window || {} }}",
+            "snippets": "={{ $json.snippets || [] }}",
+            "created_by_execution": "={{ $execution.id }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "class_id",
+              "displayName": "class_id",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "required": false,
+              "display": true,
+              "type": "string"
+            },
+            {
+              "id": "week_start",
+              "displayName": "week_start",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "required": false,
+              "display": true,
+              "type": "string"
+            },
+            {
+              "id": "source_window",
+              "displayName": "source_window",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "required": false,
+              "display": true,
+              "type": "object"
+            },
+            {
+              "id": "snippets",
+              "displayName": "snippets",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "required": false,
+              "display": true,
+              "type": "array"
+            },
+            {
+              "id": "created_by_execution",
+              "displayName": "created_by_execution",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "required": false,
+              "display": true,
+              "type": "string"
+            }
+          ],
+          "attemptToConvertTypes": true,
+          "convertFieldsToString": false
+        }
+      },
+      "id": "phasec-call-write",
+      "name": "Call Tool: Write Redacted Snippets",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        560,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const parsed = $('Parse Redaction Output').first().json;\nconst writeResult = $json || {};\nconst insertedCount = Number(writeResult.inserted_count || 0);\nconst status = parsed.status === 'ready_to_write' && insertedCount > 0\n  ? 'written'\n  : parsed.status;\nreturn {\n  json: {\n    class_id: parsed.class_id,\n    class_name: parsed.class_name,\n    status,\n    batch_size: Number(parsed.batch_size || 0),\n    snippets_written: insertedCount,\n    week_start: parsed.week_start,\n    source_window: parsed.source_window,\n    reason: status === 'written' ? null : (parsed.reason || status),\n    llm_output_rejected: parsed.llm_output_rejected === true,\n    llm_provider: parsed.llm_provider,\n    llm_model: parsed.llm_model,\n    inserted_count: insertedCount\n  }\n};"
+      },
+      "id": "phasec-normalize-result",
+      "name": "Normalize Pipeline Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nconst summaryText = item.snippets_written > 0\n  ? 'สร้างเสียงนักเรียนแบบลบข้อมูลจากหลายคนสำหรับช่วงล่าสุดแล้ว'\n  : item.status === 'no_safe_batch'\n    ? 'ยังไม่สร้างเสียงนักเรียน เพราะข้อมูลรวมยังไม่ถึงเกณฑ์ความเป็นส่วนตัว'\n    : 'pipeline ไม่ได้สร้างเสียงนักเรียนในรอบนี้';\nreturn {\n  json: {\n    workflow_id: 'phase-c-redaction-batch',\n    execution_id: $execution.id,\n    trigger_time: new Date().toISOString(),\n    policy_selected: 'redacted_voice_pipeline',\n    confidence_score: item.snippets_written > 0 ? 0.82 : 0.4,\n    actions_taken: item.snippets_written > 0 ? 'write_redacted_snippets' : 'skip_write',\n    decision_path: item.status,\n    class_id: item.class_id,\n    triggered_by: 'manual_dev_batch',\n    blocked_reason: item.status === 'no_safe_batch' ? 'k_anonymity' : null,\n    decision_path_json: {\n      pipeline: 'phase_c_redacted_voice',\n      status: item.status,\n      batch_size: item.batch_size,\n      snippets_written: item.snippets_written,\n      reason: item.reason,\n      source_window: item.source_window,\n      approval_mode: 'auto_approved_dev',\n      llm_provider: item.llm_provider,\n      llm_model: item.llm_model,\n      llm_output_rejected: item.llm_output_rejected === true,\n      fallback_used: false,\n      summary_text: summaryText\n    },\n    error_message: item.status === 'unsafe_output' || item.status === 'write_failed' ? (item.reason || item.status) : null,\n    inquiry_mode: false,\n    event_type: 'redaction_batch_processed'\n  }\n};"
+      },
+      "id": "phasec-build-audit",
+      "name": "Build Audit Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/n8n_audit_logs",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "phasec-insert-audit",
+      "name": "Insert Audit Log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1280,
+        160
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "668Eac9gOdjgSW7d",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.NEXT_PUBLIC_APP_URL }}/api/n8n/webhook",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.N8N_WEBHOOK_SECRET }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"event\": \"redacted_voice_updated\",\n  \"class_id\": \"{{ $('Build Audit Payload').item.json.class_id }}\"\n}",
+        "options": {}
+      },
+      "id": "phasec-revalidate",
+      "name": "Notify Webhook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1520,
+        160
+      ]
+    }
+  ],
+  "connections": {
+    "When clicking 'Execute workflow'": {
+      "main": [
+        [
+          {
+            "node": "Fetch Target Classes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Target Classes": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Classes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Classes": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Build Redaction Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Redaction Context": {
+      "main": [
+        [
+          {
+            "node": "Call Tool: Get Raw Snippet Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Tool: Get Raw Snippet Batch": {
+      "main": [
+        [
+          {
+            "node": "Build Ollama Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Ollama Prompt": {
+      "main": [
+        [
+          {
+            "node": "Redaction LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redaction LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Parse Redaction Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Redaction LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Redaction Output": {
+      "main": [
+        [
+          {
+            "node": "Call Tool: Write Redacted Snippets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Tool: Write Redacted Snippets": {
+      "main": [
+        [
+          {
+            "node": "Normalize Pipeline Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Pipeline Result": {
+      "main": [
+        [
+          {
+            "node": "Build Audit Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Audit Payload": {
+      "main": [
+        [
+          {
+            "node": "Insert Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Audit Log": {
+      "main": [
+        [
+          {
+            "node": "Notify Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Webhook": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Classes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false
+}

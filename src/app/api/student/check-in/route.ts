@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 const MOOD_MAP: Record<number, string> = {
     1: "very_low",
     2: "low",
-    3: "neutral",
+    3: "okay",
     4: "good",
     5: "great",
 };
@@ -40,9 +40,12 @@ export async function POST(request: Request) {
         // Parse request body
         const body = await request.json();
         const { class_id, mood, pace, fairness, content } = body;
+        const numericMood = Number(mood);
+        const numericPace = Number(pace);
+        const numericFairness = Number(fairness);
 
         // Validate required fields
-        if (!class_id || mood === undefined || !pace || !fairness) {
+        if (!class_id || mood === undefined || pace === undefined || fairness === undefined) {
             return NextResponse.json(
                 { error: "Missing required fields: class_id, mood, pace, fairness" },
                 { status: 400 }
@@ -50,7 +53,7 @@ export async function POST(request: Request) {
         }
 
         // Validate mood (integer 1-5, mapped to TEXT enum)
-        if (!VALID_MOODS.has(mood)) {
+        if (!Number.isInteger(numericMood) || !VALID_MOODS.has(numericMood)) {
             return NextResponse.json(
                 { error: "mood must be an integer between 1 and 5" },
                 { status: 400 }
@@ -59,7 +62,7 @@ export async function POST(request: Request) {
 
         // Validate pace and fairness ranges (1-5 integers)
         if (
-            ![pace, fairness].every(
+            ![numericPace, numericFairness].every(
                 (v) => Number.isInteger(v) && v >= 1 && v <= 5
             )
         ) {
@@ -95,11 +98,11 @@ export async function POST(request: Request) {
             .from("student_pulses")
             .insert({
                 class_id,
-                mood: MOOD_MAP[mood],        // TEXT enum
-                pace,                         // SMALLINT 1-5
-                fairness,                     // SMALLINT 1-5
+                mood: MOOD_MAP[numericMood],        // TEXT enum
+                pace: numericPace,                  // SMALLINT 1-5
+                fairness: numericFairness,          // SMALLINT 1-5
                 optional_text: content?.trim() || null,
-                student_id: user.id,         // Explicitly set student_id
+                student_id: user.id,                // Explicitly set student_id
             });
 
         if (insertError) {
@@ -136,4 +139,3 @@ export async function POST(request: Request) {
         );
     }
 }
-

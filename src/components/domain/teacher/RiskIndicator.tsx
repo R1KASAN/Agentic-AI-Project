@@ -3,9 +3,25 @@ import { Shield, AlertTriangle, AlertOctagon } from "lucide-react";
 
 type RiskLevel = "low" | "medium" | "high";
 
+type PolicyLevel = "ROUTINE" | "WARNING" | "CRITICAL";
+
 interface RiskIndicatorProps {
-    score: number | null;
-    size?: "sm" | "md";
+  score: number | null;
+  policyLevel?: PolicyLevel | null;
+  size?: "sm" | "md";
+}
+
+function getRiskFromPolicyLevel(policyLevel: string | null | undefined): RiskLevel {
+  switch (policyLevel) {
+    case "ROUTINE":
+      return "low";
+    case "WARNING":
+      return "medium";
+    case "CRITICAL":
+      return "high";
+    default:
+      return "low";
+  }
 }
 
 function getRiskLevel(score: number | null): RiskLevel {
@@ -46,8 +62,8 @@ const RISK_CONFIG: Record<
     },
 };
 
-export function RiskIndicator({ score, size = "sm" }: RiskIndicatorProps) {
-    const level = getRiskLevel(score);
+export function RiskIndicator({ score, policyLevel, size = "sm" }: RiskIndicatorProps) {
+  const level = policyLevel !== undefined ? getRiskFromPolicyLevel(policyLevel) : getRiskLevel(score);
     const config = RISK_CONFIG[level];
 
     return (

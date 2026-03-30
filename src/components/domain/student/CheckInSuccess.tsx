@@ -5,7 +5,15 @@ import { Button } from "@/components/ui/button";
 import { MICROCOPY, BiText } from "@/lib/microcopy";
 import Link from "next/link";
 
-export function CheckInSuccess() {
+interface CheckInSuccessProps {
+    classId?: string | null;
+}
+
+export function CheckInSuccess({ classId }: CheckInSuccessProps) {
+    const feedbackHref = classId
+        ? `/student/feedback?classId=${encodeURIComponent(classId)}`
+        : "/student/feedback";
+
     return (
         <div className="flex flex-col items-center justify-center text-center py-12 px-6 space-y-6 animate-in fade-in-0 slide-in-from-bottom-4 duration-500">
             {/* Success Icon */}
@@ -41,7 +49,7 @@ export function CheckInSuccess() {
 
             {/* Actions */}
             <div className="flex gap-3 pt-2">
-                <Link href="/student/feedback">
+                <Link href={feedbackHref}>
                     <Button variant="outline" className="gap-2">
                         ดูความคิดเห็น / View Feedback
                         <ArrowRight className="w-4 h-4" />

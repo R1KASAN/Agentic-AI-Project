@@ -35,6 +35,23 @@
   --sidebar-bg: #1e293b;
   --sidebar-fg: #e2e8f0;
   --sidebar-active: #6366f1;
+  --student-dashboard-bg: #081121;
+  --student-dashboard-sidebar: #020817;
+  --student-dashboard-surface: #0f1b2d;
+  --student-dashboard-surface-raised: #132134;
+  --student-dashboard-surface-soft: #16263b;
+  --student-dashboard-border: #243449;
+  --student-dashboard-text: #e5e7eb;
+  --student-dashboard-text-muted: #94a3b8;
+  --student-dashboard-primary: #93c5fd;
+  --student-dashboard-primary-soft: rgb(147 197 253 / 0.14);
+  --student-dashboard-success: #d1fae5;
+  --student-dashboard-warning: #fde68a;
+  --student-dashboard-danger: #fecaca;
+  --student-dashboard-chart-mood: #a78bfa;
+  --student-dashboard-chart-pace: #7dd3fc;
+  --student-dashboard-chart-fairness: #5eead4;
+  --student-dashboard-grid: #334155;
   --radius: 0.625rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
@@ -79,6 +96,23 @@
   --color-sidebar-bg: var(--sidebar-bg);
   --color-sidebar-fg: var(--sidebar-fg);
   --color-sidebar-active: var(--sidebar-active);
+  --color-student-dashboard-bg: var(--student-dashboard-bg);
+  --color-student-dashboard-sidebar: var(--student-dashboard-sidebar);
+  --color-student-dashboard-surface: var(--student-dashboard-surface);
+  --color-student-dashboard-surface-raised: var(--student-dashboard-surface-raised);
+  --color-student-dashboard-surface-soft: var(--student-dashboard-surface-soft);
+  --color-student-dashboard-border: var(--student-dashboard-border);
+  --color-student-dashboard-text: var(--student-dashboard-text);
+  --color-student-dashboard-text-muted: var(--student-dashboard-text-muted);
+  --color-student-dashboard-primary: var(--student-dashboard-primary);
+  --color-student-dashboard-primary-soft: var(--student-dashboard-primary-soft);
+  --color-student-dashboard-success: var(--student-dashboard-success);
+  --color-student-dashboard-warning: var(--student-dashboard-warning);
+  --color-student-dashboard-danger: var(--student-dashboard-danger);
+  --color-student-dashboard-chart-mood: var(--student-dashboard-chart-mood);
+  --color-student-dashboard-chart-pace: var(--student-dashboard-chart-pace);
+  --color-student-dashboard-chart-fairness: var(--student-dashboard-chart-fairness);
+  --color-student-dashboard-grid: var(--student-dashboard-grid);
   --font-sans: var(--font-inter);
   --font-mono: var(--font-geist-mono);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -176,5 +210,36 @@ body {
 
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .student-dashboard-shell {
+    background:
+      radial-gradient(circle at top, rgb(19 33 52 / 0.55), transparent 38%),
+      linear-gradient(180deg, #0b1526 0%, var(--student-dashboard-bg) 100%);
+    color: var(--student-dashboard-text);
+  }
+
+  .student-surface {
+    background-color: var(--student-dashboard-surface);
+    border-color: var(--student-dashboard-border);
+    color: var(--student-dashboard-text);
+  }
+
+  .student-surface-raised {
+    background-color: var(--student-dashboard-surface-raised);
+    border-color: var(--student-dashboard-border);
+    color: var(--student-dashboard-text);
+  }
+
+  .student-surface-soft {
+    background-color: var(--student-dashboard-surface-soft);
+    border-color: var(--student-dashboard-border);
+    color: var(--student-dashboard-text);
+  }
+
+  .student-text-muted {
+    color: var(--student-dashboard-text-muted);
   }
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, Loader2, AlertCircle } from "lucide-react";
 
@@ -25,15 +25,14 @@ function getSessionKey(classId: string) {
 
 export function QrCheckInClient({ classId, className }: QrCheckInClientProps) {
     const [selected, setSelected] = useState<number | null>(null);
-    const [state, setState] = useState<State>("idle");
-    const [errorMsg, setErrorMsg] = useState<string>("");
-
-    // Check if already submitted this session
-    useEffect(() => {
-        if (sessionStorage.getItem(getSessionKey(classId)) === "1") {
-            setState("already_done");
+    const [state, setState] = useState<State>(() => {
+        if (typeof window !== "undefined" && window.sessionStorage.getItem(getSessionKey(classId)) === "1") {
+            return "already_done";
         }
-    }, [classId]);
+
+        return "idle";
+    });
+    const [errorMsg, setErrorMsg] = useState<string>("");
 
     const handleSubmit = async () => {
         if (!selected || state === "submitting") return;

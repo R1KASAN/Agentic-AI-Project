@@ -1,0 +1,297 @@
+{
+  "name": "Handle Teacher Approval",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "teacher-approval",
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": false
+        }
+      },
+      "id": "ebb7a048-c30f-4886-9ac5-c1e5509dd67a",
+      "name": "Teacher Approval Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const body = $json.body ?? {};\n\nif (body.event !== \"recommendation_approved\" || !body.recommendation_id || !body.teacher_id) {\n  return {\n    json: { isValid: false, reason: \"Missing required UUIDs or incorrect event\" },\n  };\n}\n\ndelete body.student_pulses;\ndelete body.raw_climate_snapshot;\n\nreturn {\n  json: { isValid: true, body },\n};"
+      },
+      "id": "afcf14cc-cb0b-486d-a193-4a161ed5ab76",
+      "name": "Validate Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        450,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.body.event === \"recommendation_approved\" && !!$json.body.recommendation_id && !!$json.body.teacher_id }}",
+              "operation": "true",
+              "singleValue": true
+            }
+          ]
+        }
+      },
+      "id": "83fb4f96-dfa3-4b95-a226-c2dd5b13df18",
+      "name": "Is Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        650,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL + '/rest/v1/n8n_audit_logs?apikey=' + $env.SUPABASE_SERVICE_KEY }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workflow_id\": \"{{ $workflow.name }}\",\n  \"execution_id\": \"{{ $execution.id }}\",\n  \"trigger_time\": \"{{ $now.toISO() }}\",\n  \"class_id\": \"{{ $json.body.recommendation.class_id }}\",\n  \"policy_selected\": \"teacher_approval\",\n  \"confidence_score\": 1,\n  \"triggered_by\": \"teacher_webhook\",\n  \"inquiry_mode\": {{ $json.body.recommendation.inquiry_mode || false }},\n  \"event_type\": \"teacher_approval\",\n  \"decision_path_json\": {\n    \"source\": \"Handle Teacher Approval\",\n    \"event\": \"{{ $json.body.event }}\",\n    \"note\": \"{{ $json.body.note || '' }}\",\n    \"recommendation\": {\n      \"id\": \"{{ $json.body.recommendation.id }}\",\n      \"class_id\": \"{{ $json.body.recommendation.class_id }}\",\n      \"policy_level\": \"{{ $json.body.recommendation.policy_level }}\",\n      \"inquiry_mode\": {{ $json.body.recommendation.inquiry_mode || false }}\n    }\n  },\n  \"error_message\": \"\",\n  \"blocked_reason\": \"\"\n}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "4e652ea4-9e32-4753-90bd-f8a415ff672a",
+      "name": "Insert Audit Log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        850,
+        200
+      ],
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.resend.com/emails",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ `Bearer ${$env.RESEND_API_KEY}` }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"from\": \"Climate Agent <notifications@climate-agent.com>\",\n  \"to\": [\"{{ $json.body.teacher_email }}\"],\n  \"subject\": \"Approval Confirmed: {{ $json.body.recommendation.classes.name }}\",\n  \"html\": \"<p>You approved the climate recommendation.</p><p><strong>Draft:</strong> {{ $json.body.recommendation.ai_message_draft }}</p><p><strong>Note:</strong> {{ $json.body.note }}</p>\"\n}"
+      },
+      "id": "e30f1d53-bc27-4632-a5ab-5418b76ce8d2",
+      "name": "Send Teacher Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1050,
+        200
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"ok\": true\n}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "2d1b0d2d-5b31-4e76-ae0b-c852d4b9b9a6",
+      "name": "Respond 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1250,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"ok\": false,\n  \"error\": \"Invalid payload\"\n}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "b3f0e81e-91ad-4673-8b77-5dd0c9c7f68c",
+      "name": "Respond 400",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        850,
+        400
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "4b6cdb42-1e96-41f0-a359-fd2f974cb118",
+      "name": "Workflow Error Handler",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        250,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL + '/rest/v1/error_logs?apikey=' + $env.SUPABASE_SERVICE_KEY }}",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ ({ workflow_id: $workflow.name, execution_id: $execution.id, error_message: $json.execution?.error?.message || '', error_node: $json.execution?.error?.node?.name || '', error_stack: $json.execution?.error?.stack || '', timestamp: $now.toISO() }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "7879e96c-bdf6-44ec-b8f2-3e284a1413fa",
+      "name": "Insert Error Log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        450,
+        600
+      ],
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"ok\": false,\n  \"error\": \"Internal side-effect failure\"\n}",
+        "options": {
+          "responseCode": 500
+        }
+      },
+      "id": "92dbd083-d586-44cd-9f79-6799342dd3b4",
+      "name": "Respond 500",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        650,
+        600
+      ]
+    }
+  ],
+  "connections": {
+    "Teacher Approval Webhook": {
+      "main": [
+        [
+          {
+            "node": "Is Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Payload": {
+      "main": [
+        [
+          {
+            "node": "Is Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Valid?": {
+      "main": [
+        [
+          {
+            "node": "Insert Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 400",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Audit Log": {
+      "main": [
+        [
+          {
+            "node": "Respond 200",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Teacher Email": {
+      "main": [
+        [
+          {
+            "node": "Respond 200",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow Error Handler": {
+      "main": [
+        [
+          {
+            "node": "Insert Error Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Error Log": {
+      "main": [
+        [
+          {
+            "node": "Respond 500",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

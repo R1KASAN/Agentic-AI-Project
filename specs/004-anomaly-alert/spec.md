@@ -19,7 +19,7 @@
 
 **Why this priority**: Real-time anomaly detection is the agent's rapid response mechanism. Classroom mood drops can signal disengagement, conflict, or crisis. Early intervention (within 30–60 minutes) can prevent the day from derailing. This is the agent's triage function—separating signal from noise.
 
-**Independent Test**: Can be fully tested by: (1) Simulating a mood drop by creating student check-ins with low mood scores, (2) Verifying alert is triggered within 2 minutes of threshold breach, (3) Checking LINE message is delivered within 5 minutes with 2-3 rapid intervention suggestions, (4) Confirming audit log documents the anomaly and decision. Delivers value: Prevents classroom escalation via early detection.
+**Independent Test**: Can be fully tested by: (1) Simulating a mood drop by creating student check-ins with low mood scores, (2) Verifying alert is triggered within 2 minutes of threshold breach, (3) Checking email is delivered within 5 minutes with 2-3 rapid intervention suggestions, (4) Confirming audit log documents the anomaly and decision. Delivers value: Prevents classroom escalation via early detection.
 
 **Acceptance Scenarios**:
 
@@ -29,11 +29,11 @@
 
 2. **Given** mood drop >30% vs. baseline is detected,  
    **When** anomaly is confirmed (k≥3 students, data freshness <15 min),  
-   **Then** teacher receives LINE alert: "[⚠️ ALERT] Class energy is lower than usual. Let's try: 1) [fast intervention], 2) [fast intervention]."
+   **Then** teacher receives email alert with subject "🚨 [Climate Agent] ⚠️ ห้องเรียนมีสัญญาณเตือน" and body containing: (a) Severity label [⚠️ Warning / 🚨 Critical], (b) Mood drop observation, (c) 2-3 rapid interventions, (d) CTA link to dashboard.
 
 3. **Given** mood drop is 15–30% vs. baseline,  
    **When** anomaly is detected,  
-   **Then** alert uses lighter framing: "[📌 Observation] Mood is trending down slightly. Worth checking in with students?"
+   **Then** alert uses lighter framing in email: subject "📌 [Climate Agent] สังเกตการณ์ห้องเรียน" with body: "Mood is trending down slightly. Worth checking in with students?"
 
 4. **Given** mood anomaly alert has been sent in past 2 hours,  
    **When** another anomaly is detected,  
@@ -49,13 +49,13 @@
 
 **Why this priority**: Loop closure for anomaly alerts is even more critical than routine briefings—teacher action directly impacts class climate in real time. Without quick feedback, agent cannot learn which interventions are effective in crisis vs. routine contexts.
 
-**Independent Test**: Can be tested by: (1) Teacher clicking "I'll try this now" on LINE message, (2) Teacher marking intervention as "Done" in dashboard <10 mins later with optional feedback, (3) Verifying mood score increases in subsequent check-ins. Delivers value: Agent learns which interventions stop escalation.
+**Independent Test**: Can be tested by: (1) Teacher clicking "Acknowledge" in dashboard after receiving email alert, (2) Teacher marking intervention as "Done" <10 mins later with optional feedback, (3) Verifying mood score increases in subsequent check-ins. Delivers value: Agent learns which interventions stop escalation.
 
 **Acceptance Scenarios**:
 
-1. **Given** teacher has received anomaly alert with 2-3 rapid intervention suggestions,  
-   **When** teacher clicks "I'll try this now" on LINE or dashboard,  
-   **Then** status changes to "Acknowledged" and teacher is notified: "Great. We'll check mood in 5 min to see if it helped."
+1. **Given** teacher has received anomaly alert email with 2-3 rapid intervention suggestions,  
+   **When** teacher clicks "Acknowledge" button in dashboard,  
+   **Then** status changes to "Acknowledged" and dashboard notification displays: "Great. We'll check mood in 5 min to see if it helped."
 
 2. **Given** teacher has implemented intervention and students have submitted new check-ins,  
    **When** teacher clicks "✓ Done" with optional feedback,  
@@ -94,11 +94,11 @@
 
 - **FR-001**: Anomaly detection MUST run in real-time: query `student_pulses` table every 5 minutes for new check-ins
 - **FR-002**: Threshold trigger: mood drop >30% vs. 3-week baseline OR engagement <2/5 for >50% of class (k≥3)
-- **FR-003**: Anomaly alert MUST be delivered via LINE within 2 minutes of detection
+- **FR-003**: Anomaly alert MUST be delivered via Resend Email within 5 minutes of detection
 - **FR-004**: Alert content MUST include: (a) Severity label [Warning / Critical], (b) Observation, (c) 2-3 rapid interventions
 - **FR-005**: Alert MUST NOT include raw student names, IDs, or individual mood data
 - **FR-006**: Intervention suggestions MUST be actionable within 5–10 minutes
-- **FR-007**: Teacher MUST be able to approve suggestions via LINE CTA within 30 seconds
+- **FR-007**: Teacher MUST be able to acknowledge suggestions via dashboard button within 2 minutes of receiving alert email
 - **FR-008**: Mood recovery MUST be monitored post-intervention (30-min window)
 - **FR-009**: All anomaly events MUST be logged to `n8n_audit_log`
 - **FR-010**: Max 2 notifications/day guard enforced (briefing + anomaly alerts combined)
@@ -110,7 +110,7 @@
 - **AGR-003**: Tool isolation: Detection uses only RPCs; LLM invokes only for suggestion generation via `toolWorkflow` node
 - **AGR-004**: Intervention suggestion generation MUST use LLM with explicit constraints: 5–10 min actions, classroom-appropriate, no individual student names
 - **AGR-005**: Loop closure: "Acknowledge" + success feedback tags intervention as high_trust; negative feedback tags as low_impact
-- **AGR-006**: Alert framing MUST be urgent but partner-voice: no panic language
+- **AGR-006**: Alert framing MUST be urgent but partner-voice: no panic language; email subject line uses emoji (⚠️ / 🚨) for visual priority
 - **AGR-007**: Escalation logic: If teacher does NOT acknowledge Critical alert within 30 min AND is online, escalate to manager
 - **AGR-008**: Guardrails: (a) Max 2 alerts/day, (b) Suppress after 3 PM, (c) Suppress on school holidays, (d) If teacher dismisses 3x, pause 48h
 
@@ -125,7 +125,7 @@
 
 ### Measurable Outcomes
 
-- **SC-001**: 100% of detected mood anomalies (drop >30%) trigger alert delivery within 5 minutes
+- **SC-001**: 100% of detected mood anomalies (drop >30%) trigger email alert delivery within 5 minutes (via Resend, with retry on transient failures)
 - **SC-002**: Teachers approve ≥85% of anomaly alerts
 - **SC-003**: Teachers implement ≥60% of approved anomaly interventions within 10 minutes
 - **SC-004**: Mood recovery detected (mood increases >5%) within 15 minutes on ≥70% of implementation cases
@@ -168,8 +168,9 @@ Agentic Loop Stage: Loop2 → Plan
 ├─ Results: 2-3 suggestions <100 chars each
 
 Agentic Loop Stage: Loop3 → Act / Notify
-├─ Format alert message (severity-based framing)
-├─ Send immediately via LINE (no approval gate delay)
+├─ Format alert message (severity-based framing, Thai subject/body)
+├─ Create notification_job entry for email delivery (Resend API)
+├─ Send email via notification dispatcher (rate-limited, async)
 ├─ Log anomaly event to audit log
 
 Agentic Loop Stage: Loop4 → Self-Evaluation  
@@ -188,7 +189,7 @@ Agentic Loop Stage: Loop5 → Learn
 
 - **W07 (Main)**: `agentic-ai-mood-anomaly.json`
   - Trigger: Event-driven (new student_pulses) OR Schedule every 5 min
-  - Nodes: Get check-ins → K-anon guard → Get baseline → Compute anomaly → Severity classifier → LLM suggestions → Format alert → Send LINE → Log audit → Recovery monitor
+  - Nodes: Get check-ins → K-anon guard → Get baseline → Compute anomaly → Severity classifier → LLM suggestions → Format alert → Create notification_job → Log audit → Recovery monitor
 
 - **Sub-Workflows**:
   - `tool-get-mood-baseline` → RPC: `get_mood_baseline_rolling(class_id, days=21)`

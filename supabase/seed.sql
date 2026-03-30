@@ -9,20 +9,20 @@
 -- Passwords are 'password123'
 INSERT INTO auth.users (id, aud, role, email, encrypted_password, email_confirmed_at, recovery_sent_at, last_sign_in_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 VALUES
-  ('00000000-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'teacher@school.edu', crypt('password123', gen_salt('bf')), current_timestamp, current_timestamp, current_timestamp, '{"provider":"email","providers":["email"]}', '{}', current_timestamp, current_timestamp),
-  ('00000000-0000-0000-0000-000000000002', 'authenticated', 'authenticated', 'student@school.edu', crypt('password123', gen_salt('bf')), current_timestamp, current_timestamp, current_timestamp, '{"provider":"email","providers":["email"]}', '{}', current_timestamp, current_timestamp),
-  ('00000000-0000-0000-0000-000000000003', 'authenticated', 'authenticated', 'student2@school.edu', crypt('password123', gen_salt('bf')), current_timestamp, current_timestamp, current_timestamp, '{"provider":"email","providers":["email"]}', '{}', current_timestamp, current_timestamp),
-  ('00000000-0000-0000-0000-000000000004', 'authenticated', 'authenticated', 'student3@school.edu', crypt('password123', gen_salt('bf')), current_timestamp, current_timestamp, current_timestamp, '{"provider":"email","providers":["email"]}', '{}', current_timestamp, current_timestamp),
-  ('00000000-0000-0000-0000-000000000005', 'authenticated', 'authenticated', 'admin@school.edu', crypt('password123', gen_salt('bf')), current_timestamp, current_timestamp, current_timestamp, '{"provider":"email","providers":["email"]}', '{}', current_timestamp, current_timestamp)
+  ('00000000-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'teacher@demo.com', crypt('password123', gen_salt('bf')), current_timestamp, current_timestamp, current_timestamp, '{"provider":"email","providers":["email"]}', '{"role":"teacher"}', current_timestamp, current_timestamp),
+  ('00000000-0000-0000-0000-000000000002', 'authenticated', 'authenticated', 'student1@demo.com', crypt('password123', gen_salt('bf')), current_timestamp, current_timestamp, current_timestamp, '{"provider":"email","providers":["email"]}', '{"role":"student"}', current_timestamp, current_timestamp),
+  ('00000000-0000-0000-0000-000000000003', 'authenticated', 'authenticated', 'student2@demo.com', crypt('password123', gen_salt('bf')), current_timestamp, current_timestamp, current_timestamp, '{"provider":"email","providers":["email"]}', '{"role":"student"}', current_timestamp, current_timestamp),
+  ('00000000-0000-0000-0000-000000000004', 'authenticated', 'authenticated', 'student3@demo.com', crypt('password123', gen_salt('bf')), current_timestamp, current_timestamp, current_timestamp, '{"provider":"email","providers":["email"]}', '{"role":"student"}', current_timestamp, current_timestamp),
+  ('00000000-0000-0000-0000-000000000005', 'authenticated', 'authenticated', 'admin@demo.com', crypt('password123', gen_salt('bf')), current_timestamp, current_timestamp, current_timestamp, '{"provider":"email","providers":["email"]}', '{"role":"admin"}', current_timestamp, current_timestamp)
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO auth.identities (id, user_id, identity_data, provider, provider_id, last_sign_in_at, created_at, updated_at)
 VALUES
-  (gen_random_uuid(), '00000000-0000-0000-0000-000000000001', '{"sub":"00000000-0000-0000-0000-000000000001","email":"teacher@school.edu"}', 'email', 'teacher@school.edu', current_timestamp, current_timestamp, current_timestamp),
-  (gen_random_uuid(), '00000000-0000-0000-0000-000000000002', '{"sub":"00000000-0000-0000-0000-000000000002","email":"student@school.edu"}', 'email', 'student@school.edu', current_timestamp, current_timestamp, current_timestamp),
-  (gen_random_uuid(), '00000000-0000-0000-0000-000000000003', '{"sub":"00000000-0000-0000-0000-000000000003","email":"student2@school.edu"}', 'email', 'student2@school.edu', current_timestamp, current_timestamp, current_timestamp),
-  (gen_random_uuid(), '00000000-0000-0000-0000-000000000004', '{"sub":"00000000-0000-0000-0000-000000000004","email":"student3@school.edu"}', 'email', 'student3@school.edu', current_timestamp, current_timestamp, current_timestamp),
-  (gen_random_uuid(), '00000000-0000-0000-0000-000000000005', '{"sub":"00000000-0000-0000-0000-000000000005","email":"admin@school.edu"}', 'email', 'admin@school.edu', current_timestamp, current_timestamp, current_timestamp)
+  (gen_random_uuid(), '00000000-0000-0000-0000-000000000001', '{"sub":"00000000-0000-0000-0000-000000000001","email":"teacher@demo.com"}', 'email', 'teacher@demo.com', current_timestamp, current_timestamp, current_timestamp),
+  (gen_random_uuid(), '00000000-0000-0000-0000-000000000002', '{"sub":"00000000-0000-0000-0000-000000000002","email":"student1@demo.com"}', 'email', 'student1@demo.com', current_timestamp, current_timestamp, current_timestamp),
+  (gen_random_uuid(), '00000000-0000-0000-0000-000000000003', '{"sub":"00000000-0000-0000-0000-000000000003","email":"student2@demo.com"}', 'email', 'student2@demo.com', current_timestamp, current_timestamp, current_timestamp),
+  (gen_random_uuid(), '00000000-0000-0000-0000-000000000004', '{"sub":"00000000-0000-0000-0000-000000000004","email":"student3@demo.com"}', 'email', 'student3@demo.com', current_timestamp, current_timestamp, current_timestamp),
+  (gen_random_uuid(), '00000000-0000-0000-0000-000000000005', '{"sub":"00000000-0000-0000-0000-000000000005","email":"admin@demo.com"}', 'email', 'admin@demo.com', current_timestamp, current_timestamp, current_timestamp)
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================

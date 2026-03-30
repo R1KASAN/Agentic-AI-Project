@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Copy, Download, Check, Loader2 } from "lucide-react";
@@ -14,7 +14,6 @@ interface QrCodeDialogProps {
 }
 
 export function QrCodeDialog({ classId, className, open, onOpenChange }: QrCodeDialogProps) {
-    const canvasRef = useRef<HTMLCanvasElement>(null);
     const [copied, setCopied] = useState(false);
     const [downloading, setDownloading] = useState(false);
 
@@ -23,19 +22,22 @@ export function QrCodeDialog({ classId, className, open, onOpenChange }: QrCodeD
             ? `${window.location.origin}/qr/${classId}`
             : `/qr/${classId}`;
 
-    // Render QR to canvas when dialog opens
-    useEffect(() => {
-        if (!open || !canvasRef.current) return;
-
-        QRCode.toCanvas(canvasRef.current, checkInUrl, {
-            width: 256,
-            margin: 2,
-            color: {
-                dark: "#0f172a",
-                light: "#ffffff",
-            },
-        }).catch(console.error);
-    }, [open, checkInUrl]);
+    // Callback ref: draws QR as soon as the canvas mounts in the DOM
+    // (fixes blank canvas caused by Radix Dialog portal timing)
+    const canvasRef = useCallback(
+        (canvas: HTMLCanvasElement | null) => {
+            if (!canvas) return;
+            QRCode.toCanvas(canvas, checkInUrl, {
+                width: 256,
+                margin: 2,
+                color: {
+                    dark: "#0f172a",
+                    light: "#ffffff",
+                },
+            }).catch(console.error);
+        },
+        [checkInUrl]
+    );
 
     const handleCopyLink = async () => {
         try {

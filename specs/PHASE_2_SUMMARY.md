@@ -34,7 +34,7 @@ Deliver daily classroom climate intelligence to teachers before school starts, e
 - **Loop5**: Agent learns: adjust LLM temperature, deprioritize low-engagement suggestions
 
 ### Key Requirements
-- **Delivery**: LINE notification 7:30 AM on school days (M-F)
+- **Delivery**: Personalized briefing (Email-first / Notification) 7:30 AM on school days (M-F). (LINE Optional)
 - **Content**: Mood aggregate (mean ± std), trend vs. baseline, 1–2 LLM suggestions, loop closure %, next check-in
 - **Privacy**: k-anonymity enforced (k≥3); no raw student data
 - **Approval Gate**: Teacher must approve before briefing leaves dashboard
@@ -64,14 +64,14 @@ Detect real-time classroom mood anomalies and trigger rapid intervention recomme
 ### Agentic Loop Stages
 - **Loop0**: Real-time monitoring (every 5 min OR event-driven on check-in insert)
 - **Loop2**: Compute mood drop %, classify severity (rule-based), invoke LLM for interventions
-- **Loop3**: Send alert via LINE immediately (no approval delay for critical alerts)
+- **Loop3**: Send alert (Email-first / Notification) immediately (no approval delay for critical alerts). (LINE Optional)
 - **Loop4**: Teacher implements intervention; agent monitors 10-min window for mood recovery
 - **Loop5**: Daily learning: tag high-trust/low-impact interventions based on success rate
 
 ### Key Requirements
 - **Trigger**: Mood drop >30% vs. baseline OR engagement <2/5 for >50% of class (k≥3)
 - **Severity**: Rule-based classification (Critical/Warning/Observation), no LLM for severity decision
-- **Delivery**: LINE within 2 min of detection; 2–3 rapid interventions (5–10 min actionable)
+- **Delivery**: Notification (Email/Other) within 2 min of detection; 2–3 rapid interventions (5–10 min actionable). (LINE Optional)
 - **Privacy**: k-anonymity; no raw names/IDs; only aggregates + sentiment analysis
 - **Guard**: Max 2 alerts/day; suppress after 3 PM; escalate to manager if unresponded 30 min
 - **Learning**: Teacher marks "It helped" / "Didn't help" → tags interventions for personalization
@@ -137,8 +137,8 @@ DAY BEGINS (6:30 AM)
 ├─→ [W06 Morning Briefing] (Loop0 → Loop2 → Loop3)
 │   ├─ Fetch: class climate summary (k≥3 aggregates)
 │   ├─ LLM: generate 2 suggestions (given past closure patterns from high_trust pool)
-│   ├─ Format: LINE briefing with approval gate
-│   └─ Deliver: 7:30 AM (teacher approves before send)
+│   ├─ Format: Email-first briefing with approval gate
+│   └─ Deliver: 7:30 AM (teacher approves before send via Email/Notification)
 │
 DURING SCHOOL DAY (Continuous Monitoring)
 │
@@ -147,7 +147,7 @@ DURING SCHOOL DAY (Continuous Monitoring)
 │   ├─ Detect: mood drop >30% OR engagement critical
 │   ├─ Severity: rule-based classification (no LLM guessing)
 │   ├─ LLM: generate fast interventions (5–10 min actions)
-│   ├─ Send: LINE alert immediately (no approval delay if Critical)
+│   ├─ Send: Alert immediately (no approval delay if Critical via Email/Notification)
 │   ├─ Monitor: mood recovery check (wait 10 min, re-sample)
 │   └─ Store: anomaly event + outcome in audit log
 │
@@ -201,7 +201,7 @@ NEXT CYCLE (Week 2, Personalized)
 - ✅ Loop UI: Positive tone ("Agency strong!"), reset framing (<30%), inquiry mode (<20%)
 
 ### Principle IV: Notification Sanity
-- ✅ W06 + W07: Coordinated guard — max 2 notifications/day across both
+- ✅ W06 + W07: Coordinated guard — max 2 notifications/day across both (Common across Email/LINE/Other)
 - ✅ W07: Suppressed after 3 PM (except Critical)
 - ✅ Escalation: Critical alerts unresponded >30 min escalate to manager
 
@@ -239,7 +239,7 @@ NEXT CYCLE (Week 2, Personalized)
 
 ### Parallel: Shared Infrastructure
 - Ensure `n8n_audit_log`, `mood_baselines`, `agent_learning_policies` tables exist
-- Configure LINE API credentials, school calendar import
+- Configure Email/Notification credentials, school calendar import (LINE Optional)
 - Set up monitoring dashboards for detection latency, alert delivery, false positive rate
 
 ---
@@ -281,7 +281,7 @@ NEXT CYCLE (Week 2, Personalized)
 - ✅ `agent_learning_policies` table (high_trust tagging)
 - ✅ `teacher_profiles.availability_status` column
 - ✅ `school_calendar` table (holidays/breaks)
-- ✅ LINE API credentials configured in n8n
+- [ ] Email/Notification credentials configured in n8n (LINE Optional)
 - ✅ Web hooks configured for approval gate callback (W06)
 
 ### Nice-to-Have Optimizations
@@ -297,7 +297,7 @@ NEXT CYCLE (Week 2, Personalized)
 
 1. ✅ W06 + W07 + Loop UI specifications are complete and validated
 2. ✅ All three features are deployed to production and stable for ≥2 weeks
-3. ✅ Loop closure rate ≥60% on both routine (W06) and anomaly (W07) alerts
+3. ✅ Loop closure rate ≥60% on both routine (W06) and anomaly (W07) alerts (Email/Notification)
 4. ✅ Teacher approval rate ≥85% on anomaly alerts, ≥90% on routine briefings
 5. ✅ Feedback adoption ≥50% on Loop Closure UI
 6. ✅ False positive rate ≤5% on W07 (validated via user feedback)
@@ -316,6 +316,7 @@ NEXT CYCLE (Week 2, Personalized)
 | [W07 Quality Checklist](specs/004-anomaly-alert/CHECKLIST.md) | `004-anomaly-alert` | ✅ Approved |
 | [Loop Closure UI Spec](specs/005-closure-tracking/spec.md) | `005-closure-tracking` | ✅ Ready |
 | [Loop Closure Quality Checklist](specs/005-closure-tracking/CHECKLIST.md) | `005-closure-tracking` | ✅ Approved |
+| [Teacher Dashboard Redesign Spec](specs/007-teacher-dashboard-redesign/spec.md) | `007-teacher-dashboard-redesign` | ✅ Ready |
 
 ---
 

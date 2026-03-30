@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import QRCode from "qrcode";
 
 export async function GET(
-    _request: Request,
+    request: Request,
     { params }: { params: Promise<{ classId: string }> }
 ) {
     const { classId } = await params;
@@ -24,7 +24,7 @@ export async function GET(
         return NextResponse.json({ error: "Class not found" }, { status: 404 });
     }
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin;
     const qrUrl = `${baseUrl}/qr/${classId}`;
 
     const pngBuffer = await QRCode.toBuffer(qrUrl, {

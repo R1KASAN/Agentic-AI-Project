@@ -1,0 +1,115 @@
+{
+  "name": "Tool: Get Raw Snippet Batch",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "class_id",
+              "type": "string"
+            },
+            {
+              "name": "weeks",
+              "type": "number"
+            },
+            {
+              "name": "limit",
+              "type": "number"
+            }
+          ]
+        }
+      },
+      "id": "phasec-trigger-raw",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        120,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/rpc/get_raw_redaction_comment_batch",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"p_class_id\": \"{{ $json.class_id }}\",\n  \"p_weeks\": {{ Number($json.weeks || 2) }},\n  \"p_limit\": {{ Number($json.limit || 12) }}\n}",
+        "options": {}
+      },
+      "id": "phasec-fetch-raw",
+      "name": "Fetch Raw Snippet Batch",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        360,
+        280
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "668Eac9gOdjgSW7d",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map((item) => item.json || {});\nconst triggerInput = $('Execute Workflow Trigger').first().json || {};\nconst normalizedRows = rows.map((row) => ({\n  week_start: row.week_start || null,\n  created_at: row.created_at || null,\n  comment_text: typeof row.comment_text === 'string' ? row.comment_text.trim() : '',\n  avg_mood: row.avg_mood ?? null,\n  avg_pace: row.avg_pace ?? null,\n  avg_fairness: row.avg_fairness ?? null,\n})).filter((row) => row.comment_text.length > 0);\nconst sourceWindow = rows[0]?.source_window ?? { weeks: Number(triggerInput.weeks || 2), n: 0, class_id: triggerInput.class_id || null };\nconst weekStart = rows[0]?.week_start ?? null;\nconst contributingStudentsCount = Number(rows[0]?.contributing_students_count ?? sourceWindow.n ?? 0);\nreturn {\n  json: {\n    class_id: triggerInput.class_id || null,\n    weeks: Number(triggerInput.weeks || 2),\n    limit: Number(triggerInput.limit || 12),\n    status: normalizedRows.length > 0 ? 'ready' : 'no_safe_batch',\n    reason: normalizedRows.length > 0 ? null : 'no_safe_batch',\n    batch_size: normalizedRows.length,\n    week_start: weekStart,\n    source_window: sourceWindow,\n    contributing_students_count: contributingStudentsCount,\n    rows: normalizedRows,\n  }\n};"
+      },
+      "id": "phasec-normalize-raw",
+      "name": "Normalize Raw Batch",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        620,
+        280
+      ]
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Raw Snippet Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Raw Snippet Batch": {
+      "main": [
+        [
+          {
+            "node": "Normalize Raw Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}

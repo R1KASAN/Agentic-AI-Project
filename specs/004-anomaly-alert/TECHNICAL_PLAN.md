@@ -14,7 +14,7 @@ Real-time (30-minute intervals OR webhook-triggered on new check-in) n8n workflo
 2. Classifies severity (low/medium/high) via LLM contextual analysis
 3. Generates 2-3 rapid intervention suggestions
 4. Respects daily notification frequency guard (max 2 alerts/day per class)
-5. Sends LINE alert immediately (no approval gate, unlike W06)
+5. Sends alert immediately via Email/Notification (no approval gate, unlike W06). (LINE Optional)
 6. Tracks teacher acknowledgment + action latency for Loop4 self-evaluation
 7. Logs all decisions to `n8n_audit_log` for pattern learning
 
@@ -1090,18 +1090,18 @@ export default function () {
 
 | Criterion | Target | Measurement |
 |-----------|--------|-------------|
-| Alert detection latency | <2 minutes from mood drop to LINE send | n8n audit logs |
+| Alert detection latency | <2 minutes from mood drop to notification send | n8n audit logs |
 | False-positive rate (dismissals) | <20% | mood_alerts.dismissed_at count |
 | Teacher acknowledgment rate | >70% within 4 hours | mood_alerts.first_acknowledged_at |
 | Intervention implementation rate | >40% | mood_alerts.status = 'implemented' |
 | Mood recovery post-intervention | >60% of alerts result in mood +0.3 | Correlate mood_alerts with student_pulses post-action |
 | Average response latency | <15 minutes | Audit log aggregation |
-| LINE delivery success rate | >99% | LINE API response codes |
+| Notification delivery success rate | >99% | Email API response codes |
 | Availability | >99.5% | n8n workflow uptime |
 
 ---
 
 **Plan Status**: Ready for Implementation  
 **Risk Areas**: False-positive tuning; LLM intervention quality  
-**Next Step**: Implement shared infrastructure (line-notify.ts, frequency guard) in Week 1-2  
+**Next Step**: Implement shared infrastructure (email dispatcher, frequency guard) in Week 1-2. (LINE Optional future)  
 **Review Date**: 2026-03-23

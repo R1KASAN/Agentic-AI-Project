@@ -1,0 +1,64 @@
+{
+  "name": "Tool: Get Teacher Metrics",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "tool-tm-trigger-001",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [100, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/rpc/get_teacher_response_rate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_class_id\": \"{{ $input.all()[0].json.class_id }}\", \"p_days\": {{ $input.all()[0].json.lookback_days || 30 }} }",
+        "options": {
+          "timeout": 15000,
+          "retry": { "maxTries": 3, "waitBetweenTries": 2000 }
+        }
+      },
+      "id": "tool-tm-http-002",
+      "name": "Fetch Teacher Response Rate",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [320, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const data = $json;\n\nconst totalRecs = data.total_recommendations || 0;\nconst totalApproved = data.total_approved || 0;\nconst totalDismissed = data.total_dismissed || 0;\nconst dismissalRate = totalRecs > 0 ? totalDismissed / totalRecs : 0;\nconst avgResponseTime = data.avg_response_time_hours || null;\nconst lastActionDate = data.last_action_date || null;\n\nreturn [{ json: {\n  class_id: data.class_id || null,\n  dismissal_rate: parseFloat(dismissalRate.toFixed(2)),\n  avg_response_time_hours: avgResponseTime ? parseFloat(avgResponseTime.toFixed(1)) : null,\n  last_action_date: lastActionDate,\n  total_recommendations: totalRecs,\n  total_approved: totalApproved,\n  total_dismissed: totalDismissed,\n  inquiry_mode_recommended: dismissalRate > 0.60\n}}];"
+      },
+      "id": "tool-tm-code-003",
+      "name": "Calculate Metrics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [540, 300]
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [[{ "node": "Fetch Teacher Response Rate", "type": "main", "index": 0 }]]
+    },
+    "Fetch Teacher Response Rate": {
+      "main": [[{ "node": "Calculate Metrics", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "active": false
+}

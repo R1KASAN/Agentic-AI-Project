@@ -32,8 +32,11 @@ function formatWeek(dateStr: string): string {
 }
 
 export function ClimateCharts({ data }: ClimateChartsProps) {
-    // Check if any week has sufficient data (k-anonymity met)
-    const hasData = data.some(
+  // Guard against non-array data
+  const safeData = Array.isArray(data) ? data : [];
+
+  // Check if any week has sufficient data (k-anonymity met)
+  const hasData = safeData.some(
         (d) => d.avg_mood !== null || d.avg_pace !== null || d.avg_fairness !== null
     );
 
@@ -41,9 +44,9 @@ export function ClimateCharts({ data }: ClimateChartsProps) {
         return <NotEnoughData />;
     }
 
-    // Transform data for Recharts
-    const chartData = data
-        .filter((d) => d.avg_mood !== null) // only show weeks with sufficient data
+  // Transform data for Recharts
+  const chartData = safeData
+    .filter((d) => d.avg_mood !== null) // only show weeks with sufficient data
         .map((d) => ({
             week: formatWeek(d.week_start),
             Mood: d.avg_mood,
