@@ -31,7 +31,8 @@ export async function GET(request: Request) {
         .select(`
             class_id,
             classes (
-                name
+                name,
+                description
             )
         `)
         .eq("student_id", user.id);
@@ -59,7 +60,7 @@ export async function GET(request: Request) {
 
         const { data: classData, error: classError } = await serviceSupabase
             .from("classes")
-            .select("id, name, teacher_id, users!classes_teacher_id_fkey(full_name)")
+            .select("id, name, description, teacher_id, users!classes_teacher_id_fkey(full_name)")
             .in("id", enrolledIds);
 
         if (!classError && classData) {
@@ -68,6 +69,7 @@ export async function GET(request: Request) {
                 return {
                     class_id: c.id,
                     class_name: c.name,
+                    description: c.description ?? null,
                     teacher_name: teacher?.full_name || null,
                     last_check_in: null,
                 };
@@ -86,10 +88,11 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
         classes: (enrollments || []).map((enrollment) => {
-            const cls = enrollment.classes as unknown as { name: string } | null;
+            const cls = enrollment.classes as unknown as { name: string; description?: string | null } | null;
             return {
                 class_id: enrollment.class_id,
                 class_name: cls?.name || "Class",
+                description: cls?.description ?? null,
                 teacher_name: null,
                 last_check_in: null,
             };

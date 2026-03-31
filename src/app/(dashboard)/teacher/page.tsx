@@ -44,6 +44,7 @@ export default async function TeacherDashboardPage() {
         return {
             class_id: cls.id,
             name: cls.name,
+            description: cls.description ?? null,
             risk_level: riskLevel,
             student_count: enrollmentCounts[cls.id] ?? 0,
             pending_recommendations: pendingRecs.length,
@@ -58,11 +59,11 @@ export default async function TeacherDashboardPage() {
 
     return (
         <div className="space-y-6">
-            <div className="flex flex-col justify-between gap-5 rounded-[30px] border border-[color:var(--teacher-dashboard-border)] bg-[radial-gradient(circle_at_top_left,rgba(147,197,253,0.14),transparent_34%),linear-gradient(180deg,rgba(15,27,45,0.98),rgba(8,17,33,0.96))] p-6 shadow-[0_22px_56px_rgba(2,8,23,0.42)] sm:flex-row sm:items-end">
+            <div className="product-hero-card flex flex-col justify-between gap-5 p-6 sm:flex-row sm:items-end">
                 <div className="max-w-3xl">
                     <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-[var(--teacher-dashboard-primary-soft)] px-3 py-1 text-xs font-semibold text-[var(--teacher-dashboard-primary)]">
                         <LayoutDashboard className="h-3.5 w-3.5" />
-                        Weekly classroom briefing
+                        สรุปรายสัปดาห์สำหรับครู
                     </div>
                     <h1 data-display="true" className="flex items-center gap-2 text-4xl font-semibold tracking-tight text-[var(--teacher-dashboard-text)]">
                         <LayoutDashboard className="h-7 w-7 text-[var(--teacher-dashboard-primary)]" />
@@ -82,7 +83,7 @@ export default async function TeacherDashboardPage() {
             </div>
 
             {(!classes || classes.length === 0) ? (
-                <Card className="teacher-surface flex h-56 items-center justify-center rounded-[28px] border-dashed bg-[linear-gradient(180deg,rgba(15,27,45,0.96),rgba(10,19,33,0.92))] shadow-[0_18px_42px_rgba(2,8,23,0.26)]">
+                <Card className="product-section-card flex h-56 items-center justify-center border-dashed">
                     <CardContent className="flex flex-col items-center justify-center text-center space-y-3 p-6">
                         <div className="rounded-full bg-[var(--teacher-dashboard-surface-soft)] p-3">
                             <Users className="h-8 w-8 teacher-text-muted" />
@@ -92,7 +93,7 @@ export default async function TeacherDashboardPage() {
                         </p>
                         <Link href="/teacher/class/new">
                             <Button variant="outline" size="sm" className="mt-2 rounded-xl border-[var(--teacher-dashboard-border)] bg-[var(--teacher-dashboard-surface-soft)] text-[var(--teacher-dashboard-primary)] hover:bg-[var(--teacher-dashboard-primary-soft)]">
-                                Create your first class
+                                สร้างห้องเรียนแรก
                             </Button>
                         </Link>
                     </CardContent>

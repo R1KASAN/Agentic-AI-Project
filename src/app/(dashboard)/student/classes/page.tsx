@@ -10,6 +10,7 @@ import Link from "next/link";
 interface EnrolledClass {
     class_id: string;
     class_name: string;
+    description: string | null;
     teacher_name: string | null;
     last_check_in: string | null;
 }
@@ -58,13 +59,14 @@ export default function StudentClassesPage() {
                     setClasses(data.classes || []);
                 } else {
                     // Fallback: just show class IDs
-                    setClasses(
-                        enrollments.map((e) => ({
-                            class_id: e.class_id,
-                            class_name: "Class",
-                            teacher_name: null,
-                            last_check_in: null,
-                        }))
+                        setClasses(
+                            enrollments.map((e) => ({
+                                class_id: e.class_id,
+                                class_name: "Class",
+                                description: null,
+                                teacher_name: null,
+                                last_check_in: null,
+                            }))
                     );
                 }
             } catch (err) {
@@ -89,7 +91,7 @@ export default function StudentClassesPage() {
     return (
         <div className="mx-auto max-w-5xl space-y-8">
             {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="product-student-hero flex flex-col justify-between gap-4 p-6 sm:flex-row sm:items-center">
                 <div className="max-w-2xl">
                     <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[color:var(--student-dashboard-border)] bg-[var(--student-dashboard-surface-soft)] px-3 py-1 text-xs font-semibold text-[var(--student-dashboard-primary)]">
                         <Users className="h-3.5 w-3.5" />
@@ -119,7 +121,7 @@ export default function StudentClassesPage() {
 
             {/* Empty state */}
             {classes.length === 0 && !error ? (
-                <Card className="student-surface border-2 border-dashed border-indigo-200/50 rounded-[28px] shadow-[0_18px_42px_rgba(0,0,0,0.18)]">
+                <Card className="product-student-card border-2 border-dashed border-indigo-200/30">
                     <CardContent className="flex flex-col items-center justify-center py-16 text-center space-y-4">
                         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-indigo-500/10 text-indigo-300">
                             <Users className="w-8 h-8" />
@@ -152,15 +154,20 @@ export default function StudentClassesPage() {
                     {classes.map((cls) => (
                         <Card
                             key={cls.class_id}
-                            className="student-surface rounded-[28px] border shadow-[0_16px_36px_rgba(0,0,0,0.16)] transition-all hover:-translate-y-1 hover:border-indigo-300/30 hover:shadow-[0_22px_48px_rgba(0,0,0,0.2)]"
+                            className="product-student-card transition-all hover:-translate-y-1 hover:border-indigo-300/30 hover:shadow-[0_22px_48px_rgba(0,0,0,0.2)]"
                         >
                             <CardContent className="space-y-5 p-6">
                                 <div className="min-w-0 space-y-2">
-                                    <h3 data-display="true" className="truncate text-[2rem] font-semibold leading-[1.1] text-[var(--student-dashboard-text)]">
+                                    <h3 data-display="true" className="product-card-title text-[clamp(1.55rem,2.2vw,2.25rem)] font-semibold leading-[1.12] text-[var(--student-dashboard-text)]">
                                         {cls.class_name}
                                     </h3>
+                                    {cls.description && (
+                                        <p className="max-w-2xl text-sm leading-6 text-[var(--student-dashboard-text-muted)]">
+                                            {cls.description}
+                                        </p>
+                                    )}
                                     {cls.teacher_name && (
-                                        <p className="truncate text-sm text-[var(--student-dashboard-text-muted)]">
+                                        <p className="line-clamp-2 break-words text-sm text-[var(--student-dashboard-text-muted)]">
                                             👩‍🏫 {cls.teacher_name}
                                         </p>
                                     )}
@@ -171,9 +178,9 @@ export default function StudentClassesPage() {
                                 <div className="flex flex-col gap-2 sm:flex-row">
                                     <Link
                                         href={`/student/check-in?classId=${cls.class_id}`}
-                                        className="flex-1"
+                                        className="min-w-0 flex-1"
                                     >
-                                        <Button className="h-14 w-full rounded-2xl bg-indigo-600 shadow-[0_14px_28px_rgba(99,102,241,0.24)] hover:bg-indigo-500">
+                                        <Button className="product-card-button h-auto min-h-14 w-full rounded-2xl bg-indigo-600 px-4 py-3 text-left shadow-[0_14px_28px_rgba(99,102,241,0.24)] hover:bg-indigo-500">
                                             <GraduationCap className="w-4 h-4 mr-2" />
                                             เช็คอิน
                                         </Button>

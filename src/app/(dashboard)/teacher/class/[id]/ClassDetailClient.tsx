@@ -39,6 +39,7 @@ import type {
 interface ClassDetailClientProps {
   classId: string;
   className: string;
+  classDescription: string | null;
   riskScore: number | null;
   riskLevel?: "ROUTINE" | "WARNING" | "CRITICAL" | null;
   inviteCode: string;
@@ -55,6 +56,7 @@ interface ClassDetailClientProps {
 export default function ClassDetailClient({
   classId,
   className,
+  classDescription,
   riskScore,
   riskLevel,
   inviteCode,
@@ -117,14 +119,14 @@ export default function ClassDetailClient({
   }
 
   return (
-    <div className="space-y-6 rounded-[34px] border border-[color:var(--student-dashboard-border)] bg-[var(--student-dashboard-bg)] p-4 text-[var(--student-dashboard-text)] shadow-[0_24px_60px_rgba(2,8,23,0.18)] sm:p-6">
+    <div className="space-y-6 text-[var(--teacher-dashboard-text)]">
       {/* Header */}
-      <div className="space-y-5 rounded-[30px] border border-[color:var(--student-dashboard-border)] bg-[var(--student-dashboard-surface-raised)] p-5 shadow-[0_18px_42px_rgba(2,8,23,0.18)] sm:p-6">
+      <div className="product-hero-card space-y-5 p-5 sm:p-6">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div className="space-y-4">
             <Link
               href="/teacher"
-              className="inline-flex items-center gap-1 text-xs text-[var(--student-dashboard-text-muted)] transition-colors hover:text-[var(--student-dashboard-text)]"
+              className="inline-flex items-center gap-1 text-xs teacher-text-muted transition-colors hover:text-[var(--teacher-dashboard-text)]"
             >
               <ArrowLeft className="w-3 h-3" />
               กลับไปหน้าภาพรวม
@@ -132,7 +134,7 @@ export default function ClassDetailClient({
             <div className="flex flex-wrap items-center gap-3">
               <h1
                 data-display="true"
-                className="text-4xl font-semibold tracking-tight text-[var(--student-dashboard-text)]"
+                className="product-card-title text-[clamp(2rem,4.5vw,3.25rem)] font-semibold tracking-tight text-[var(--teacher-dashboard-text)]"
               >
                 {className}
               </h1>
@@ -142,11 +144,16 @@ export default function ClassDetailClient({
                 size="md"
               />
             </div>
+            {classDescription && (
+              <p className="max-w-3xl text-sm leading-6 teacher-text-muted">
+                {classDescription}
+              </p>
+            )}
             <div className="flex flex-wrap items-center gap-2">
               {metrics.inquiryModeSuggested && (
                 <Badge
                   variant="secondary"
-                  className="border-violet-200 bg-violet-500/10 text-violet-200"
+                    className="border-[color:var(--teacher-dashboard-border)] bg-[var(--teacher-dashboard-surface-soft)] text-[var(--teacher-dashboard-text)]"
                 >
                   <HelpCircle className="mr-1 h-3 w-3" />
                   โหมดค้นหาบริบท
@@ -155,7 +162,7 @@ export default function ClassDetailClient({
               {blockedByFrequency && (
                 <Badge
                   variant="outline"
-                  className="border-[color:var(--student-dashboard-border)] bg-[var(--student-dashboard-surface-soft)] text-[var(--student-dashboard-text-muted)]"
+                    className="border-[color:var(--teacher-dashboard-border)] bg-[var(--teacher-dashboard-surface-soft)] text-[var(--teacher-dashboard-text-muted)]"
                 >
                   <PauseCircle className="mr-1 h-3 w-3" />
                   ยังไม่สร้างฉบับร่างใหม่ในรอบนี้
@@ -164,31 +171,31 @@ export default function ClassDetailClient({
               {blockedByKAnonymity && (
                 <Badge
                   variant="outline"
-                  className="border-sky-200 bg-sky-500/10 text-sky-200"
+                    className="border-[color:var(--teacher-dashboard-border)] bg-[rgba(147,197,253,0.12)] text-[var(--teacher-dashboard-primary)]"
                 >
                   <ShieldCheck className="mr-1 h-3 w-3" />
                   รอสัญญาณรวมที่ปลอดภัย
                 </Badge>
               )}
-              <span className="text-xs text-[var(--student-dashboard-text-muted)]">
+              <span className="text-xs teacher-text-muted">
                 ตัดสินแล้ว {metrics.totalDecided} รายการ, ข้าม{" "}
                 {Math.round(metrics.dismissalRate * 100)}%
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-3 pt-1">
-              <p className="flex items-center gap-2 text-sm text-[var(--student-dashboard-text-muted)]">
+              <p className="flex items-center gap-2 text-sm teacher-text-muted">
                 <Users className="w-4 h-4" />
                 {studentCount} คน
               </p>
-              <div className="flex items-center gap-2 rounded-full border border-[color:var(--student-dashboard-border)] bg-[var(--student-dashboard-surface-soft)] px-3 py-1.5 text-sm text-[var(--student-dashboard-text-muted)]">
+              <div className="teacher-surface-soft flex max-w-full flex-wrap items-center gap-2 rounded-full border px-3 py-1.5 text-sm teacher-text-muted">
                 <span className="font-medium">รหัสเชิญ:</span>
-                <span className="font-mono font-semibold tracking-widest text-[var(--student-dashboard-text)]">
+                <span className="product-code-chip font-mono font-semibold tracking-widest text-[var(--teacher-dashboard-text)]">
                   {inviteCode}
                 </span>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6 text-[var(--student-dashboard-text-muted)] hover:text-[var(--student-dashboard-text)]"
+                  className="h-6 w-6 text-[var(--teacher-dashboard-text-muted)] hover:text-[var(--teacher-dashboard-text)]"
                   onClick={() => {
                     navigator.clipboard.writeText(inviteCode);
                     toast.success("คัดลอกรหัสเชิญแล้ว");
@@ -201,22 +208,22 @@ export default function ClassDetailClient({
               </div>
             </div>
           </div>
-          <div className="shrink-0 flex flex-wrap items-center gap-2">
-            <Link href={`/teacher/class/${classId}/members`}>
+          <div className="shrink-0 flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
+            <Link href={`/teacher/class/${classId}/members`} className="min-w-0">
               <Button
                 variant="outline"
                 size="sm"
-                className="h-11 gap-2 rounded-2xl border-[color:var(--student-dashboard-border)] bg-[var(--student-dashboard-surface)] text-[var(--student-dashboard-text)] hover:bg-[var(--student-dashboard-surface-raised)]"
+                className="product-card-button h-auto min-h-11 w-full gap-2 rounded-2xl border-[color:var(--teacher-dashboard-border)] bg-[var(--teacher-dashboard-surface-soft)] px-4 py-3 text-left text-[var(--teacher-dashboard-text)] hover:bg-[var(--teacher-dashboard-primary-soft)] sm:w-auto"
               >
                 <Users className="w-4 h-4" />
                 ดูรายชื่อสมาชิก
               </Button>
             </Link>
-            <Link href={`/teacher/class/${classId}/settings`}>
+            <Link href={`/teacher/class/${classId}/settings`} className="min-w-0">
               <Button
                 variant="outline"
                 size="sm"
-                className="h-11 gap-2 rounded-2xl border-[color:var(--student-dashboard-border)] bg-[var(--student-dashboard-surface)] text-[var(--student-dashboard-text)] hover:bg-[var(--student-dashboard-surface-raised)]"
+                className="product-card-button h-auto min-h-11 w-full gap-2 rounded-2xl border-[color:var(--teacher-dashboard-border)] bg-[var(--teacher-dashboard-surface-soft)] px-4 py-3 text-left text-[var(--teacher-dashboard-text)] hover:bg-[var(--teacher-dashboard-primary-soft)] sm:w-auto"
               >
                 <Settings className="w-4 h-4" />
                 ตั้งค่าห้องเรียน
@@ -233,7 +240,7 @@ export default function ClassDetailClient({
             label="อารมณ์เฉลี่ย"
             value={latestWeek.avg_mood}
             icon={<TrendingUp className="w-4 h-4" />}
-            color="text-indigo-300"
+            color="text-[var(--teacher-dashboard-primary)]"
           />
           <MetricCard
             label="จังหวะเฉลี่ย"
@@ -245,13 +252,13 @@ export default function ClassDetailClient({
             label="ความยุติธรรมเฉลี่ย"
             value={latestWeek.avg_fairness}
             icon={<BarChart3 className="w-4 h-4" />}
-            color="text-violet-300"
+            color="text-teal-300"
           />
         </div>
       ) : (
-        <Card className="border-dashed border-sky-200 bg-[var(--student-dashboard-surface)] shadow-[0_18px_40px_rgba(2,8,23,0.16)]">
+        <Card className="product-section-card border-dashed">
           <CardContent className="py-6 text-center">
-            <p className="text-sm text-[var(--student-dashboard-text-muted)]">
+            <p className="text-sm teacher-text-muted">
               ยังไม่มีข้อมูลเช็กอินมากพอ ระบบจะแสดงค่า aggregate
               เมื่อมีนักเรียนตอบครบตามเกณฑ์
             </p>
@@ -260,7 +267,7 @@ export default function ClassDetailClient({
       )}
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="student-surface overflow-hidden rounded-[28px] border shadow-[0_18px_40px_rgba(2,8,23,0.18)]">
+        <Card className="product-section-card overflow-hidden">
           <CardContent className="space-y-4 p-5">
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1">
@@ -270,7 +277,7 @@ export default function ClassDetailClient({
                     สรุปบรรยากาศห้อง
                   </h2>
                 </div>
-                <p className="text-sm text-[var(--student-dashboard-text-muted)]">
+                <p className="text-sm teacher-text-muted">
                   {feedbackSummary.summaryLine}
                 </p>
               </div>
@@ -300,14 +307,14 @@ export default function ClassDetailClient({
               />
             </div>
 
-            <div className="rounded-[24px] border border-dashed border-[color:var(--student-dashboard-border)] bg-[var(--student-dashboard-surface-raised)] px-4 py-3 text-sm leading-6 text-[var(--student-dashboard-text-muted)]">
+            <div className="teacher-surface-soft rounded-[24px] border border-dashed px-4 py-3 text-sm leading-6 teacher-text-muted">
               หน้านี้แสดงเฉพาะสัญญาณรวมของทั้งห้องเท่านั้น
               และจะไม่แสดงข้อมูลรายบุคคลของนักเรียน
             </div>
           </CardContent>
         </Card>
 
-        <Card className="student-surface overflow-hidden rounded-[28px] border shadow-[0_18px_40px_rgba(2,8,23,0.18)]">
+        <Card className="product-section-card overflow-hidden">
           <CardContent className="space-y-4 p-5">
             <div className="flex items-start gap-3">
               <div className="rounded-full bg-sky-500/10 p-2 text-sky-200">
@@ -317,7 +324,7 @@ export default function ClassDetailClient({
                 <h2 data-display="true" className="text-2xl font-semibold">
                   เสียงสะท้อนที่ปกปิดข้อมูลแล้ว
                 </h2>
-                <p className="text-sm text-[var(--student-dashboard-text-muted)]">
+                <p className="text-sm teacher-text-muted">
                   {redactedVoice.message}
                 </p>
               </div>

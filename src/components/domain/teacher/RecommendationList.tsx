@@ -153,13 +153,13 @@ export function RecommendationList({
 }: RecommendationListProps) {
   if (recommendations.length === 0) {
     return (
-      <Card className="student-surface overflow-hidden rounded-[28px] border border-dashed border-sky-200/60 shadow-[0_18px_40px_rgba(2,8,23,0.14)]">
+      <Card className="product-section-card overflow-hidden border-dashed">
         <CardContent className="flex flex-col items-center justify-center space-y-3 py-10 text-center">
-          <Sparkles className="h-8 w-8 text-sky-200" />
-          <p className="text-sm font-medium text-[var(--student-dashboard-text)]">
+          <Sparkles className="h-8 w-8 text-[var(--teacher-dashboard-primary)]" />
+          <p className="text-sm font-medium text-[var(--teacher-dashboard-text)]">
             {emptyStateTitle}
           </p>
-          <p className="max-w-md text-sm text-[var(--student-dashboard-text-muted)]">
+          <p className="max-w-md text-sm text-[var(--teacher-dashboard-text-muted)]">
             {emptyStateBody}
           </p>
         </CardContent>
@@ -272,8 +272,8 @@ function RecommendationCard({
     <Card
       className={
         isInquiryCard
-          ? "student-surface overflow-hidden rounded-[28px] border border-violet-200/60 shadow-[0_18px_40px_rgba(2,8,23,0.16)]"
-          : "student-surface overflow-hidden rounded-[28px] border shadow-[0_18px_40px_rgba(2,8,23,0.16)]"
+          ? "product-section-card overflow-hidden border-[rgba(167,139,250,0.28)]"
+          : "product-section-card overflow-hidden"
       }
     >
       <CardContent className="space-y-4 p-5 sm:p-6">
@@ -317,7 +317,7 @@ function RecommendationCard({
                 {recommendation.fallbackUsed && (
                   <Badge
                     variant="secondary"
-                    className="border-[color:var(--student-dashboard-border)] bg-[var(--student-dashboard-surface-soft)] text-[10px] text-[var(--student-dashboard-text-muted)]"
+                    className="border-[color:var(--teacher-dashboard-border)] bg-[var(--teacher-dashboard-surface-soft)] text-[10px] text-[var(--teacher-dashboard-text-muted)]"
                   >
                     <Wand2 className="mr-1 h-3 w-3" />
                     ใช้ safety fallback
@@ -333,11 +333,11 @@ function RecommendationCard({
                 )}
                 <Badge
                   variant="outline"
-                  className="text-[10px] text-[var(--student-dashboard-text-muted)]"
+                  className="text-[10px] text-[var(--teacher-dashboard-text-muted)]"
                 >
                   {RATIONALE_LABELS[recommendation.rationaleTag]}
                 </Badge>
-                <span className="flex items-center gap-1 text-[10px] text-[var(--student-dashboard-text-muted)]">
+                <span className="flex items-center gap-1 text-[10px] text-[var(--teacher-dashboard-text-muted)]">
                   <Clock className="h-3 w-3" />
                   {new Date(recommendation.createdAt).toLocaleDateString(
                     "th-TH",
@@ -349,7 +349,7 @@ function RecommendationCard({
                 </span>
               </div>
 
-              <p className="text-sm font-medium leading-relaxed text-[var(--student-dashboard-text)]">
+              <p className="text-sm font-medium leading-relaxed text-[var(--teacher-dashboard-text)]">
                 {editableDraft || "ยังไม่มีข้อความร่าง"}
               </p>
             </div>
@@ -357,7 +357,7 @@ function RecommendationCard({
         </div>
 
         {isInquiryCard && (
-          <div className="rounded-[24px] border border-violet-200/60 bg-violet-500/10 px-4 py-3 text-sm leading-6 text-violet-100">
+          <div className="rounded-[24px] border border-[rgba(167,139,250,0.28)] bg-violet-500/10 px-4 py-3 text-sm leading-6 text-violet-100">
             ระบบกำลังใช้โหมดค้นหาบริบท
             เพราะสัญญาณจากการตอบสนองก่อนหน้าบอกว่าควรชวนครูสะท้อนบริบทเพิ่มเติม
             แทนการเร่งเสนอทางแก้
@@ -365,22 +365,22 @@ function RecommendationCard({
         )}
 
         {recommendation.reasoningSummary && (
-          <div className="rounded-[24px] border border-[color:var(--student-dashboard-border)] bg-[var(--student-dashboard-surface-raised)] px-4 py-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--student-dashboard-text-muted)]">
+          <div className="teacher-surface-soft rounded-[24px] border px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--teacher-dashboard-text-muted)]">
               เหตุผลที่ระบบเสนอฉบับร่างนี้
             </p>
-            <p className="mt-2 text-sm leading-relaxed text-[var(--student-dashboard-text)]">
+            <p className="mt-2 text-sm leading-relaxed text-[var(--teacher-dashboard-text)]">
               {recommendation.reasoningSummary}
             </p>
           </div>
         )}
 
         {recommendation.actions.length > 0 && (
-          <div className="rounded-[24px] border border-[color:var(--student-dashboard-border)] bg-[var(--student-dashboard-surface-raised)] px-4 py-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--student-dashboard-text-muted)]">
+          <div className="teacher-surface-soft rounded-[24px] border px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--teacher-dashboard-text-muted)]">
               ตัวอย่างแนวทางตอบสนอง
             </p>
-            <ul className="mt-2 space-y-2 text-sm text-[var(--student-dashboard-text)]">
+            <ul className="mt-2 space-y-2 text-sm text-[var(--teacher-dashboard-text)]">
               {recommendation.actions.map((action, index) => (
                 <li
                   key={`${recommendation.id}-${index}`}
@@ -395,14 +395,14 @@ function RecommendationCard({
         )}
 
         {recommendation.fallbackUsed && (
-          <div className="rounded-[24px] border border-dashed border-[color:var(--student-dashboard-border)] bg-[var(--student-dashboard-surface-raised)] px-4 py-3 text-sm leading-6 text-[var(--student-dashboard-text-muted)]">
+          <div className="teacher-surface-soft rounded-[24px] border border-dashed px-4 py-3 text-sm leading-6 text-[var(--teacher-dashboard-text-muted)]">
             ฉบับร่างนี้มาจาก safety fallback แบบ rules-assisted
             เพื่อคงคุณภาพขั้นต่ำของข้อเสนอ แม้ความมั่นใจของโมเดลจะยังไม่สูงมาก
           </div>
         )}
 
         {recommendation.teacherActionNote && (
-          <div className="rounded-[24px] bg-[var(--student-dashboard-surface-soft)] p-3 text-xs text-[var(--student-dashboard-text-muted)]">
+          <div className="teacher-surface-soft rounded-[24px] p-3 text-xs text-[var(--teacher-dashboard-text-muted)]">
             <span className="font-medium">บันทึกการตอบสนองของครู:</span>{" "}
             {recommendation.teacherActionNote}
           </div>
@@ -416,10 +416,10 @@ function RecommendationCard({
         )}
 
         {showInput && isPending && (
-          <div className="space-y-3 rounded-[24px] border border-[color:var(--student-dashboard-border)] bg-[var(--student-dashboard-surface-raised)] p-4">
+          <div className="teacher-surface-soft space-y-3 rounded-[24px] border p-4">
             {showInput === "edit" && (
               <div className="space-y-2">
-                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--student-dashboard-text-muted)]">
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--teacher-dashboard-text-muted)]">
                   <Pencil className="h-3.5 w-3.5" />
                   ข้อความที่จะสื่อสารกับนักเรียน
                 </div>
@@ -428,16 +428,16 @@ function RecommendationCard({
                   onChange={(event) => setDraftEditorValue(event.target.value)}
                   placeholder="ปรับข้อความที่ต้องการสื่อสารกับนักเรียนก่อนอนุมัติ…"
                   rows={4}
-                  className="min-h-28 rounded-2xl border-[color:var(--student-dashboard-border)] bg-[var(--student-dashboard-surface)] text-[var(--student-dashboard-text)] placeholder:text-[var(--student-dashboard-text-muted)]"
+                  className="min-h-28 rounded-2xl border-[color:var(--teacher-dashboard-border)] bg-[var(--teacher-dashboard-surface)] text-[var(--teacher-dashboard-text)] placeholder:text-[var(--teacher-dashboard-text-muted)]"
                 />
-                <p className="text-xs text-[var(--student-dashboard-text-muted)]">
+                <p className="text-xs text-[var(--teacher-dashboard-text-muted)]">
                   กดบันทึกเพื่ออัปเดตข้อความที่จะสื่อสารบนการ์ดนี้ก่อนค่อยไปขั้นอนุมัติ
                 </p>
               </div>
             )}
             {showInput !== "edit" && (
               <div className="space-y-2">
-                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--student-dashboard-text-muted)]">
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--teacher-dashboard-text-muted)]">
                   {showInput === "approve" ? (
                     <>
                       <Check className="h-3.5 w-3.5" />
@@ -454,7 +454,7 @@ function RecommendationCard({
                 </div>
                 {showInput === "approve" && (
                   <>
-                    <p className="text-xs text-[var(--student-dashboard-text-muted)]">
+                    <p className="text-xs text-[var(--teacher-dashboard-text-muted)]">
                       {isInquiryCard
                         ? "ระบบจะใช้บริบทนี้ช่วยตีความสัญญาณของห้อง"
                         : "เลือกตัวอย่างแล้วปรับเพิ่มได้"}
@@ -473,7 +473,7 @@ function RecommendationCard({
                             className={
                               isSelected
                                 ? "border-sky-200 bg-sky-500/10 text-sky-100 hover:bg-sky-500/10 hover:text-sky-100"
-                                : "border-[color:var(--student-dashboard-border)] bg-[var(--student-dashboard-surface)] text-[var(--student-dashboard-text-muted)] hover:bg-[var(--student-dashboard-surface-raised)] hover:text-[var(--student-dashboard-text)]"
+                                : "border-[color:var(--teacher-dashboard-border)] bg-[var(--teacher-dashboard-surface)] text-[var(--teacher-dashboard-text-muted)] hover:bg-[var(--teacher-dashboard-surface-soft)] hover:text-[var(--teacher-dashboard-text)]"
                             }
                             aria-pressed={isSelected}
                           >
@@ -491,7 +491,7 @@ function RecommendationCard({
                             variant="ghost"
                             size="sm"
                             onClick={() => setShowAllQuickActions(true)}
-                            className="h-7 px-2 text-xs text-[var(--student-dashboard-text-muted)] hover:text-[var(--student-dashboard-text)]"
+                            className="h-7 px-2 text-xs text-[var(--teacher-dashboard-text-muted)] hover:text-[var(--teacher-dashboard-text)]"
                           >
                             ดูเพิ่ม
                           </Button>
@@ -502,7 +502,7 @@ function RecommendationCard({
                             variant="ghost"
                             size="sm"
                             onClick={handleQuickActionClear}
-                            className="h-7 px-2 text-xs text-[var(--student-dashboard-text-muted)] hover:text-[var(--student-dashboard-text)]"
+                            className="h-7 px-2 text-xs text-[var(--teacher-dashboard-text-muted)] hover:text-[var(--teacher-dashboard-text)]"
                           >
                             ล้างตัวอย่าง
                           </Button>
@@ -522,7 +522,7 @@ function RecommendationCard({
                       : "ระบุเหตุผลที่ปฏิเสธฉบับร่างนี้…"
                   }
                   rows={3}
-                  className="min-h-24 rounded-2xl border-[color:var(--student-dashboard-border)] bg-[var(--student-dashboard-surface)] text-[var(--student-dashboard-text)] placeholder:text-[var(--student-dashboard-text-muted)]"
+                  className="min-h-24 rounded-2xl border-[color:var(--teacher-dashboard-border)] bg-[var(--teacher-dashboard-surface)] text-[var(--teacher-dashboard-text)] placeholder:text-[var(--teacher-dashboard-text-muted)]"
                 />
               </div>
             )}
@@ -586,7 +586,7 @@ function RecommendationCard({
             <Button
               size="sm"
               variant="outline"
-              className="h-11 rounded-2xl border-sky-200 bg-[var(--student-dashboard-surface)] text-sky-200 hover:bg-[var(--student-dashboard-surface-raised)] hover:text-sky-100"
+              className="h-11 rounded-2xl border-sky-200 bg-[var(--teacher-dashboard-surface)] text-sky-200 hover:bg-[var(--teacher-dashboard-surface-soft)] hover:text-sky-100"
               onClick={handleOpenEdit}
             >
               <Pencil className="mr-1 h-3.5 w-3.5" />
@@ -595,7 +595,7 @@ function RecommendationCard({
             <Button
               size="sm"
               variant="outline"
-              className="h-11 rounded-2xl border-emerald-200 bg-[var(--student-dashboard-surface)] text-emerald-200 hover:bg-[var(--student-dashboard-surface-raised)] hover:text-emerald-100"
+              className="h-11 rounded-2xl border-emerald-200 bg-[var(--teacher-dashboard-surface)] text-emerald-200 hover:bg-[var(--teacher-dashboard-surface-soft)] hover:text-emerald-100"
               onClick={handleOpenApprove}
             >
               <Check className="mr-1 h-3.5 w-3.5" />
@@ -604,7 +604,7 @@ function RecommendationCard({
             <Button
               size="sm"
               variant="outline"
-              className="h-11 rounded-2xl border-[color:var(--student-dashboard-border)] bg-[var(--student-dashboard-surface)] text-[var(--student-dashboard-text-muted)] hover:bg-[var(--student-dashboard-surface-raised)] hover:text-[var(--student-dashboard-text)]"
+              className="h-11 rounded-2xl border-[color:var(--teacher-dashboard-border)] bg-[var(--teacher-dashboard-surface)] text-[var(--teacher-dashboard-text-muted)] hover:bg-[var(--teacher-dashboard-surface-soft)] hover:text-[var(--teacher-dashboard-text)]"
               onClick={() => setShowInput("dismiss")}
             >
               <X className="mr-1 h-3.5 w-3.5" />
@@ -634,6 +634,6 @@ function getConfidenceTone(label: RecommendationConfidenceLabel) {
 
   return {
     label: "ใช้ด้วยความระวัง",
-    className: "border-slate-200 bg-slate-50 text-slate-700",
+      className: "border-[var(--teacher-dashboard-border)] bg-[var(--teacher-dashboard-surface-soft)] text-[var(--teacher-dashboard-text-muted)]",
   };
 }

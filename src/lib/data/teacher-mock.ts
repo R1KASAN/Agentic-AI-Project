@@ -1,6 +1,7 @@
 export interface ClassSummaryResponse {
   class_id: string;
   name: string;
+  description?: string | null;
   risk_level: 'CRITICAL' | 'WARNING' | 'ROUTINE' | 'NO_DATA';
   student_count: number;
   pending_recommendations: number;
@@ -32,7 +33,8 @@ export interface TeacherResponsePayload {
   teacher_note?: string;
 }
 
-export async function getTeacherClassesSummaryMock(teacherId: string): Promise<ClassSummaryResponse[]> {
+export async function getTeacherClassesSummaryMock(_teacherId: string): Promise<ClassSummaryResponse[]> {
+  void _teacherId;
   // Simulate network delay
   await new Promise(resolve => setTimeout(resolve, 800));
 
@@ -40,6 +42,7 @@ export async function getTeacherClassesSummaryMock(teacherId: string): Promise<C
     {
       class_id: "10000000-0000-0000-0000-000000000001",
       name: "CS101 Intro to Computer Science",
+      description: "Intro to computing with weekly lab work and project reviews.",
       risk_level: "WARNING",
       student_count: 45,
       pending_recommendations: 2,
@@ -47,6 +50,7 @@ export async function getTeacherClassesSummaryMock(teacherId: string): Promise<C
     {
       class_id: "20000000-0000-0000-0000-000000000002",
       name: "MATH201 Calculus II",
+      description: "Focuses on integration techniques and exam preparation.",
       risk_level: "ROUTINE",
       student_count: 38,
       pending_recommendations: 0,
@@ -54,6 +58,7 @@ export async function getTeacherClassesSummaryMock(teacherId: string): Promise<C
     {
       class_id: "30000000-0000-0000-0000-000000000003",
       name: "PHYS101 Physics Mechanics",
+      description: null,
       risk_level: "CRITICAL",
       student_count: 52,
       pending_recommendations: 1,
@@ -61,6 +66,7 @@ export async function getTeacherClassesSummaryMock(teacherId: string): Promise<C
     {
         class_id: "40000000-0000-0000-0000-000000000004",
         name: "CHEM101 General Chemistry",
+        description: "General chemistry with weekly check-ins and lab reflections.",
         risk_level: "NO_DATA",
         student_count: 40,
         pending_recommendations: 0,
@@ -68,7 +74,8 @@ export async function getTeacherClassesSummaryMock(teacherId: string): Promise<C
   ];
 }
 
-export async function getTeacherRecommendationsMock(teacherId: string): Promise<TeacherRecommendation[]> {
+export async function getTeacherRecommendationsMock(_teacherId: string): Promise<TeacherRecommendation[]> {
+  void _teacherId;
   await new Promise(resolve => setTimeout(resolve, 600));
 
   return [

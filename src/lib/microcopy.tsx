@@ -21,7 +21,7 @@ export const MICROCOPY = {
         },
         dashboardSubtitle: {
             th: "สรุปรายสัปดาห์ — เกิดอะไรขึ้นในห้องเรียนของคุณ",
-            en: "Your weekly TL;DR — what's happening in your classes.",
+            en: "Weekly briefing — what's happening in your classes.",
         },
         reviewCTA: {
             th: "ตรวจสอบสัปดาห์นี้",

@@ -14,6 +14,7 @@ export function ClassSummaryCard({ data }: ClassSummaryCardProps) {
     const {
         class_id,
         name,
+        description,
         risk_level,
         student_count,
         pending_recommendations,
@@ -41,10 +42,15 @@ export function ClassSummaryCard({ data }: ClassSummaryCardProps) {
                         >
                             <h3
                                 data-display="true"
-                                className="line-clamp-2 text-[2rem] font-semibold leading-[1.15] text-[var(--teacher-dashboard-text)] transition-colors hover:text-[var(--teacher-dashboard-primary)]"
+                                className="product-card-title text-[clamp(1.55rem,2.2vw,2.35rem)] font-semibold leading-[1.12] text-[var(--teacher-dashboard-text)] transition-colors hover:text-[var(--teacher-dashboard-primary)]"
                             >
                                 {name}
                             </h3>
+                            {description && (
+                                <p className="mt-2 text-sm leading-6 teacher-text-muted">
+                                    {description}
+                                </p>
+                            )}
                         </Link>
                         {risk_level !== 'NO_DATA' && (
                             <RiskIndicator score={numericScore} />
@@ -55,19 +61,19 @@ export function ClassSummaryCard({ data }: ClassSummaryCardProps) {
                         {inquiry_mode_suggested && (
                             <Badge variant="secondary" className="border-[color:var(--teacher-dashboard-border)] bg-[var(--teacher-dashboard-surface-soft)] text-[var(--teacher-dashboard-text)]">
                                 <HelpCircle className="mr-1 h-3 w-3" />
-                                Inquiry Mode
+                                โหมดค้นหาบริบท
                             </Badge>
                         )}
                         {blocked_reason === "frequency_limit_exceeded" && (
                             <Badge variant="outline" className="border-[var(--teacher-dashboard-border)] bg-[var(--teacher-dashboard-surface-soft)] text-[var(--teacher-dashboard-text-muted)]">
                                 <PauseCircle className="mr-1 h-3 w-3" />
-                                No new draft this cycle
+                                ยังไม่สร้างฉบับร่างใหม่
                             </Badge>
                         )}
                         {blocked_reason === "k_anonymity" && (
                             <Badge variant="outline" className="border-[color:var(--teacher-dashboard-border)] bg-[rgba(147,197,253,0.12)] text-[var(--teacher-dashboard-primary)]">
                                 <ShieldCheck className="mr-1 h-3 w-3" />
-                                Waiting for safe aggregate signal
+                                รอสัญญาณรวมที่ปลอดภัย
                             </Badge>
                         )}
                     </div>
@@ -76,21 +82,21 @@ export function ClassSummaryCard({ data }: ClassSummaryCardProps) {
                         <div className="teacher-surface-soft flex items-center gap-2 rounded-full border px-3 py-1.5">
                             <Users className="h-4 w-4 text-[var(--teacher-dashboard-primary)]" />
                             <span className="font-semibold text-[var(--teacher-dashboard-text)]">{student_count}</span>
-                            <span>Students</span>
+                            <span>คนในห้อง</span>
                         </div>
 
                         {pending_recommendations > 0 ? (
                             <div className="flex items-center gap-2 rounded-full bg-[rgba(253,230,138,0.12)] px-3 py-1.5 text-[var(--teacher-dashboard-warning)]">
                                 <Bell className="h-4 w-4 animate-pulse" />
-                                <span className="font-semibold">{pending_recommendations} Actions required</span>
+                                <span className="font-semibold">{pending_recommendations} รายการรอตรวจ</span>
                             </div>
                         ) : (
                             <div className="flex items-center gap-2 rounded-full bg-[rgba(147,197,253,0.12)] px-3 py-1.5 text-[var(--teacher-dashboard-primary)]">
                                 <Activity className="h-4 w-4" />
                                 <span>
                                   {blocked_reason === "k_anonymity"
-                                    ? "Waiting for safe signal"
-                                    : "All caught up"}
+                                    ? "กำลังรอสัญญาณรวม"
+                                    : "ติดตามครบแล้ว"}
                                 </span>
                             </div>
                         )}
@@ -101,18 +107,18 @@ export function ClassSummaryCard({ data }: ClassSummaryCardProps) {
                     </p>
                 </div>
 
-                <div className="mt-6 flex flex-col gap-3 border-t border-[color:var(--teacher-dashboard-border)] pt-5 sm:flex-row sm:items-center sm:justify-between">
-                    <Link href={`/teacher/climate?classId=${class_id}`} className="sm:flex-1">
-                        <Button variant="outline" className="h-12 w-full justify-between rounded-2xl border-[var(--teacher-dashboard-border)] bg-[var(--teacher-dashboard-surface-soft)] px-4 text-[var(--teacher-dashboard-text)] hover:bg-[var(--teacher-dashboard-primary-soft)] hover:text-[var(--teacher-dashboard-primary)]">
-                            <span>Class Climate</span>
+                <div className="mt-6 flex flex-col gap-3 border-t border-[color:var(--teacher-dashboard-border)] pt-5">
+                    <Link href={`/teacher/climate?classId=${class_id}`} className="min-w-0">
+                        <Button variant="outline" className="product-card-button h-auto min-h-12 w-full justify-between rounded-2xl border-[var(--teacher-dashboard-border)] bg-[var(--teacher-dashboard-surface-soft)] px-4 py-3 text-left text-[var(--teacher-dashboard-text)] hover:bg-[var(--teacher-dashboard-primary-soft)] hover:text-[var(--teacher-dashboard-primary)]">
+                            <span>ดู Class Climate</span>
                             <ChevronRight className="w-4 h-4" />
                         </Button>
                     </Link>
                     <Link
                         href={`/teacher/class/${class_id}`}
-                        className="text-sm font-medium teacher-text-muted transition-colors hover:text-[var(--teacher-dashboard-primary)]"
+                        className="min-w-0 text-sm font-medium teacher-text-muted transition-colors hover:text-[var(--teacher-dashboard-primary)]"
                     >
-                        View Details
+                        ไปยัง workspace
                     </Link>
                 </div>
             </CardContent>

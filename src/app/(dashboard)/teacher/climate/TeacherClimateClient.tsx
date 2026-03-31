@@ -29,17 +29,18 @@ import { RiskIndicator } from "@/components/domain/teacher/RiskIndicator";
 import { ThaiRiskBadge } from "@/components/domain/teacher/ThaiRiskBadge";
 import { useDailyClimateHistory } from "@/hooks/useDailyClimateHistory";
 import type {
+  AuditBlockedReason,
   ClassClimateSummary,
   ClassMetrics,
   RedactedVoiceState,
   StudentFeedbackTrend,
-  AuditBlockedReason,
 } from "@/types";
 import type { TeacherDisplayRiskLevel } from "@/lib/teacherDashboard";
 
 type TeacherClimateOverviewClass = {
   id: string;
   name: string;
+  description: string | null;
   studentCount: number;
   riskLevel: TeacherDisplayRiskLevel;
   riskScore: number | null;
@@ -127,12 +128,69 @@ function toWeeklyTrendPoints(climate: ClassClimateSummary[]): TrendPoint[] {
 function blockedReasonCopy(blockedReason: AuditBlockedReason) {
   switch (blockedReason) {
     case "frequency_limit_exceeded":
-      return "ยังไม่ออก draft ใหม่ในรอบนี้ เพราะเพิ่งมี action ไปไม่นาน";
+      return "ยังไม่มีฉบับร่างใหม่ในรอบนี้ เพราะเพิ่งมี action ไปไม่นาน";
     case "k_anonymity":
-      return "สัญญาณรวมของห้องยังไม่ปลอดภัยพอสำหรับสร้าง insight เพิ่ม";
+      return "ระบบกำลังรอสัญญาณรวมที่ปลอดภัยพอ ก่อนจะสร้าง insight หรือ action เพิ่ม";
     default:
       return null;
   }
+}
+
+function OverviewStatus({
+  inquiryModeSuggested,
+  pendingRecommendations,
+  blockedReason,
+}: {
+  inquiryModeSuggested: boolean;
+  pendingRecommendations: number;
+  blockedReason: AuditBlockedReason;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {inquiryModeSuggested && (
+        <Badge
+          variant="secondary"
+          className="border-[color:var(--teacher-dashboard-border)] bg-[var(--teacher-dashboard-surface-soft)] text-[var(--teacher-dashboard-text)]"
+        >
+          <HelpCircle className="mr-1 h-3 w-3" />
+          โหมดค้นหาบริบท
+        </Badge>
+      )}
+      {pendingRecommendations > 0 ? (
+        <span className="rounded-full bg-[rgba(253,230,138,0.12)] px-2.5 py-1 text-xs font-medium text-[var(--teacher-dashboard-warning)]">
+          {pendingRecommendations} รายการรอตรวจ
+        </span>
+      ) : (
+        <span className="rounded-full bg-[rgba(147,197,253,0.12)] px-2.5 py-1 text-xs font-medium text-[var(--teacher-dashboard-primary)]">
+          {blockedReason === "k_anonymity"
+            ? "กำลังรอสัญญาณรวม"
+            : "ติดตามครบแล้ว"}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function ClimateMetric({
+  label,
+  value,
+  helper,
+}: {
+  label: string;
+  value: string;
+  helper: string;
+}) {
+  return (
+    <div className="teacher-surface-soft rounded-[22px] border p-4">
+      <p className="text-xs uppercase tracking-[0.08em] teacher-text-muted">
+        {label}
+      </p>
+      <p className="mt-1 text-lg font-semibold text-[var(--teacher-dashboard-text)]">
+        {value}
+      </p>
+      <p className="mt-1 text-xs teacher-text-muted">{helper}</p>
+    </div>
+  );
 }
 
 function TrendChartCard({
@@ -149,80 +207,93 @@ function TrendChartCard({
   emptyMessage: string;
 }) {
   const hasPlottableData = data.some(
-    (point) => point.mood !== null || point.pace !== null || point.fairness !== null
+    (point) =>
+      point.mood !== null || point.pace !== null || point.fairness !== null,
   );
 
   return (
-    <Card className="teacher-surface rounded-[28px] border shadow-[0_18px_42px_rgba(23,33,51,0.06)]">
+    <Card className="product-section-card">
       <CardHeader className="space-y-2">
-        <CardTitle data-display="true" className="text-2xl font-semibold text-[var(--teacher-dashboard-text)]">{title}</CardTitle>
+        <CardTitle
+          data-display="true"
+          className="text-2xl font-semibold text-[var(--teacher-dashboard-text)]"
+        >
+          {title}
+        </CardTitle>
         <p className="text-sm teacher-text-muted">{description}</p>
       </CardHeader>
       <CardContent>
         {loading ? (
-          <div className="flex h-[280px] items-center justify-center text-sm text-muted-foreground">
+          <div className="flex h-[280px] items-center justify-center text-sm teacher-text-muted">
             <Loader2 className="mr-2 h-5 w-5 animate-spin" />
             กำลังโหลดข้อมูลแนวโน้ม...
           </div>
         ) : !hasPlottableData ? (
-          <div className="flex h-[240px] items-center justify-center rounded-[24px] border border-dashed border-[color:var(--teacher-dashboard-border)] px-6 text-center text-sm teacher-text-muted">
+          <div className="teacher-surface-soft flex h-[240px] items-center justify-center rounded-[24px] border border-dashed px-6 text-center text-sm teacher-text-muted">
             {emptyMessage}
           </div>
         ) : (
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={data} margin={{ top: 12, right: 12, left: 0, bottom: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.24)" />
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="rgba(148,163,184,0.18)"
+                />
                 <XAxis
                   dataKey="label"
-                  stroke="rgb(100 116 139)"
-                  tick={{ fill: "rgb(100 116 139)", fontSize: 12 }}
+                  stroke="rgb(148 163 184)"
+                  tick={{ fill: "rgb(148 163 184)", fontSize: 12 }}
                   tickLine={false}
-                  axisLine={{ stroke: "rgba(148,163,184,0.24)" }}
+                  axisLine={{ stroke: "rgba(148,163,184,0.18)" }}
                 />
                 <YAxis
                   domain={[1, 5]}
                   ticks={[1, 2, 3, 4, 5]}
-                  stroke="rgb(100 116 139)"
-                  tick={{ fill: "rgb(100 116 139)", fontSize: 12 }}
+                  stroke="rgb(148 163 184)"
+                  tick={{ fill: "rgb(148 163 184)", fontSize: 12 }}
                   tickLine={false}
-                  axisLine={{ stroke: "rgba(148,163,184,0.24)" }}
+                  axisLine={{ stroke: "rgba(148,163,184,0.18)" }}
                 />
                 <Tooltip
-                  formatter={(value) => [formatScore(value === null ? null : Number(value)), ""]}
+                  formatter={(value) => [
+                    formatScore(value === null ? null : Number(value)),
+                    "",
+                  ]}
                   labelFormatter={(label) => String(label)}
                   contentStyle={{
-                    backgroundColor: "white",
-                    border: "1px solid rgba(148,163,184,0.25)",
-                    borderRadius: "12px",
+                    backgroundColor: "#0f1b2d",
+                    color: "#e5e7eb",
+                    border: "1px solid rgba(148,163,184,0.18)",
+                    borderRadius: "14px",
                   }}
                 />
-                <Legend />
+                <Legend wrapperStyle={{ color: "#cbd5e1" }} />
                 <Line
                   type="monotone"
                   dataKey="mood"
                   name="อารมณ์"
-                  stroke="#6366f1"
+                  stroke="#a78bfa"
                   strokeWidth={2.5}
-                  dot={{ r: 4, fill: "#6366f1" }}
+                  dot={{ r: 4, fill: "#a78bfa" }}
                   connectNulls={false}
                 />
                 <Line
                   type="monotone"
                   dataKey="pace"
                   name="จังหวะคาบ"
-                  stroke="#0ea5e9"
+                  stroke="#7dd3fc"
                   strokeWidth={2.5}
-                  dot={{ r: 4, fill: "#0ea5e9" }}
+                  dot={{ r: 4, fill: "#7dd3fc" }}
                   connectNulls={false}
                 />
                 <Line
                   type="monotone"
                   dataKey="fairness"
                   name="ความยุติธรรม"
-                  stroke="#8b5cf6"
+                  stroke="#5eead4"
                   strokeWidth={2.5}
-                  dot={{ r: 4, fill: "#8b5cf6" }}
+                  dot={{ r: 4, fill: "#5eead4" }}
                   connectNulls={false}
                 />
               </LineChart>
@@ -237,17 +308,21 @@ function TrendChartCard({
 function ClimateOverviewState({ classes }: { classes: TeacherClimateOverviewClass[] }) {
   if (classes.length === 0) {
     return (
-      <Card className="border-dashed">
+      <Card className="product-section-card border-dashed">
         <CardContent className="flex flex-col items-center justify-center gap-3 py-12 text-center">
-          <Users className="h-10 w-10 text-muted-foreground/40" />
+          <Users className="h-10 w-10 teacher-text-muted" />
           <div className="space-y-1">
-            <h2 className="text-lg font-semibold">ยังไม่มีห้องเรียนที่เปิดใช้งาน</h2>
-            <p className="text-sm text-muted-foreground">
-              สร้างห้องเรียนก่อน แล้ว Class Climate จะเริ่มแสดงกราฟและ summary ให้คุณดูที่นี่
+            <h2 className="text-lg font-semibold text-[var(--teacher-dashboard-text)]">
+              ยังไม่มีห้องเรียนที่เปิดใช้งาน
+            </h2>
+            <p className="text-sm teacher-text-muted">
+              สร้างห้องเรียนก่อน แล้ว Class Climate จะเริ่มแสดงภาพรวมและแนวโน้มให้ที่นี่
             </p>
           </div>
           <Link href="/teacher/class/new">
-            <Button>Create Class</Button>
+            <Button className="bg-[var(--teacher-dashboard-primary)] text-slate-950 hover:bg-[#bfdbfe]">
+              สร้างห้องเรียน
+            </Button>
           </Link>
         </CardContent>
       </Card>
@@ -256,80 +331,102 @@ function ClimateOverviewState({ classes }: { classes: TeacherClimateOverviewClas
 
   return (
     <div className="space-y-6">
-      <div>
+      <div className="product-hero-card p-6">
         <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-[var(--teacher-dashboard-primary-soft)] px-3 py-1 text-xs font-semibold text-[var(--teacher-dashboard-primary)]">
           <BarChart3 className="h-3.5 w-3.5" />
           Climate intelligence workspace
         </div>
-        <h1 data-display="true" className="flex items-center gap-3 text-5xl font-semibold tracking-tight text-[var(--teacher-dashboard-text)]">
-          <BarChart3 className="h-7 w-7 text-sky-500" />
+        <h1
+          data-display="true"
+          className="flex items-center gap-3 text-5xl font-semibold tracking-tight text-[var(--teacher-dashboard-text)]"
+        >
+          <BarChart3 className="h-7 w-7 text-[var(--teacher-dashboard-primary)]" />
           Class Climate
         </h1>
         <p className="mt-3 max-w-3xl text-[15px] leading-7 teacher-text-muted">
-          เลือกห้องเรียนเพื่อดูภาพรวมบรรยากาศ กราฟแนวโน้ม และสรุปที่ช่วยให้ตัดสินใจได้เร็วขึ้น
+          เลือกห้องเรียนเพื่อดูภาพรวมบรรยากาศ กราฟแนวโน้ม และสรุปที่ช่วยให้ครูตัดสินใจได้เร็วขึ้นโดยยังรักษา privacy-safe aggregate view
         </p>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
         {classes.map((classEntry) => (
-          <Card key={classEntry.id} className="teacher-surface rounded-[28px] border shadow-[0_18px_42px_rgba(23,33,51,0.06)] transition-all hover:-translate-y-1 hover:shadow-[0_22px_50px_rgba(23,33,51,0.1)]">
-            <CardContent className="space-y-4 p-5">
+          <Card
+            key={classEntry.id}
+            className="product-section-card h-full overflow-hidden transition-all hover:-translate-y-1 hover:shadow-[0_26px_62px_rgba(2,8,23,0.32)]"
+          >
+            <CardContent className="flex h-full flex-col space-y-4 p-5">
               <div className="flex items-start justify-between gap-3">
-                <div className="space-y-2">
-                  <h2 data-display="true" className="text-[2rem] font-semibold leading-[1.15] text-[var(--teacher-dashboard-text)]">{classEntry.name}</h2>
+                <div className="min-w-0 space-y-2">
+                  <h2
+                    data-display="true"
+                    className="product-card-title text-[clamp(1.55rem,2.2vw,2.35rem)] font-semibold leading-[1.12] text-[var(--teacher-dashboard-text)]"
+                  >
+                    {classEntry.name}
+                  </h2>
+                  {classEntry.description && (
+                    <p className="max-w-2xl text-sm leading-6 teacher-text-muted">
+                      {classEntry.description}
+                    </p>
+                  )}
                   <ThaiRiskBadge
                     score={classEntry.riskScore}
-                    policyLevel={classEntry.riskLevel === "NO_DATA" ? null : classEntry.riskLevel}
+                    policyLevel={
+                      classEntry.riskLevel === "NO_DATA"
+                        ? null
+                        : classEntry.riskLevel
+                    }
                     size="md"
                   />
                 </div>
-                {classEntry.inquiryModeSuggested && (
-                  <Badge variant="secondary" className="bg-violet-50 text-violet-700 border-violet-200">
-                    <HelpCircle className="mr-1 h-3 w-3" />
-                    Inquiry Mode
-                  </Badge>
-                )}
               </div>
 
+              <OverviewStatus
+                inquiryModeSuggested={classEntry.inquiryModeSuggested}
+                pendingRecommendations={classEntry.pendingRecommendations}
+                blockedReason={classEntry.blockedReason}
+              />
+
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="teacher-surface-soft rounded-[22px] border p-4">
-                  <p className="text-xs uppercase tracking-[0.08em] teacher-text-muted">สมาชิก</p>
-                  <p className="mt-1 text-lg font-semibold">{classEntry.studentCount} คน</p>
-                </div>
-                <div className="teacher-surface-soft rounded-[22px] border p-4">
-                  <p className="text-xs uppercase tracking-[0.08em] teacher-text-muted">รอบล่าสุด</p>
-                  <p className="mt-1 text-lg font-semibold">{classEntry.latestResponseCount} responses</p>
-                </div>
+                <ClimateMetric
+                  label="สมาชิก"
+                  value={`${classEntry.studentCount} คน`}
+                  helper="จำนวนสมาชิกทั้งหมดในห้อง"
+                />
+                <ClimateMetric
+                  label="รอบล่าสุด"
+                  value={`${classEntry.latestResponseCount} คำตอบ`}
+                  helper={`สะสม ${classEntry.totalWeeksWithData} สัปดาห์`}
+                />
               </div>
 
               <div className="teacher-surface-soft rounded-[24px] border p-4">
                 <div className="flex items-center gap-2 text-xs teacher-text-muted">
-                  <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                  <Sparkles className="h-3.5 w-3.5 text-amber-400" />
                   AI summary
                 </div>
-                <p className="mt-2 text-sm leading-6 text-foreground">
+                <p className="mt-2 text-sm leading-6 text-[var(--teacher-dashboard-text)]">
                   {classEntry.summaryLine}
                 </p>
               </div>
 
               <div className="flex flex-wrap items-center gap-2 text-xs teacher-text-muted">
-                <span className="rounded-full bg-sky-100 px-2.5 py-1 font-medium text-sky-700">
-                  trend: {describeTrend(classEntry.trend)}
+                <span className="rounded-full bg-[rgba(147,197,253,0.12)] px-2.5 py-1 font-medium text-[var(--teacher-dashboard-primary)]">
+                  แนวโน้ม: {describeTrend(classEntry.trend)}
                 </span>
-                {classEntry.pendingRecommendations > 0 && (
-                  <span className="rounded-full bg-amber-100 px-2.5 py-1 font-medium text-amber-700">
-                    {classEntry.pendingRecommendations} pending
-                  </span>
-                )}
               </div>
 
-              <div className="flex gap-2 pt-1">
-                <Link href={`/teacher/climate?classId=${classEntry.id}`} className="flex-1">
-                  <Button className="h-12 w-full rounded-2xl bg-[var(--teacher-dashboard-primary)] shadow-[0_10px_24px_rgba(31,122,224,0.2)] hover:bg-[#186bc8]">Open Climate</Button>
+              <div className="mt-auto grid gap-2 pt-1">
+                <Link href={`/teacher/climate?classId=${classEntry.id}`} className="min-w-0">
+                  <Button className="product-card-button h-auto min-h-12 w-full rounded-2xl bg-[var(--teacher-dashboard-primary)] px-4 py-3 text-left text-slate-950 shadow-[0_10px_24px_rgba(147,197,253,0.18)] hover:bg-[#bfdbfe]">
+                    เปิดมุมมอง climate
+                  </Button>
                 </Link>
-                <Link href={`/teacher/class/${classEntry.id}`} className="flex-1">
-                  <Button variant="outline" className="h-12 w-full rounded-2xl border-[var(--teacher-dashboard-border)] bg-[var(--teacher-dashboard-surface-soft)]">
-                    Action Workspace
+                <Link href={`/teacher/class/${classEntry.id}`} className="min-w-0">
+                  <Button
+                    variant="outline"
+                    className="product-card-button h-auto min-h-12 w-full rounded-2xl border-[var(--teacher-dashboard-border)] bg-[var(--teacher-dashboard-surface-soft)] px-4 py-3 text-left text-[var(--teacher-dashboard-text)] hover:bg-[var(--teacher-dashboard-primary-soft)]"
+                  >
+                    ไปยัง workspace
                   </Button>
                 </Link>
               </div>
@@ -350,12 +447,12 @@ function ClimateDrilldownState({
 }) {
   const weeklyTrend = useMemo(
     () => toWeeklyTrendPoints(selectedClass.climate),
-    [selectedClass.climate]
+    [selectedClass.climate],
   );
-  const {
-    data: dailyTrend,
-    isLoading: dailyLoading,
-  } = useDailyClimateHistory(selectedClass.id, 14);
+  const { data: dailyTrend, isLoading: dailyLoading } = useDailyClimateHistory(
+    selectedClass.id,
+    14,
+  );
 
   const dailyChartData = useMemo<TrendPoint[]>(
     () =>
@@ -366,7 +463,7 @@ function ClimateDrilldownState({
         fairness: point.fairness,
         studentCount: point.studentCount,
       })),
-    [dailyTrend]
+    [dailyTrend],
   );
 
   const blockedCopy = blockedReasonCopy(selectedClass.blockedReason);
@@ -376,53 +473,62 @@ function ClimateDrilldownState({
       <div className="space-y-3">
         <Link
           href="/teacher/climate"
-          className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+          className="inline-flex items-center gap-1 text-xs teacher-text-muted transition-colors hover:text-[var(--teacher-dashboard-text)]"
         >
           <ArrowLeft className="h-3 w-3" />
           กลับไปดูทุกห้อง
         </Link>
 
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="product-hero-card flex flex-col gap-4 p-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-3">
-              <h1 data-display="true" className="text-4xl font-semibold tracking-tight text-[var(--teacher-dashboard-text)]">{selectedClass.name}</h1>
+              <h1
+                data-display="true"
+                className="text-4xl font-semibold tracking-tight text-[var(--teacher-dashboard-text)]"
+              >
+                {selectedClass.name}
+              </h1>
               <RiskIndicator
                 score={selectedClass.riskScore}
-                policyLevel={selectedClass.riskLevel === "NO_DATA" ? null : selectedClass.riskLevel}
+                policyLevel={
+                  selectedClass.riskLevel === "NO_DATA"
+                    ? null
+                    : selectedClass.riskLevel
+                }
                 size="md"
               />
             </div>
             <p className="max-w-3xl text-sm leading-7 teacher-text-muted">
-              หน้า Class Climate นี้เน้นให้ครูเห็นสัญญาณรวมของห้องแบบอ่านเร็ว ทั้งภาพรวมแนวโน้ม รายวัน และเสียงสะท้อนที่ผ่านการปกปิดข้อมูลแล้ว
+              หน้านี้ช่วยให้ครูอ่านภาพรวมแนวโน้มของห้องแบบเร็วพอจะตัดสินใจ
+              โดยใช้เฉพาะ aggregate signal และเสียงสะท้อนที่ผ่านการปกปิดข้อมูลแล้ว
             </p>
-            <div className="flex flex-wrap items-center gap-2">
-              {selectedClass.inquiryModeSuggested && (
-                <Badge variant="secondary" className="bg-violet-50 text-violet-700 border-violet-200">
-                  <HelpCircle className="mr-1 h-3 w-3" />
-                  Inquiry Mode suggested
-                </Badge>
-              )}
-              {selectedClass.pendingRecommendations > 0 && (
-                <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-300">
-                  {selectedClass.pendingRecommendations} pending draft
-                </Badge>
-              )}
-              {selectedClass.blockedReason && (
-                <Badge variant="outline">
-                  {selectedClass.blockedReason === "k_anonymity"
-                    ? "Waiting for safe aggregate signal"
-                    : "No new draft this cycle"}
-                </Badge>
-              )}
-            </div>
+            <OverviewStatus
+              inquiryModeSuggested={selectedClass.inquiryModeSuggested}
+              pendingRecommendations={selectedClass.pendingRecommendations}
+              blockedReason={selectedClass.blockedReason}
+            />
           </div>
 
           <div className="flex flex-wrap gap-2">
             {classes.map((classEntry) => {
               const active = classEntry.id === selectedClass.id;
               return (
-                <Link key={classEntry.id} href={`/teacher/climate?classId=${classEntry.id}`}>
-                  <Button variant={active ? "default" : "outline"} size="sm" className={active ? "bg-[var(--teacher-dashboard-primary)] hover:bg-[#186bc8]" : "border-[var(--teacher-dashboard-border)] bg-[var(--teacher-dashboard-surface-soft)]"}>
+                <Link
+                  key={classEntry.id}
+                  href={`/teacher/climate?classId=${classEntry.id}`}
+                >
+                  <Button
+                    variant={active ? "default" : "outline"}
+                    size="sm"
+                    title={classEntry.name}
+                    className={
+                      `h-auto max-w-[16rem] whitespace-normal rounded-2xl px-3 py-2 text-left leading-tight ${
+                        active
+                          ? "bg-[var(--teacher-dashboard-primary)] text-slate-950 hover:bg-[#bfdbfe]"
+                          : "border-[var(--teacher-dashboard-border)] bg-[var(--teacher-dashboard-surface-soft)] text-[var(--teacher-dashboard-text)] hover:bg-[var(--teacher-dashboard-primary-soft)]"
+                      }`
+                    }
+                  >
                     {classEntry.name}
                   </Button>
                 </Link>
@@ -433,68 +539,88 @@ function ClimateDrilldownState({
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[1.35fr_0.95fr]">
-        <Card className="overflow-hidden rounded-[30px] border border-[#1c2638] bg-[radial-gradient(circle_at_top_left,rgba(31,122,224,0.16),transparent_28%),linear-gradient(145deg,#162033,#101826)] text-slate-50 shadow-[0_24px_55px_rgba(15,23,42,0.24)]">
+        <Card className="product-section-card overflow-hidden">
           <CardContent className="grid gap-5 p-6 lg:grid-cols-[1.5fr_0.9fr]">
             <div className="space-y-4">
-              <div className="inline-flex items-center gap-2 rounded-full bg-sky-500/15 px-3 py-1 text-xs font-medium text-sky-300">
+              <div className="inline-flex items-center gap-2 rounded-full bg-[var(--teacher-dashboard-primary-soft)] px-3 py-1 text-xs font-medium text-[var(--teacher-dashboard-primary)]">
                 <Sparkles className="h-3.5 w-3.5" />
                 AI climate summary
               </div>
               <div className="space-y-2">
-                <h2 data-display="true" className="text-3xl font-semibold">ภาพรวมล่าสุดของห้องนี้</h2>
-                <p className="max-w-2xl text-sm leading-6 text-slate-300">
+                <h2
+                  data-display="true"
+                  className="text-[clamp(1.75rem,2.4vw,2.6rem)] font-semibold text-[var(--teacher-dashboard-text)]"
+                >
+                  ภาพรวมล่าสุดของห้องนี้
+                </h2>
+                {selectedClass.description && (
+                  <p className="max-w-2xl text-sm leading-6 teacher-text-muted">
+                    {selectedClass.description}
+                  </p>
+                )}
+                <p className="max-w-2xl text-sm leading-6 teacher-text-muted">
                   {selectedClass.summaryLine}
                 </p>
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
-                <div className="rounded-[22px] border border-slate-800 bg-slate-900/70 p-4">
-                  <p className="text-xs text-slate-400">Avg Mood</p>
-                  <p className="mt-2 text-xl font-semibold">{formatScore(selectedClass.avgMood)}</p>
-                </div>
-                <div className="rounded-[22px] border border-slate-800 bg-slate-900/70 p-4">
-                  <p className="text-xs text-slate-400">Avg Pace</p>
-                  <p className="mt-2 text-xl font-semibold">{formatScore(selectedClass.avgPace)}</p>
-                </div>
-                <div className="rounded-[22px] border border-slate-800 bg-slate-900/70 p-4">
-                  <p className="text-xs text-slate-400">Avg Fairness</p>
-                  <p className="mt-2 text-xl font-semibold">{formatScore(selectedClass.avgFairness)}</p>
-                </div>
+                <ClimateMetric
+                  label="อารมณ์เฉลี่ย"
+                  value={formatScore(selectedClass.avgMood)}
+                  helper="สัญญาณรวมของห้อง"
+                />
+                <ClimateMetric
+                  label="จังหวะเฉลี่ย"
+                  value={formatScore(selectedClass.avgPace)}
+                  helper="จังหวะของคาบในภาพรวม"
+                />
+                <ClimateMetric
+                  label="ความยุติธรรมเฉลี่ย"
+                  value={formatScore(selectedClass.avgFairness)}
+                  helper="สะท้อนความรู้สึกของทั้งห้อง"
+                />
               </div>
             </div>
 
-            <div className="space-y-3 rounded-[24px] border border-slate-800 bg-slate-900/60 p-4">
+            <div className="teacher-surface-soft space-y-3 rounded-[24px] border p-4">
               <div className="flex items-start gap-3">
-                <div className="rounded-xl bg-sky-500/15 p-2 text-sky-300">
+                <div className="rounded-xl bg-[var(--teacher-dashboard-primary-soft)] p-2 text-[var(--teacher-dashboard-primary)]">
                   <CalendarDays className="h-4 w-4" />
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                  <p className="text-xs font-medium uppercase tracking-wide teacher-text-muted">
                     รอบ aggregate ล่าสุด
                   </p>
-                  <p className="text-sm font-semibold text-slate-100">
+                  <p className="text-sm font-semibold text-[var(--teacher-dashboard-text)]">
                     {formatThaiDate(selectedClass.latestWeekStart)}
                   </p>
                 </div>
               </div>
-              <div className="rounded-xl bg-slate-950/60 p-3 text-sm text-slate-300">
-                มีข้อมูลรวม {selectedClass.latestResponseCount} responses และสะสม {selectedClass.totalWeeksWithData} สัปดาห์ที่ใช้เปรียบเทียบแนวโน้มได้
+              <div className="rounded-xl bg-[rgba(2,8,23,0.18)] p-3 text-sm teacher-text-muted">
+                มีข้อมูลรวม {selectedClass.latestResponseCount} คำตอบ และสะสม{" "}
+                {selectedClass.totalWeeksWithData} สัปดาห์ที่ใช้เปรียบเทียบแนวโน้มได้
               </div>
               <div className="rounded-xl bg-emerald-500/10 p-3 text-xs leading-5 text-emerald-100">
-                หน้านี้แสดงเฉพาะ aggregate signal และ redacted student voice เท่านั้น ไม่มีข้อมูลรายบุคคลของนักเรียน
+                หน้านี้แสดงเฉพาะ aggregate signal และ redacted student voice
+                เท่านั้น ไม่มีข้อมูลรายบุคคลของนักเรียน
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="teacher-surface rounded-[28px] border shadow-[0_18px_42px_rgba(23,33,51,0.06)]">
+        <Card className="product-section-card">
           <CardContent className="space-y-4 p-5">
             <div className="flex items-start gap-3">
-              <div className="rounded-full bg-sky-100 p-2 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">
+              <div className="rounded-full bg-[var(--teacher-dashboard-primary-soft)] p-2 text-[var(--teacher-dashboard-primary)]">
                 <MessageSquareQuote className="h-4 w-4" />
               </div>
               <div className="space-y-1">
-                <h2 className="text-lg font-semibold">Redacted Student Voice</h2>
-                <p className="text-sm text-muted-foreground">
+                <h2
+                  data-display="true"
+                  className="text-2xl font-semibold text-[var(--teacher-dashboard-text)]"
+                >
+                  เสียงสะท้อนที่ปกปิดข้อมูลแล้ว
+                </h2>
+                <p className="text-sm teacher-text-muted">
                   {selectedClass.redactedVoice.message}
                 </p>
               </div>
@@ -506,17 +632,19 @@ function ClimateDrilldownState({
                 {selectedClass.redactedVoice.snippets.map((snippet) => (
                   <div
                     key={snippet.id}
-                    className="rounded-xl border bg-slate-50/80 px-4 py-3 dark:bg-slate-900/60"
+                    className="teacher-surface-soft rounded-[22px] border px-4 py-3"
                   >
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                      {snippet.tone ?? "mixed"}
+                    <p className="text-xs uppercase tracking-wide teacher-text-muted">
+                      {snippet.tone ?? "ผสม"}
                     </p>
-                    <p className="mt-2 text-sm leading-6 text-foreground">{snippet.text}</p>
+                    <p className="mt-2 text-sm leading-6 text-[var(--teacher-dashboard-text)]">
+                      {snippet.text}
+                    </p>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
+              <div className="teacher-surface-soft rounded-[22px] border border-dashed p-4 text-sm teacher-text-muted">
                 {selectedClass.redactedVoice.message}
               </div>
             )}
@@ -527,44 +655,61 @@ function ClimateDrilldownState({
       <div className="grid gap-4 xl:grid-cols-2">
         <TrendChartCard
           title="Weekly climate trend"
-          description="ดูแนวโน้ม aggregate ของหลายสัปดาห์ล่าสุดเพื่อประเมินว่าบรรยากาศกำลังเคลื่อนไปทางไหน"
+          description="ดูแนวโน้ม aggregate ของหลายสัปดาห์ล่าสุดเพื่อประเมินว่าบรรยากาศของห้องกำลังเคลื่อนไปทางไหน"
           data={weeklyTrend}
           loading={false}
           emptyMessage="ยังมีข้อมูลรายสัปดาห์ไม่พอสำหรับแสดงแนวโน้มของห้องนี้"
         />
         <TrendChartCard
           title="Daily climate trend"
-          description="ดูจังหวะรายวันของการเช็กอินล่าสุด เพื่อจับการเปลี่ยนแปลงที่เกิดขึ้นเร็วกว่า weekly rollup"
+          description="ดูสัญญาณรายวันล่าสุดเพื่อจับการเปลี่ยนแปลงที่เกิดเร็วกว่า weekly rollup"
           data={dailyChartData}
           loading={dailyLoading}
           emptyMessage="ยังมีข้อมูลรายวันไม่พอสำหรับแสดงแนวโน้มของห้องนี้"
         />
       </div>
 
-      <Card className="border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
+      <Card className="product-section-card">
         <CardContent className="flex flex-col gap-4 p-5 lg:flex-row lg:items-start lg:justify-between">
           <div className="space-y-3">
-            <h2 className="text-lg font-semibold">Action context</h2>
-            <p className="text-sm text-muted-foreground">
-              ใช้หน้า Class Detail เป็น workspace สำหรับ approve/dismiss draft และติดตาม action ของครู ส่วนหน้านี้ตั้งใจให้เป็นหน้าอ่าน climate signal ก่อนตัดสินใจ
+            <h2 className="text-lg font-semibold text-[var(--teacher-dashboard-text)]">
+              Action context
+            </h2>
+            <p className="text-sm teacher-text-muted">
+              ใช้หน้า Class Detail เป็น workspace สำหรับ approve หรือ dismiss
+              ฉบับร่าง ส่วนหน้านี้ตั้งใจให้ครูอ่าน climate signal ก่อนตัดสินใจ
             </p>
             <div className="flex flex-wrap gap-2">
-              <Badge variant="secondary">{selectedClass.pendingRecommendations} pending draft</Badge>
+              <Badge className="bg-[rgba(253,230,138,0.12)] text-[var(--teacher-dashboard-warning)] hover:bg-[rgba(253,230,138,0.12)]">
+                {selectedClass.pendingRecommendations} ฉบับร่างรอตรวจ
+              </Badge>
               {selectedClass.latestPolicySelected && (
-                <Badge variant="outline">Latest policy: {selectedClass.latestPolicySelected}</Badge>
+                <Badge
+                  variant="outline"
+                  className="border-[var(--teacher-dashboard-border)] text-[var(--teacher-dashboard-text-muted)]"
+                >
+                  นโยบายล่าสุด: {selectedClass.latestPolicySelected}
+                </Badge>
               )}
             </div>
             {blockedCopy && (
-              <p className="text-sm text-muted-foreground">{blockedCopy}</p>
+              <p className="text-sm teacher-text-muted">{blockedCopy}</p>
             )}
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row">
             <Link href={`/teacher/class/${selectedClass.id}`}>
-              <Button>Open Action Workspace</Button>
+              <Button className="bg-[var(--teacher-dashboard-primary)] text-slate-950 hover:bg-[#bfdbfe]">
+                เปิด action workspace
+              </Button>
             </Link>
             <Link href={`/teacher/class/${selectedClass.id}/responses`}>
-              <Button variant="outline">View Response History</Button>
+              <Button
+                variant="outline"
+                className="border-[var(--teacher-dashboard-border)] bg-[var(--teacher-dashboard-surface-soft)] text-[var(--teacher-dashboard-text)] hover:bg-[var(--teacher-dashboard-primary-soft)]"
+              >
+                ดูประวัติการตอบสนอง
+              </Button>
             </Link>
           </div>
         </CardContent>
@@ -581,5 +726,7 @@ export default function TeacherClimateClient({
     return <ClimateOverviewState classes={classes} />;
   }
 
-  return <ClimateDrilldownState classes={classes} selectedClass={selectedClass} />;
+  return (
+    <ClimateDrilldownState classes={classes} selectedClass={selectedClass} />
+  );
 }

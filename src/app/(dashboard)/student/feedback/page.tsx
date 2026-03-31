@@ -33,6 +33,7 @@ import type { StudentFeedbackResponse } from "@/types";
 type EnrolledClass = {
     class_id: string;
     class_name: string;
+    description: string | null;
     teacher_name: string | null;
     last_check_in: string | null;
 };
@@ -882,7 +883,7 @@ export default function StudentFeedbackPage() {
                                 key={room.class_id}
                                 className="border-[color:var(--student-dashboard-border)] bg-[var(--student-dashboard-surface)] text-[var(--student-dashboard-text)] shadow-[0_14px_32px_rgba(2,8,23,0.2)] transition-all hover:border-[color:var(--student-dashboard-primary)] hover:shadow-[0_18px_36px_rgba(2,8,23,0.26)]"
                             >
-                                <CardContent className="flex items-center justify-between gap-4 p-5">
+                                <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
                                     <div className="min-w-0 space-y-1">
                                         <div className="flex items-center gap-2">
                                             <div className="flex size-10 items-center justify-center rounded-xl bg-[var(--student-dashboard-primary-soft)] text-[var(--student-dashboard-primary)]">
@@ -892,11 +893,16 @@ export default function StudentFeedbackPage() {
                                                 />
                                             </div>
                                             <div className="min-w-0">
-                                                <h2 className="truncate text-base font-semibold text-[var(--student-dashboard-text)]">
+                                                <h2 className="product-card-title text-base font-semibold text-[var(--student-dashboard-text)]">
                                                     {room.class_name}
                                                 </h2>
+                                                {room.description && (
+                                                    <p className="mt-1 max-w-2xl text-sm leading-6 text-[var(--student-dashboard-text-muted)]">
+                                                        {room.description}
+                                                    </p>
+                                                )}
                                                 {room.teacher_name && (
-                                                    <p className="truncate text-sm text-[var(--student-dashboard-text-muted)]">
+                                                    <p className="line-clamp-2 break-words text-sm text-[var(--student-dashboard-text-muted)]">
                                                         ครูผู้สอน: {room.teacher_name}
                                                     </p>
                                                 )}
@@ -905,7 +911,7 @@ export default function StudentFeedbackPage() {
                                     </div>
 
                                     <Button
-                                        className="shrink-0 border border-[color:var(--student-dashboard-border)] bg-[var(--student-dashboard-primary-soft)] text-[var(--student-dashboard-primary)] hover:bg-[color:rgb(147_197_253/0.24)]"
+                                        className="product-card-button w-full shrink-0 border border-[color:var(--student-dashboard-border)] bg-[var(--student-dashboard-primary-soft)] px-4 py-3 text-left text-[var(--student-dashboard-primary)] hover:bg-[color:rgb(147_197_253/0.24)] sm:w-auto"
                                         onClick={() =>
                                             router.push(
                                                 `/student/feedback?classId=${encodeURIComponent(room.class_id)}`

@@ -60,7 +60,7 @@ export default async function ClassDetailPage({ params }: Props) {
     auditSignal,
     redactedVoiceRows,
   ] = await Promise.all([
-    supabase.from("classes").select("name, invite_code").eq("id", id).single(),
+    supabase.from("classes").select("name, description, invite_code").eq("id", id).single(),
     supabase
       .from("class_enrollments")
       .select("*", { count: "exact", head: true })
@@ -138,9 +138,10 @@ export default async function ClassDetailPage({ params }: Props) {
   );
 
   return (
-    <ClassDetailClient
+      <ClassDetailClient
       classId={id}
       className={classResult.data.name}
+      classDescription={classResult.data.description ?? null}
       inviteCode={classResult.data.invite_code}
       riskScore={getRiskScoreFromLevel(derivedRiskLevel)}
       riskLevel={derivedRiskLevel === "NO_DATA" ? null : derivedRiskLevel}

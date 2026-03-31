@@ -21,6 +21,7 @@ type PolicyLevel = "ROUTINE" | "WARNING" | "CRITICAL";
 interface ClientClass {
   id: string;
   name: string;
+  description: string | null;
   invite_code: string;
   created_at: string;
   student_count: number;
@@ -142,11 +143,16 @@ export function ClientClasses({ classes }: ClientClassesProps) {
                             )}
                             <CardHeader className="flex flex-row items-start justify-between gap-3 pb-2 space-y-0">
                                 <div className="min-w-0 flex-1">
-                                    <CardTitle className="truncate pr-2 text-base font-semibold text-[var(--teacher-dashboard-text)]" title={cls.name}>
+                                    <CardTitle className="pr-2 text-base font-semibold text-[var(--teacher-dashboard-text)]" title={cls.name}>
                                         <Link href={`/teacher/class/${cls.id}`} className="transition-colors hover:text-[var(--teacher-dashboard-primary)]">
-                                            {cls.name}
+                                            <span className="product-card-title text-[clamp(1.4rem,1.9vw,1.9rem)] leading-[1.12]">{cls.name}</span>
                                         </Link>
                                     </CardTitle>
+                                    {cls.description && (
+                                        <p className="mt-2 max-w-[32ch] text-sm leading-6 teacher-text-muted">
+                                            {cls.description}
+                                        </p>
+                                    )}
                                     <div className="mt-2">
                                         <ThaiRiskBadge score={cls.risk_score} policyLevel={cls.risk_level} size="sm" />
                                     </div>
@@ -219,22 +225,22 @@ export function ClientClasses({ classes }: ClientClassesProps) {
                                         ตัดสินแล้ว {cls.total_decided} รายการ, ข้าม {Math.round(cls.dismissal_rate * 100)}%
                                     </p>
                                 </Link>
-                                <div className="mt-4 flex gap-2">
-                                    <Link href={`/teacher/class/${cls.id}/members`} className="flex-1">
+                                <div className="mt-4 grid gap-2">
+                                    <Link href={`/teacher/class/${cls.id}/members`} className="min-w-0">
                                         <Button
                                             variant="outline"
                                             size="sm"
-                                            className="w-full border-[var(--teacher-dashboard-border)] bg-[var(--teacher-dashboard-surface-soft)] text-[var(--teacher-dashboard-text)] hover:bg-[var(--teacher-dashboard-primary-soft)] hover:text-[var(--teacher-dashboard-primary)]"
+                                            className="product-card-button h-auto min-h-11 w-full border-[var(--teacher-dashboard-border)] bg-[var(--teacher-dashboard-surface-soft)] px-4 py-3 text-left text-[var(--teacher-dashboard-text)] hover:bg-[var(--teacher-dashboard-primary-soft)] hover:text-[var(--teacher-dashboard-primary)]"
                                         >
                                             <Users className="w-4 h-4 mr-2" />
                                             สมาชิก
                                         </Button>
                                     </Link>
-                                    <Link href={`/teacher/climate?classId=${cls.id}`} className="flex-1">
+                                    <Link href={`/teacher/climate?classId=${cls.id}`} className="min-w-0">
                                         <Button
                                             variant="outline"
                                             size="sm"
-                                            className="w-full border-[var(--teacher-dashboard-border)] bg-[var(--teacher-dashboard-surface-soft)] text-[var(--teacher-dashboard-text)] hover:bg-[var(--teacher-dashboard-primary-soft)] hover:text-[var(--teacher-dashboard-primary)]"
+                                            className="product-card-button h-auto min-h-11 w-full border-[var(--teacher-dashboard-border)] bg-[var(--teacher-dashboard-surface-soft)] px-4 py-3 text-left text-[var(--teacher-dashboard-text)] hover:bg-[var(--teacher-dashboard-primary-soft)] hover:text-[var(--teacher-dashboard-primary)]"
                                         >
                                             <BarChart3 className="w-4 h-4 mr-2" />
                                             Class Climate
@@ -242,9 +248,9 @@ export function ClientClasses({ classes }: ClientClassesProps) {
                                     </Link>
                                 </div>
                             </CardContent>
-                            <CardFooter className="flex items-center justify-between border-t border-[var(--teacher-dashboard-border)] bg-[var(--teacher-dashboard-surface-soft)] p-3">
-                                <div className="text-xs font-medium uppercase tracking-wider text-[var(--teacher-dashboard-text-muted)]">
-                                    Code: <span className="ml-1 rounded bg-[rgba(147,197,253,0.12)] px-1.5 py-0.5 font-mono tracking-widest text-[var(--teacher-dashboard-text)]">{cls.invite_code || "N/A"}</span>
+                            <CardFooter className="flex flex-col items-start gap-3 border-t border-[var(--teacher-dashboard-border)] bg-[var(--teacher-dashboard-surface-soft)] p-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="min-w-0 text-xs font-medium uppercase tracking-wider text-[var(--teacher-dashboard-text-muted)]">
+                                    Code: <span className="product-code-chip ml-1 inline-block rounded bg-[rgba(147,197,253,0.12)] px-1.5 py-0.5 font-mono tracking-widest text-[var(--teacher-dashboard-text)]">{cls.invite_code || "N/A"}</span>
                                 </div>
                                 {cls.invite_code && (
                                     <Button variant="ghost" size="icon" className="h-7 w-7 text-[var(--teacher-dashboard-text-muted)] hover:bg-white/5 hover:text-white" onClick={() => handleCopyCode(cls.invite_code)}>

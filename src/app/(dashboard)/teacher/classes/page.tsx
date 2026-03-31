@@ -47,6 +47,7 @@ export default async function TeacherClassesPage() {
     })(),
     id: cls.id,
     name: cls.name,
+    description: cls.description ?? null,
     invite_code: cls.invite_code || "",
     created_at: cls.created_at,
     student_count: enrollmentCounts[cls.id] || 0,

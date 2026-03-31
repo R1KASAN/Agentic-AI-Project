@@ -65,6 +65,12 @@
   --teacher-dashboard-success: #d1fae5;
   --teacher-dashboard-warning: #fde68a;
   --teacher-dashboard-danger: #fecaca;
+  --product-radius-card: 1.75rem;
+  --product-radius-panel: 1.5rem;
+  --product-radius-pill: 999px;
+  --product-shadow-soft: 0 18px 42px rgba(2, 8, 23, 0.18);
+  --product-shadow-strong: 0 24px 56px rgba(2, 8, 23, 0.26);
+  --product-section-gap: 1.5rem;
   --radius: 0.625rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
@@ -299,5 +305,63 @@ h3,
 
   .teacher-text-muted {
     color: var(--teacher-dashboard-text-muted);
+  }
+
+  .product-hero-card {
+    border-radius: var(--product-radius-card);
+    border: 1px solid var(--teacher-dashboard-border);
+    background:
+      radial-gradient(circle at top left, rgb(147 197 253 / 0.14), transparent 34%),
+      linear-gradient(180deg, rgb(15 27 45 / 0.98), rgb(8 17 33 / 0.96));
+    box-shadow: var(--product-shadow-strong);
+  }
+
+  .product-section-card {
+    border-radius: var(--product-radius-card);
+    border: 1px solid var(--teacher-dashboard-border);
+    background: linear-gradient(180deg, rgb(15 27 45 / 0.98), rgb(10 19 33 / 0.94));
+    box-shadow: var(--product-shadow-soft);
+  }
+
+  .product-pill {
+    border-radius: var(--product-radius-pill);
+    border: 1px solid var(--teacher-dashboard-border);
+    background: var(--teacher-dashboard-surface-soft);
+    color: var(--teacher-dashboard-text-muted);
+  }
+
+  .product-student-hero {
+    border-radius: var(--product-radius-card);
+    border: 1px solid var(--student-dashboard-border);
+    background:
+      radial-gradient(circle at top left, rgb(129 140 248 / 0.16), transparent 36%),
+      linear-gradient(180deg, rgb(19 33 52 / 0.98), rgb(9 18 33 / 0.96));
+    box-shadow: 0 22px 52px rgba(2, 8, 23, 0.22);
+  }
+
+  .product-student-card {
+    border-radius: var(--product-radius-card);
+    border: 1px solid var(--student-dashboard-border);
+    background: linear-gradient(180deg, rgb(19 33 52 / 0.98), rgb(12 22 38 / 0.94));
+    box-shadow: 0 18px 40px rgba(2, 8, 23, 0.18);
+  }
+
+  .product-card-title {
+    display: block;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
+  .product-card-button {
+    min-width: 0;
+    white-space: normal;
+    text-wrap: balance;
+  }
+
+  .product-code-chip {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-all;
   }
 }

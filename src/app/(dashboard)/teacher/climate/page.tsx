@@ -53,6 +53,7 @@ export default async function TeacherClimatePage({ searchParams }: Props) {
     return {
       id: cls.id,
       name: cls.name,
+      description: cls.description ?? null,
       studentCount: enrollmentCounts[cls.id] ?? 0,
       riskLevel,
       riskScore: getRiskScoreFromLevel(riskLevel),

@@ -68,6 +68,7 @@ type RecommendationStatusRow = {
 export type TeacherDashboardOverviewClassRow = {
   id: string;
   name: string;
+  description: string | null;
   invite_code: string | null;
   created_at: string;
   risk_level: string | null;
@@ -1008,7 +1009,7 @@ export async function getTeacherDashboardOverviewData(
   const { data: classesData, error } = await client
     .from("classes")
     .select(
-      "id, name, invite_code, created_at, risk_level, risk_score, recommendations(status, policy_level)",
+      "id, name, description, invite_code, created_at, risk_level, risk_score, recommendations(status, policy_level)",
     )
     .eq("teacher_id", teacherId)
     .is("archived_at", null)
