@@ -57,8 +57,7 @@
       },
       "credentials": {
         "supabaseApi": {
-          "id": "supabase-api-cred-id",
-          "name": "Supabase API"
+          "name": "Supabase account"
         }
       }
     },
@@ -372,8 +371,7 @@
       },
       "credentials": {
         "supabaseApi": {
-          "id": "supabase-api-cred-id",
-          "name": "Supabase API"
+          "name": "Supabase account"
         }
       }
     },
@@ -406,8 +404,7 @@
       },
       "credentials": {
         "supabaseApi": {
-          "id": "supabase-api-cred-id",
-          "name": "Supabase API"
+          "name": "Supabase account"
         }
       }
     },
@@ -440,8 +437,7 @@
       },
       "credentials": {
         "supabaseApi": {
-          "id": "supabase-api-cred-id",
-          "name": "Supabase API"
+          "name": "Supabase account"
         }
       }
     },
@@ -597,8 +593,7 @@
       },
       "credentials": {
         "supabaseApi": {
-          "id": "supabase-api-cred-id",
-          "name": "Supabase API"
+          "name": "Supabase account"
         }
       }
     },
@@ -631,8 +626,7 @@
       },
       "credentials": {
         "supabaseApi": {
-          "id": "supabase-api-cred-id",
-          "name": "Supabase API"
+          "name": "Supabase account"
         }
       }
     },
@@ -665,8 +659,7 @@
       },
       "credentials": {
         "supabaseApi": {
-          "id": "supabase-api-cred-id",
-          "name": "Supabase API"
+          "name": "Supabase account"
         }
       }
     },
@@ -759,8 +752,7 @@
       },
       "credentials": {
         "supabaseApi": {
-          "id": "supabase-api-cred-id",
-          "name": "Supabase API"
+          "name": "Supabase account"
         }
       }
     },
@@ -810,8 +802,7 @@
       },
       "credentials": {
         "supabaseApi": {
-          "id": "supabase-api-cred-id",
-          "name": "Supabase API"
+          "name": "Supabase account"
         }
       }
     },

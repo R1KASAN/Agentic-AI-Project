@@ -32,6 +32,53 @@
     },
     {
       "parameters": {
+        "jsCode": "const input = $json || {};\nconst classId = typeof input.class_id === 'string' ? input.class_id.trim() : '';\nconst uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\nconst weeks = Number(input.weeks || 2);\nconst limit = Number(input.limit || 12);\nconst isValid = uuidPattern.test(classId);\nreturn {\n  json: {\n    class_id: isValid ? classId : null,\n    weeks,\n    limit,\n    is_valid: isValid,\n    status: isValid ? 'validated' : 'invalid_class_id',\n    reason: isValid ? null : 'invalid_class_id',\n    validation_error: isValid ? null : 'class_id is empty or malformed',\n  }\n};"
+      },
+      "id": "phasec-validate-raw-input",
+      "name": "Validate Raw Batch Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        340,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "phasec-valid-condition",
+              "leftValue": "={{ $json.is_valid === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "phasec-if-valid-raw-input",
+      "name": "Has Valid Class ID?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        580,
+        280
+      ]
+    },
+    {
+      "parameters": {
         "method": "POST",
         "url": "={{ $env.SUPABASE_URL }}/rest/v1/rpc/get_raw_redaction_comment_batch",
         "authentication": "predefinedCredentialType",
@@ -59,7 +106,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        360,
+        820,
         280
       ],
       "credentials": {
@@ -71,14 +118,14 @@
     },
     {
       "parameters": {
-        "jsCode": "const rows = $input.all().map((item) => item.json || {});\nconst triggerInput = $('Execute Workflow Trigger').first().json || {};\nconst normalizedRows = rows.map((row) => ({\n  week_start: row.week_start || null,\n  created_at: row.created_at || null,\n  comment_text: typeof row.comment_text === 'string' ? row.comment_text.trim() : '',\n  avg_mood: row.avg_mood ?? null,\n  avg_pace: row.avg_pace ?? null,\n  avg_fairness: row.avg_fairness ?? null,\n})).filter((row) => row.comment_text.length > 0);\nconst sourceWindow = rows[0]?.source_window ?? { weeks: Number(triggerInput.weeks || 2), n: 0, class_id: triggerInput.class_id || null };\nconst weekStart = rows[0]?.week_start ?? null;\nconst contributingStudentsCount = Number(rows[0]?.contributing_students_count ?? sourceWindow.n ?? 0);\nreturn {\n  json: {\n    class_id: triggerInput.class_id || null,\n    weeks: Number(triggerInput.weeks || 2),\n    limit: Number(triggerInput.limit || 12),\n    status: normalizedRows.length > 0 ? 'ready' : 'no_safe_batch',\n    reason: normalizedRows.length > 0 ? null : 'no_safe_batch',\n    batch_size: normalizedRows.length,\n    week_start: weekStart,\n    source_window: sourceWindow,\n    contributing_students_count: contributingStudentsCount,\n    rows: normalizedRows,\n  }\n};"
+        "jsCode": "const rows = $input.all().map((item) => item.json || {});\nconst triggerInput = $('Execute Workflow Trigger').first().json || {};\nconst firstRow = rows[0] || {};\nif (firstRow.is_valid === false || firstRow.status === 'invalid_class_id') {\n  return {\n    json: {\n      class_id: firstRow.class_id || null,\n      weeks: Number(firstRow.weeks || triggerInput.weeks || 2),\n      limit: Number(firstRow.limit || triggerInput.limit || 12),\n      status: 'invalid_class_id',\n      reason: firstRow.reason || 'invalid_class_id',\n      batch_size: 0,\n      week_start: null,\n      source_window: {\n        weeks: Number(firstRow.weeks || triggerInput.weeks || 2),\n        n: 0,\n        class_id: firstRow.class_id || null,\n      },\n      contributing_students_count: 0,\n      rows: [],\n      validation_error: firstRow.validation_error || 'class_id is empty or not a valid uuid',\n    }\n  };\n}\nconst normalizedRows = rows.map((row) => ({\n  week_start: row.week_start || null,\n  created_at: row.created_at || null,\n  comment_text: typeof row.comment_text === 'string' ? row.comment_text.trim() : '',\n  avg_mood: row.avg_mood ?? null,\n  avg_pace: row.avg_pace ?? null,\n  avg_fairness: row.avg_fairness ?? null,\n})).filter((row) => row.comment_text.length > 0);\nconst sourceWindow = firstRow.source_window ?? { weeks: Number(triggerInput.weeks || 2), n: 0, class_id: triggerInput.class_id || null };\nconst weekStart = firstRow.week_start ?? null;\nconst contributingStudentsCount = Number(firstRow.contributing_students_count ?? sourceWindow.n ?? 0);\nreturn {\n  json: {\n    class_id: triggerInput.class_id || null,\n    weeks: Number(triggerInput.weeks || 2),\n    limit: Number(triggerInput.limit || 12),\n    status: normalizedRows.length > 0 ? 'ready' : 'no_safe_batch',\n    reason: normalizedRows.length > 0 ? null : 'no_safe_batch',\n    batch_size: normalizedRows.length,\n    week_start: weekStart,\n    source_window: sourceWindow,\n    contributing_students_count: contributingStudentsCount,\n    rows: normalizedRows,\n  }\n};"
       },
       "id": "phasec-normalize-raw",
       "name": "Normalize Raw Batch",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        620,
+        1080,
         280
       ]
     }
@@ -88,7 +135,36 @@
       "main": [
         [
           {
+            "node": "Validate Raw Batch Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Raw Batch Input": {
+      "main": [
+        [
+          {
+            "node": "Has Valid Class ID?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Valid Class ID?": {
+      "main": [
+        [
+          {
             "node": "Fetch Raw Snippet Batch",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Normalize Raw Batch",
             "type": "main",
             "index": 0
           }
