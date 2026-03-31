@@ -37,6 +37,7 @@ const NAV_ITEMS: Record<UserRole, NavItem[]> = {
     ],
     teacher: [
         { label: "Dashboard", href: "/teacher", icon: <LayoutDashboard className="w-5 h-5" /> },
+        { label: "Class Climate", href: "/teacher/climate", icon: <BarChart3 className="w-5 h-5" /> },
         { label: "จัดการห้องเรียน", href: "/teacher/classes", icon: <ClipboardList className="w-5 h-5" /> },
     ],
 };
@@ -77,7 +78,7 @@ export function DashboardShell({
         <div
             className={cn(
                 "flex h-screen overflow-hidden bg-background",
-                isStudent && "student-dashboard-shell"
+                isStudent ? "student-dashboard-shell" : "teacher-dashboard-shell"
             )}
         >
             {/* Sidebar */}
@@ -86,7 +87,7 @@ export function DashboardShell({
                     "flex flex-col transition-all duration-300",
                     isStudent
                         ? "border-r border-[color:var(--student-dashboard-border)] bg-[var(--student-dashboard-sidebar)] text-[var(--student-dashboard-text)]"
-                        : "bg-sidebar-bg text-sidebar-fg border-r border-slate-700/50",
+                        : "border-r border-[color:var(--teacher-dashboard-border)] bg-[var(--teacher-dashboard-sidebar)] text-white shadow-[24px_0_60px_rgba(22,32,51,0.24)]",
                     collapsed ? "w-[68px]" : "w-60"
                 )}
             >
@@ -96,7 +97,7 @@ export function DashboardShell({
                         "flex items-center gap-3 border-b px-4 py-5",
                         isStudent
                             ? "border-[color:var(--student-dashboard-border)]"
-                            : "border-slate-700/50"
+                            : "border-white/10"
                     )}
                 >
                     <BrandMark
@@ -111,19 +112,19 @@ export function DashboardShell({
                     {!collapsed && (
                         <div className="overflow-hidden">
                             <h2
-                                className={cn(
-                                    "truncate text-sm font-semibold",
-                                    isStudent ? "text-[var(--student-dashboard-text)]" : "text-white"
-                                )}
-                            >
-                                {APP_NAME}
+                            className={cn(
+                                "truncate text-sm font-semibold",
+                                isStudent ? "text-[var(--student-dashboard-text)]" : "text-white"
+                            )}
+                        >
+                            {APP_NAME}
                             </h2>
                             <p
                                 className={cn(
                                     "truncate text-[11px]",
                                     isStudent
                                         ? "text-[var(--student-dashboard-text-muted)]"
-                                        : "text-slate-400"
+                                        : "text-slate-300/75"
                                 )}
                             >
                                 {ROLE_LABELS[role]} Dashboard
@@ -153,12 +154,12 @@ export function DashboardShell({
                                         "border border-transparent text-[var(--student-dashboard-text-muted)] hover:border-[color:var(--student-dashboard-border)] hover:bg-[var(--student-dashboard-surface)] hover:text-[var(--student-dashboard-text)]",
                                     !isStudent &&
                                         (isActive
-                                            ? "bg-sidebar-active/20 text-white shadow-sm"
-                                            : "text-slate-400 hover:text-white hover:bg-white/5"),
+                                            ? "border border-white/10 bg-[color:var(--teacher-dashboard-sidebar-soft)] text-white shadow-[0_14px_28px_rgba(0,0,0,0.18)]"
+                                            : "border border-transparent text-slate-300/70 hover:border-white/10 hover:bg-white/[0.06] hover:text-white"),
                                     isStudent &&
                                         isActive &&
                                         "border-[color:var(--student-dashboard-border)] bg-[var(--student-dashboard-primary-soft)] text-[var(--student-dashboard-text)] shadow-sm",
-                                    !isStudent && isActive && "bg-sidebar-active/20 text-white shadow-sm"
+                                    !isStudent && isActive && "bg-[color:var(--teacher-dashboard-sidebar-soft)] text-white"
                                 )}
                                 title={collapsed ? item.label : undefined}
                             >
@@ -171,7 +172,7 @@ export function DashboardShell({
                                                 : "text-[var(--student-dashboard-text-muted)]"
                                             : isActive
                                               ? "text-sidebar-active"
-                                              : ""
+                                            : ""
                                     )}
                                 >
                                     {item.icon}
@@ -188,7 +189,7 @@ export function DashboardShell({
                         "mt-auto border-t",
                         isStudent
                             ? "border-[color:var(--student-dashboard-border)]"
-                            : "border-slate-700/50"
+                            : "border-white/10"
                     )}
                 >
                     {/* User */}
@@ -230,7 +231,7 @@ export function DashboardShell({
                                         "flex items-center gap-1 text-[11px]",
                                         isStudent
                                             ? "text-[var(--student-dashboard-text-muted)]"
-                                            : "text-slate-400"
+                                            : "text-slate-300/70"
                                     )}
                                 >
                                     <Shield className="size-3" />
@@ -248,7 +249,7 @@ export function DashboardShell({
                                 "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--student-dashboard-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
                                 isStudent
                                     ? "text-[var(--student-dashboard-text-muted)] hover:bg-[var(--student-dashboard-surface)] hover:text-[var(--student-dashboard-danger)]"
-                                    : "text-slate-400 hover:text-red-400 hover:bg-red-500/10"
+                                    : "text-slate-300/70 hover:bg-white/[0.06] hover:text-rose-200"
                             )}
                             title={collapsed ? "Sign Out" : undefined}
                         >
@@ -261,7 +262,7 @@ export function DashboardShell({
                                 "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--student-dashboard-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
                                 isStudent
                                     ? "text-[var(--student-dashboard-text-muted)] hover:bg-[var(--student-dashboard-surface)] hover:text-[var(--student-dashboard-text)]"
-                                    : "text-slate-400 hover:text-white hover:bg-white/5"
+                                    : "text-slate-300/70 hover:bg-white/[0.06] hover:text-white"
                             )}
                             title={collapsed ? "Expand" : "Collapse"}
                         >
@@ -282,10 +283,12 @@ export function DashboardShell({
             <main
                 className={cn(
                     "flex-1 overflow-auto",
-                    isStudent && "bg-[var(--student-dashboard-bg)] text-[var(--student-dashboard-text)]"
+                    isStudent
+                        ? "bg-[var(--student-dashboard-bg)] text-[var(--student-dashboard-text)]"
+                        : "text-[var(--teacher-dashboard-text)]"
                 )}
             >
-                <div className="mx-auto max-w-6xl px-6 py-8">{children}</div>
+                <div className="mx-auto max-w-7xl px-6 py-8 lg:px-10">{children}</div>
             </main>
         </div>
     );

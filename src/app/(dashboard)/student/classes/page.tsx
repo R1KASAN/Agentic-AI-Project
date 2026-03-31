@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { createClient, getSessionUser } from "@/lib/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, UserPlus, GraduationCap, Loader2, MessageSquare } from "lucide-react";
+import { Users, UserPlus, GraduationCap, Loader2 } from "lucide-react";
 import Link from "next/link";
 
 interface EnrolledClass {
@@ -87,20 +87,24 @@ export default function StudentClassesPage() {
     }
 
     return (
-        <div className="space-y-6 max-w-2xl mx-auto">
+        <div className="mx-auto max-w-5xl space-y-8">
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-                        <Users className="w-6 h-6 text-indigo-500" />
+                <div className="max-w-2xl">
+                    <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[color:var(--student-dashboard-border)] bg-[var(--student-dashboard-surface-soft)] px-3 py-1 text-xs font-semibold text-[var(--student-dashboard-primary)]">
+                        <Users className="h-3.5 w-3.5" />
+                        Student hub
+                    </div>
+                    <h1 data-display="true" className="flex items-center gap-3 text-4xl font-semibold tracking-tight text-[var(--student-dashboard-text)]">
+                        <Users className="h-7 w-7 text-indigo-300" />
                         <span className="block">ห้องเรียนของฉัน</span>
                     </h1>
-                    <p className="text-muted-foreground mt-1 text-sm">
+                    <p className="mt-3 text-sm leading-7 text-[var(--student-dashboard-text-muted)]">
                         My Classes — เลือกห้องเรียนเพื่อเช็คอินหรือดู feedback
                     </p>
                 </div>
                 <Link href="/student/join">
-                    <Button className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700">
+                    <Button className="h-14 w-full rounded-2xl bg-indigo-600 px-5 shadow-[0_14px_28px_rgba(99,102,241,0.24)] hover:bg-indigo-500 sm:w-auto">
                         <UserPlus className="w-4 h-4 mr-2" />
                         เข้าร่วมห้องเรียน / Join Class
                     </Button>
@@ -115,19 +119,19 @@ export default function StudentClassesPage() {
 
             {/* Empty state */}
             {classes.length === 0 && !error ? (
-                <Card className="border-2 border-dashed border-indigo-200">
+                <Card className="student-surface border-2 border-dashed border-indigo-200/50 rounded-[28px] shadow-[0_18px_42px_rgba(0,0,0,0.18)]">
                     <CardContent className="flex flex-col items-center justify-center py-16 text-center space-y-4">
-                        <div className="w-16 h-16 rounded-full bg-indigo-50 text-indigo-400 flex items-center justify-center">
+                        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-indigo-500/10 text-indigo-300">
                             <Users className="w-8 h-8" />
                         </div>
                         <div className="space-y-1">
-                            <h3 className="text-lg font-semibold">
+                            <h3 data-display="true" className="text-2xl font-semibold text-[var(--student-dashboard-text)]">
                                 <span className="block">ยังไม่ได้เข้าร่วมห้องเรียน</span>
-                                <span className="block text-sm font-normal text-muted-foreground">
+                                <span className="block text-sm font-normal text-[var(--student-dashboard-text-muted)]">
                                     You haven&apos;t joined any classes yet
                                 </span>
                             </h3>
-                            <p className="text-muted-foreground text-sm max-w-sm">
+                            <p className="max-w-sm text-sm text-[var(--student-dashboard-text-muted)]">
                                 <span className="block">ขอรหัสเชิญจากครูของคุณเพื่อเข้าร่วมห้องเรียน</span>
                                 <span className="block text-xs mt-1">
                                     Ask your teacher for an invite code to join a class.
@@ -135,7 +139,7 @@ export default function StudentClassesPage() {
                             </p>
                         </div>
                         <Link href="/student/join">
-                            <Button size="lg" className="bg-indigo-600 hover:bg-indigo-700 mt-2">
+                            <Button size="lg" className="mt-2 rounded-2xl bg-indigo-600 hover:bg-indigo-500">
                                 <UserPlus className="w-5 h-5 mr-2" />
                                 เข้าร่วมห้องเรียน / Join Class
                             </Button>
@@ -144,40 +148,34 @@ export default function StudentClassesPage() {
                 </Card>
             ) : (
                 /* Class cards */
-                <div className="grid gap-4">
+                <div className="grid gap-5">
                     {classes.map((cls) => (
                         <Card
                             key={cls.class_id}
-                            className="hover:shadow-md transition-all border-2 border-transparent hover:border-indigo-100"
+                            className="student-surface rounded-[28px] border shadow-[0_16px_36px_rgba(0,0,0,0.16)] transition-all hover:-translate-y-1 hover:border-indigo-300/30 hover:shadow-[0_22px_48px_rgba(0,0,0,0.2)]"
                         >
-                            <CardContent className="p-5 space-y-4">
-                                <div className="space-y-1 min-w-0">
-                                    <h3 className="text-base font-semibold truncate">
+                            <CardContent className="space-y-5 p-6">
+                                <div className="min-w-0 space-y-2">
+                                    <h3 data-display="true" className="truncate text-[2rem] font-semibold leading-[1.1] text-[var(--student-dashboard-text)]">
                                         {cls.class_name}
                                     </h3>
                                     {cls.teacher_name && (
-                                        <p className="text-sm text-muted-foreground truncate">
+                                        <p className="truncate text-sm text-[var(--student-dashboard-text-muted)]">
                                             👩‍🏫 {cls.teacher_name}
                                         </p>
                                     )}
+                                </div>
+                                <div className="flex items-center gap-2 rounded-full border border-[color:var(--student-dashboard-border)] bg-[var(--student-dashboard-surface-soft)] px-3 py-1.5 text-xs font-medium text-[var(--student-dashboard-text-muted)]">
+                                    <span>เช็คอินได้วันละครั้งต่อห้อง</span>
                                 </div>
                                 <div className="flex flex-col gap-2 sm:flex-row">
                                     <Link
                                         href={`/student/check-in?classId=${cls.class_id}`}
                                         className="flex-1"
                                     >
-                                        <Button className="w-full bg-indigo-600 hover:bg-indigo-700">
+                                        <Button className="h-14 w-full rounded-2xl bg-indigo-600 shadow-[0_14px_28px_rgba(99,102,241,0.24)] hover:bg-indigo-500">
                                             <GraduationCap className="w-4 h-4 mr-2" />
                                             เช็คอิน
-                                        </Button>
-                                    </Link>
-                                    <Link
-                                        href={`/student/feedback?classId=${cls.class_id}`}
-                                        className="flex-1"
-                                    >
-                                        <Button variant="outline" className="w-full">
-                                            <MessageSquare className="w-4 h-4 mr-2" />
-                                            ดู Feedback
                                         </Button>
                                     </Link>
                                 </div>

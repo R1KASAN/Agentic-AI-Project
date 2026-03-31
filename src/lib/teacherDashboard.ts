@@ -83,6 +83,12 @@ export type TeacherDashboardOverviewData = {
   climateByClassId: Record<string, ClassClimateSummary[]>;
 };
 
+export type TeacherMemberActivity = {
+  student_id: string;
+  check_in_count: number;
+  last_check_in: string | null;
+};
+
 type MetricsRpcRow = {
   teacher_id: string | null;
   class_id: string | null;
@@ -117,10 +123,12 @@ export type TeacherDisplayRiskLevel = PolicyLevel | "NO_DATA";
 export function deriveAggregateRiskLevel(
   climate: ClassClimateSummary[]
 ): PolicyLevel | null {
-  const latestWeek = [...climate]
-    .filter((week) => week.avg_mood !== null)
-    .sort((a, b) => b.week_start.localeCompare(a.week_start))
-    .at(0);
+  const comparableWeeks = latestComparableWeeks(climate);
+  if (comparableWeeks.length < 2) {
+    return null;
+  }
+
+  const latestWeek = comparableWeeks[0];
 
   if (!latestWeek || latestWeek.avg_mood === null) {
     return null;
@@ -140,16 +148,8 @@ export function deriveAggregateRiskLevel(
 export function derivePendingRecommendationRiskLevel(
   policyLevels: Array<string | null | undefined>
 ): PolicyLevel | null {
-  if (policyLevels.includes("CRITICAL")) {
-    return "CRITICAL";
-  }
-
-  if (policyLevels.includes("WARNING")) {
+  if (policyLevels.some((level) => typeof level === "string" && level.length > 0)) {
     return "WARNING";
-  }
-
-  if (policyLevels.some((level) => level === "ROUTINE")) {
-    return "ROUTINE";
   }
 
   return null;
@@ -263,6 +263,17 @@ async function getDashboardRpcClient(supabase?: TeacherDashboardClient) {
   return createClient();
 }
 
+function getTeacherDashboardServiceClient() {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    throw new Error("Missing Supabase service role configuration");
+  }
+
+  return createServiceClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+  );
+}
+
 function normalizeEventType(value: unknown): AuditEventType {
   if (typeof value !== "string") {
     return "other";
@@ -343,10 +354,13 @@ function deriveTrend(
 
 function buildSummaryLine(
   latestWeek: ClassClimateSummary | undefined,
-  trend: StudentFeedbackTrend
+  trend: StudentFeedbackTrend,
+  hasPendingRecommendation: boolean
 ) {
-  if (!latestWeek || latestWeek.avg_mood === null) {
-    return "ระบบยังมีข้อมูลรวมไม่พอสำหรับสรุปแนวโน้มของห้องนี้ในตอนนี้";
+  if (!latestWeek || latestWeek.avg_mood === null || trend === "insufficient_data") {
+    return hasPendingRecommendation
+      ? "มี action pending แต่ข้อมูลรวมยังไม่พอสำหรับสรุปความเสี่ยงของห้องนี้"
+      : "ยังไม่มีข้อมูลพอสำหรับสรุปความเสี่ยงของห้องนี้";
   }
 
   if (trend === "down") {
@@ -531,7 +545,8 @@ export function mapRecommendationsToViewModels(
 
 export function buildStudentFeedbackSummary(
   climate: ClassClimateSummary[],
-  metrics: ClassMetrics
+  metrics: ClassMetrics,
+  options: { hasPendingRecommendation?: boolean } = {}
 ): StudentFeedbackSummary {
   const comparableWeeks = latestComparableWeeks(climate);
   const latestWeek = comparableWeeks[0];
@@ -546,7 +561,11 @@ export function buildStudentFeedbackSummary(
     avgFairness: latestWeek?.avg_fairness ?? null,
     totalWeeksWithData: comparableWeeks.length,
     trend,
-    summaryLine: buildSummaryLine(latestWeek, trend),
+    summaryLine: buildSummaryLine(
+      latestWeek,
+      trend,
+      options.hasPendingRecommendation === true
+    ),
   };
 }
 
@@ -821,6 +840,61 @@ export async function getClassDashboardSignals(
     metricsByClassId,
     auditByClassId,
   };
+}
+
+export async function getTeacherMemberActivityByClass(
+  teacherId: string,
+  classId: string,
+  supabase?: TeacherDashboardClient
+) {
+  const authClient = supabase ?? (await createClient());
+  const { data: ownedClass, error: ownershipError } = await authClient
+    .from("classes")
+    .select("id")
+    .eq("id", classId)
+    .eq("teacher_id", teacherId)
+    .maybeSingle();
+
+  if (ownershipError) {
+    throw ownershipError;
+  }
+
+  if (!ownedClass) {
+    return {} as Record<string, TeacherMemberActivity>;
+  }
+
+  const serviceClient = getTeacherDashboardServiceClient();
+  const { data, error } = await serviceClient
+    .from("student_pulses")
+    .select("student_id, created_at")
+    .eq("class_id", classId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  const activityByStudentId: Record<string, TeacherMemberActivity> = {};
+
+  for (const row of data ?? []) {
+    if (typeof row.student_id !== "string") {
+      continue;
+    }
+
+    const existing = activityByStudentId[row.student_id];
+    if (!existing) {
+      activityByStudentId[row.student_id] = {
+        student_id: row.student_id,
+        check_in_count: 1,
+        last_check_in: typeof row.created_at === "string" ? row.created_at : null,
+      };
+      continue;
+    }
+
+    existing.check_in_count += 1;
+  }
+
+  return activityByStudentId;
 }
 
 export async function getClimateSummariesByClassIds(

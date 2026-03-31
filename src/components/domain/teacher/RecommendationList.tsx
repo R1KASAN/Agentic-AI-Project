@@ -32,10 +32,10 @@ const STATUS_BADGES: Record<
   string,
   { label: string; variant: "default" | "secondary" | "success" | "warning" }
 > = {
-  pending: { label: "Pending", variant: "warning" },
-  approved: { label: "Approved", variant: "success" },
-  dismissed: { label: "Dismissed", variant: "secondary" },
-  sent: { label: "Sent", variant: "default" },
+  pending: { label: "รออนุมัติ", variant: "warning" },
+  approved: { label: "อนุมัติแล้ว", variant: "success" },
+  dismissed: { label: "ข้ามแล้ว", variant: "secondary" },
+  sent: { label: "ส่งแล้ว", variant: "default" },
 };
 
 const POLICY_BADGES: Record<
@@ -47,19 +47,19 @@ const POLICY_BADGES: Record<
   }
 > = {
   ROUTINE: {
-    label: "Routine",
+    label: "ปกติ",
     variant: "default",
-    className: "bg-blue-50 text-blue-700 border-blue-200",
+    className: "bg-blue-500/10 text-blue-200 border-blue-300/40",
   },
   WARNING: {
-    label: "Warning",
+    label: "ต้องติดตาม",
     variant: "warning",
-    className: "bg-amber-50 text-amber-700 border-amber-200",
+    className: "bg-amber-500/10 text-amber-200 border-amber-300/40",
   },
   CRITICAL: {
-    label: "Critical",
+    label: "เสี่ยงสูง",
     variant: "destructive",
-    className: "bg-red-50 text-red-700 border-red-200",
+    className: "bg-red-500/10 text-red-200 border-red-300/40",
   },
 };
 
@@ -96,7 +96,14 @@ function isUsableQuickAction(action: string): boolean {
   }
 
   const lowered = action.toLowerCase();
-  const blockedTerms = ["เพราะ", "เนื่องจาก", "สัญญาณ", "ระบบ", "draft"];
+  const blockedTerms = [
+    "เพราะ",
+    "เนื่องจาก",
+    "สัญญาณ",
+    "ระบบ",
+    "draft",
+    "ฉบับร่าง",
+  ];
 
   return !blockedTerms.some((term) => lowered.includes(term));
 }
@@ -141,16 +148,20 @@ export function RecommendationList({
   recommendations,
   onApprove,
   onDismiss,
-  emptyStateTitle = "No response history yet.",
-  emptyStateBody = "Recommendations and teacher decisions will appear here once the class has enough signal.",
+  emptyStateTitle = "ยังไม่มีประวัติข้อความรออนุมัติ",
+  emptyStateBody = "ฉบับร่างและการตัดสินของครูจะแสดงที่นี่เมื่อห้องมีสัญญาณเพียงพอ",
 }: RecommendationListProps) {
   if (recommendations.length === 0) {
     return (
-      <Card className="border-dashed">
-        <CardContent className="flex flex-col items-center justify-center space-y-2 py-8 text-center">
-          <Sparkles className="h-8 w-8 text-muted-foreground/40" />
-          <p className="text-sm font-medium text-foreground">{emptyStateTitle}</p>
-          <p className="max-w-md text-sm text-muted-foreground">{emptyStateBody}</p>
+      <Card className="student-surface overflow-hidden rounded-[28px] border border-dashed border-sky-200/60 shadow-[0_18px_40px_rgba(2,8,23,0.14)]">
+        <CardContent className="flex flex-col items-center justify-center space-y-3 py-10 text-center">
+          <Sparkles className="h-8 w-8 text-sky-200" />
+          <p className="text-sm font-medium text-[var(--student-dashboard-text)]">
+            {emptyStateTitle}
+          </p>
+          <p className="max-w-md text-sm text-[var(--student-dashboard-text-muted)]">
+            {emptyStateBody}
+          </p>
         </CardContent>
       </Card>
     );
@@ -181,12 +192,16 @@ function RecommendationCard({
 }) {
   const [loading, setLoading] = useState(false);
   const [draftNote, setDraftNote] = useState("");
-  const [selectedQuickAction, setSelectedQuickAction] = useState<string | null>(null);
+  const [selectedQuickAction, setSelectedQuickAction] = useState<string | null>(
+    null,
+  );
   const [showAllQuickActions, setShowAllQuickActions] = useState(false);
   const initialDraft = recommendation.aiMessageDraft ?? "";
   const [editableDraft, setEditableDraft] = useState(initialDraft);
   const [draftEditorValue, setDraftEditorValue] = useState(initialDraft);
-  const [showInput, setShowInput] = useState<"edit" | "approve" | "dismiss" | null>(null);
+  const [showInput, setShowInput] = useState<
+    "edit" | "approve" | "dismiss" | null
+  >(null);
 
   const status = STATUS_BADGES[recommendation.status] || STATUS_BADGES.pending;
   const policy = recommendation.policyLevel
@@ -201,14 +216,15 @@ function RecommendationCard({
   const visibleQuickActions = showAllQuickActions
     ? quickActions
     : quickActions.slice(0, INITIAL_VISIBLE_QUICK_ACTIONS);
-  const hasMoreQuickActions = quickActions.length > INITIAL_VISIBLE_QUICK_ACTIONS;
+  const hasMoreQuickActions =
+    quickActions.length > INITIAL_VISIBLE_QUICK_ACTIONS;
 
   async function handleApprove() {
     setLoading(true);
     await (onApprove ?? (async () => {}))(
       recommendation.id,
       draftNote,
-      editableDraft.trim()
+      editableDraft.trim(),
     );
     setLoading(false);
     setShowInput(null);
@@ -256,18 +272,18 @@ function RecommendationCard({
     <Card
       className={
         isInquiryCard
-          ? "overflow-hidden border-violet-200 bg-gradient-to-br from-violet-50/90 via-white to-slate-50 dark:border-violet-900 dark:from-violet-950/30 dark:via-slate-950 dark:to-slate-950"
-          : "overflow-hidden"
+          ? "student-surface overflow-hidden rounded-[28px] border border-violet-200/60 shadow-[0_18px_40px_rgba(2,8,23,0.16)]"
+          : "student-surface overflow-hidden rounded-[28px] border shadow-[0_18px_40px_rgba(2,8,23,0.16)]"
       }
     >
-      <CardContent className="space-y-4 p-4">
+      <CardContent className="space-y-4 p-5 sm:p-6">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3">
             <div
               className={
                 isInquiryCard
-                  ? "mt-0.5 flex h-9 w-9 items-center justify-center rounded-xl bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"
-                  : "mt-0.5 flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-500 dark:bg-indigo-950/30"
+                  ? "mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl bg-violet-500/15 text-violet-200"
+                  : "mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl bg-sky-500/15 text-sky-200"
               }
             >
               {isInquiryCard ? (
@@ -292,19 +308,19 @@ function RecommendationCard({
                 {isInquiryCard && (
                   <Badge
                     variant="secondary"
-                    className="border-violet-200 bg-violet-50 text-[10px] text-violet-700"
+                    className="border-violet-200 bg-violet-500/10 text-[10px] text-violet-200"
                   >
                     <HelpCircle className="mr-1 h-3 w-3" />
-                    Inquiry Mode
+                    โหมดค้นหาบริบท
                   </Badge>
                 )}
                 {recommendation.fallbackUsed && (
                   <Badge
                     variant="secondary"
-                    className="border-slate-200 bg-slate-100 text-[10px] text-slate-600"
+                    className="border-[color:var(--student-dashboard-border)] bg-[var(--student-dashboard-surface-soft)] text-[10px] text-[var(--student-dashboard-text-muted)]"
                   >
                     <Wand2 className="mr-1 h-3 w-3" />
-                    Safety fallback
+                    ใช้ safety fallback
                   </Badge>
                 )}
                 {recommendation.confidenceLabel && (
@@ -315,51 +331,62 @@ function RecommendationCard({
                     {confidenceTone.label}
                   </Badge>
                 )}
-                <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                <Badge
+                  variant="outline"
+                  className="text-[10px] text-[var(--student-dashboard-text-muted)]"
+                >
                   {RATIONALE_LABELS[recommendation.rationaleTag]}
                 </Badge>
-                <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                <span className="flex items-center gap-1 text-[10px] text-[var(--student-dashboard-text-muted)]">
                   <Clock className="h-3 w-3" />
-                  {new Date(recommendation.createdAt).toLocaleDateString("th-TH", {
-                    month: "short",
-                    day: "numeric",
-                  })}
+                  {new Date(recommendation.createdAt).toLocaleDateString(
+                    "th-TH",
+                    {
+                      month: "short",
+                      day: "numeric",
+                    },
+                  )}
                 </span>
               </div>
 
-              <p className="text-sm font-medium leading-relaxed text-foreground">
-                {editableDraft || "ยังไม่มี draft message"}
+              <p className="text-sm font-medium leading-relaxed text-[var(--student-dashboard-text)]">
+                {editableDraft || "ยังไม่มีข้อความร่าง"}
               </p>
             </div>
           </div>
         </div>
 
         {isInquiryCard && (
-          <div className="rounded-xl border border-violet-200/80 bg-violet-50/70 px-4 py-3 text-sm text-violet-900 dark:border-violet-900 dark:bg-violet-950/20 dark:text-violet-100">
-            ระบบกำลังใช้ Inquiry Mode เพราะสัญญาณจากการตอบสนองก่อนหน้าบอกว่าควรชวนครูสะท้อนบริบทเพิ่มเติม แทนการเร่งเสนอทางแก้
+          <div className="rounded-[24px] border border-violet-200/60 bg-violet-500/10 px-4 py-3 text-sm leading-6 text-violet-100">
+            ระบบกำลังใช้โหมดค้นหาบริบท
+            เพราะสัญญาณจากการตอบสนองก่อนหน้าบอกว่าควรชวนครูสะท้อนบริบทเพิ่มเติม
+            แทนการเร่งเสนอทางแก้
           </div>
         )}
 
         {recommendation.reasoningSummary && (
-          <div className="rounded-xl border border-slate-200/80 bg-slate-50/80 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/50">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              เหตุผลที่ระบบเสนอ draft นี้
+          <div className="rounded-[24px] border border-[color:var(--student-dashboard-border)] bg-[var(--student-dashboard-surface-raised)] px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--student-dashboard-text-muted)]">
+              เหตุผลที่ระบบเสนอฉบับร่างนี้
             </p>
-            <p className="mt-2 text-sm leading-relaxed text-foreground">
+            <p className="mt-2 text-sm leading-relaxed text-[var(--student-dashboard-text)]">
               {recommendation.reasoningSummary}
             </p>
           </div>
         )}
 
         {recommendation.actions.length > 0 && (
-          <div className="rounded-xl border border-slate-200/80 bg-white/80 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/60">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              Suggested Actions
+          <div className="rounded-[24px] border border-[color:var(--student-dashboard-border)] bg-[var(--student-dashboard-surface-raised)] px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--student-dashboard-text-muted)]">
+              ตัวอย่างแนวทางตอบสนอง
             </p>
-            <ul className="mt-2 space-y-2 text-sm text-foreground">
+            <ul className="mt-2 space-y-2 text-sm text-[var(--student-dashboard-text)]">
               {recommendation.actions.map((action, index) => (
-                <li key={`${recommendation.id}-${index}`} className="flex gap-2">
-                  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-sky-500" />
+                <li
+                  key={`${recommendation.id}-${index}`}
+                  className="flex gap-2"
+                >
+                  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-sky-300" />
                   <span>{action}</span>
                 </li>
               ))}
@@ -368,30 +395,31 @@ function RecommendationCard({
         )}
 
         {recommendation.fallbackUsed && (
-          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-3 text-sm text-muted-foreground dark:border-slate-800 dark:bg-slate-900/40">
-            draft นี้มาจาก safety fallback แบบ rules-assisted เพื่อคงคุณภาพขั้นต่ำของข้อเสนอ แม้ความมั่นใจของโมเดลจะยังไม่สูงมาก
+          <div className="rounded-[24px] border border-dashed border-[color:var(--student-dashboard-border)] bg-[var(--student-dashboard-surface-raised)] px-4 py-3 text-sm leading-6 text-[var(--student-dashboard-text-muted)]">
+            ฉบับร่างนี้มาจาก safety fallback แบบ rules-assisted
+            เพื่อคงคุณภาพขั้นต่ำของข้อเสนอ แม้ความมั่นใจของโมเดลจะยังไม่สูงมาก
           </div>
         )}
 
         {recommendation.teacherActionNote && (
-          <div className="rounded-xl bg-slate-50 p-3 text-xs text-muted-foreground dark:bg-slate-800/50">
+          <div className="rounded-[24px] bg-[var(--student-dashboard-surface-soft)] p-3 text-xs text-[var(--student-dashboard-text-muted)]">
             <span className="font-medium">บันทึกการตอบสนองของครู:</span>{" "}
             {recommendation.teacherActionNote}
           </div>
         )}
 
         {recommendation.dismissalReason && !isPending && (
-          <div className="rounded-xl bg-rose-50 p-3 text-xs text-rose-700 dark:bg-rose-950/20 dark:text-rose-300">
+          <div className="rounded-[24px] bg-rose-500/10 p-3 text-xs text-rose-200">
             <span className="font-medium">เหตุผลที่ปฏิเสธ:</span>{" "}
             {recommendation.dismissalReason}
           </div>
         )}
 
         {showInput && isPending && (
-          <div className="space-y-2">
+          <div className="space-y-3 rounded-[24px] border border-[color:var(--student-dashboard-border)] bg-[var(--student-dashboard-surface-raised)] p-4">
             {showInput === "edit" && (
               <div className="space-y-2">
-                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--student-dashboard-text-muted)]">
                   <Pencil className="h-3.5 w-3.5" />
                   ข้อความที่จะสื่อสารกับนักเรียน
                 </div>
@@ -400,15 +428,16 @@ function RecommendationCard({
                   onChange={(event) => setDraftEditorValue(event.target.value)}
                   placeholder="ปรับข้อความที่ต้องการสื่อสารกับนักเรียนก่อนอนุมัติ…"
                   rows={4}
+                  className="min-h-28 rounded-2xl border-[color:var(--student-dashboard-border)] bg-[var(--student-dashboard-surface)] text-[var(--student-dashboard-text)] placeholder:text-[var(--student-dashboard-text-muted)]"
                 />
-                <p className="text-xs text-muted-foreground">
-                  กด Save เพื่ออัปเดตข้อความที่จะสื่อสารบนการ์ดนี้ก่อนค่อยไปขั้นอนุมัติ
+                <p className="text-xs text-[var(--student-dashboard-text-muted)]">
+                  กดบันทึกเพื่ออัปเดตข้อความที่จะสื่อสารบนการ์ดนี้ก่อนค่อยไปขั้นอนุมัติ
                 </p>
               </div>
             )}
             {showInput !== "edit" && (
               <div className="space-y-2">
-                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--student-dashboard-text-muted)]">
                   {showInput === "approve" ? (
                     <>
                       <Check className="h-3.5 w-3.5" />
@@ -425,7 +454,7 @@ function RecommendationCard({
                 </div>
                 {showInput === "approve" && (
                   <>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-[var(--student-dashboard-text-muted)]">
                       {isInquiryCard
                         ? "ระบบจะใช้บริบทนี้ช่วยตีความสัญญาณของห้อง"
                         : "เลือกตัวอย่างแล้วปรับเพิ่มได้"}
@@ -443,8 +472,8 @@ function RecommendationCard({
                             onClick={() => handleQuickActionSelect(action)}
                             className={
                               isSelected
-                                ? "border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-50 hover:text-sky-700"
-                                : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-700"
+                                ? "border-sky-200 bg-sky-500/10 text-sky-100 hover:bg-sky-500/10 hover:text-sky-100"
+                                : "border-[color:var(--student-dashboard-border)] bg-[var(--student-dashboard-surface)] text-[var(--student-dashboard-text-muted)] hover:bg-[var(--student-dashboard-surface-raised)] hover:text-[var(--student-dashboard-text)]"
                             }
                             aria-pressed={isSelected}
                           >
@@ -453,7 +482,8 @@ function RecommendationCard({
                         );
                       })}
                     </div>
-                    {(hasMoreQuickActions && !showAllQuickActions) || selectedQuickAction ? (
+                    {(hasMoreQuickActions && !showAllQuickActions) ||
+                    selectedQuickAction ? (
                       <div className="flex flex-wrap items-center gap-1">
                         {hasMoreQuickActions && !showAllQuickActions && (
                           <Button
@@ -461,7 +491,7 @@ function RecommendationCard({
                             variant="ghost"
                             size="sm"
                             onClick={() => setShowAllQuickActions(true)}
-                            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                            className="h-7 px-2 text-xs text-[var(--student-dashboard-text-muted)] hover:text-[var(--student-dashboard-text)]"
                           >
                             ดูเพิ่ม
                           </Button>
@@ -472,7 +502,7 @@ function RecommendationCard({
                             variant="ghost"
                             size="sm"
                             onClick={handleQuickActionClear}
-                            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                            className="h-7 px-2 text-xs text-[var(--student-dashboard-text-muted)] hover:text-[var(--student-dashboard-text)]"
                           >
                             ล้างตัวอย่าง
                           </Button>
@@ -489,17 +519,19 @@ function RecommendationCard({
                       ? isInquiryCard
                         ? "ระบุบริบทเพิ่มเติมที่อยากให้ระบบรับรู้ก่อนอนุมัติ…"
                         : "ระบุว่าคุณจะตอบสนองต่อเรื่องนี้อย่างไร…"
-                      : "ระบุเหตุผลที่ปฏิเสธ draft นี้…"
+                      : "ระบุเหตุผลที่ปฏิเสธฉบับร่างนี้…"
                   }
                   rows={3}
+                  className="min-h-24 rounded-2xl border-[color:var(--student-dashboard-border)] bg-[var(--student-dashboard-surface)] text-[var(--student-dashboard-text)] placeholder:text-[var(--student-dashboard-text-muted)]"
                 />
               </div>
             )}
-            {(showInput === "approve" || showInput === "edit") && isDraftEmpty && (
-              <p className="text-xs text-rose-600">
-                Draft response ต้องไม่ว่างก่อนกดอนุมัติ
-              </p>
-            )}
+            {(showInput === "approve" || showInput === "edit") &&
+              isDraftEmpty && (
+                <p className="text-xs text-rose-300">
+                  ข้อความร่างต้องไม่ว่างก่อนกดอนุมัติ
+                </p>
+              )}
             <div className="flex gap-2">
               <Button
                 size="sm"
@@ -512,23 +544,24 @@ function RecommendationCard({
                 }
                 disabled={
                   loading ||
-                  ((showInput === "approve" || showInput === "edit") && isDraftEmpty) ||
+                  ((showInput === "approve" || showInput === "edit") &&
+                    isDraftEmpty) ||
                   (showInput === "approve" && cannotApprove)
                 }
                 className={
                   showInput === "approve"
-                    ? "bg-green-600 text-white hover:bg-green-700"
+                    ? "bg-emerald-600 text-white hover:bg-emerald-500"
                     : showInput === "edit"
-                      ? "bg-indigo-600 text-white hover:bg-indigo-700"
-                      : "bg-slate-600 text-white hover:bg-slate-700"
+                      ? "bg-sky-600 text-white hover:bg-sky-500"
+                      : "bg-slate-700 text-white hover:bg-slate-600"
                 }
               >
                 {loading && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
                 {showInput === "edit"
-                  ? "Save"
+                  ? "บันทึก"
                   : showInput === "approve"
                     ? "ยืนยันการอนุมัติ"
-                    : "ยืนยันการปฏิเสธ"}
+                    : "ยืนยันการข้าม"}
               </Button>
               <Button
                 size="sm"
@@ -542,18 +575,18 @@ function RecommendationCard({
                 }}
                 disabled={loading}
               >
-                Cancel
+                ยกเลิก
               </Button>
             </div>
           </div>
         )}
 
         {isPending && !showInput && (
-          <div className="flex gap-2 pt-1">
+          <div className="flex flex-wrap gap-2 pt-1">
             <Button
               size="sm"
               variant="outline"
-              className="border-indigo-200 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/30"
+              className="h-11 rounded-2xl border-sky-200 bg-[var(--student-dashboard-surface)] text-sky-200 hover:bg-[var(--student-dashboard-surface-raised)] hover:text-sky-100"
               onClick={handleOpenEdit}
             >
               <Pencil className="mr-1 h-3.5 w-3.5" />
@@ -562,20 +595,20 @@ function RecommendationCard({
             <Button
               size="sm"
               variant="outline"
-              className="border-green-200 text-green-600 hover:bg-green-50 dark:hover:bg-green-950/30"
+              className="h-11 rounded-2xl border-emerald-200 bg-[var(--student-dashboard-surface)] text-emerald-200 hover:bg-[var(--student-dashboard-surface-raised)] hover:text-emerald-100"
               onClick={handleOpenApprove}
             >
               <Check className="mr-1 h-3.5 w-3.5" />
-              {isInquiryCard ? "ส่งต่อพร้อมบริบท" : "Approve"}
+              {isInquiryCard ? "ส่งต่อพร้อมบริบท" : "อนุมัติ"}
             </Button>
             <Button
               size="sm"
               variant="outline"
-              className="border-slate-200 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800"
+              className="h-11 rounded-2xl border-[color:var(--student-dashboard-border)] bg-[var(--student-dashboard-surface)] text-[var(--student-dashboard-text-muted)] hover:bg-[var(--student-dashboard-surface-raised)] hover:text-[var(--student-dashboard-text)]"
               onClick={() => setShowInput("dismiss")}
             >
               <X className="mr-1 h-3.5 w-3.5" />
-              Dismiss
+              ข้าม
             </Button>
           </div>
         )}

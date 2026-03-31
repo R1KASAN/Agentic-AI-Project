@@ -230,14 +230,14 @@ export function ClientClasses({ classes }: ClientClassesProps) {
                   สมาชิก
                 </Button>
               </Link>
-              <Link href={`/teacher/class/${cls.id}`} className="flex-1">
+              <Link href={`/teacher/climate?classId=${cls.id}`} className="flex-1">
                 <Button
                   variant="outline"
                   size="sm"
                   className="w-full"
                 >
                   <BarChart3 className="w-4 h-4 mr-2" />
-                  ดูผลวิเคราะห์
+                  Class Climate
                 </Button>
               </Link>
             </div>

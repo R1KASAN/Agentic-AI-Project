@@ -58,19 +58,23 @@ export default async function TeacherDashboardPage() {
 
     return (
         <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-                        <LayoutDashboard className="w-6 h-6 text-sky-500" />
+            <div className="flex flex-col justify-between gap-5 rounded-[30px] border border-[color:var(--teacher-dashboard-border)] bg-[linear-gradient(135deg,rgba(255,255,255,0.92),rgba(245,239,228,0.84))] p-6 shadow-[0_16px_40px_rgba(23,33,51,0.06)] sm:flex-row sm:items-end">
+                <div className="max-w-3xl">
+                    <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-[var(--teacher-dashboard-primary-soft)] px-3 py-1 text-xs font-semibold text-[var(--teacher-dashboard-primary)]">
+                        <LayoutDashboard className="h-3.5 w-3.5" />
+                        Weekly classroom briefing
+                    </div>
+                    <h1 data-display="true" className="flex items-center gap-2 text-4xl font-semibold tracking-tight text-[var(--teacher-dashboard-text)]">
+                        <LayoutDashboard className="h-7 w-7 text-sky-500" />
                         <BiText entry={MICROCOPY.teacher.dashboardTitle} />
                     </h1>
-                    <p className="text-muted-foreground mt-1">
+                    <p className="mt-3 text-[15px] leading-7 teacher-text-muted">
                         {MICROCOPY.teacher.dashboardSubtitle.th}
-                        <span className="block text-sm">{MICROCOPY.teacher.dashboardSubtitle.en}</span>
+                        <span className="mt-1 block text-sm">{MICROCOPY.teacher.dashboardSubtitle.en}</span>
                     </p>
                 </div>
                 <Link href="/teacher/class/new" className="shrink-0">
-                    <Button className="w-full sm:w-auto bg-sky-600 hover:bg-sky-700 text-white">
+                    <Button className="h-12 w-full rounded-2xl bg-[var(--teacher-dashboard-primary)] px-5 text-white shadow-[0_14px_30px_rgba(31,122,224,0.24)] hover:bg-[#186bc8] sm:w-auto">
                         <Plus className="w-4 h-4 mr-2" />
                         <BiText entry={MICROCOPY.teacher.createClass} />
                     </Button>
@@ -78,16 +82,16 @@ export default async function TeacherDashboardPage() {
             </div>
 
             {(!classes || classes.length === 0) ? (
-                <Card className="border-dashed h-48 flex items-center justify-center bg-muted/20">
+                <Card className="teacher-surface flex h-56 items-center justify-center rounded-[28px] border-dashed bg-white/70 shadow-sm">
                     <CardContent className="flex flex-col items-center justify-center text-center space-y-3 p-6">
-                        <div className="p-3 bg-secondary rounded-full">
-                            <Users className="w-8 h-8 text-muted-foreground/60" />
+                        <div className="rounded-full bg-[var(--teacher-dashboard-surface-soft)] p-3">
+                            <Users className="h-8 w-8 teacher-text-muted" />
                         </div>
-                        <p className="text-muted-foreground font-medium">
+                        <p className="font-medium teacher-text-muted">
                             <BiText entry={MICROCOPY.teacher.emptyState} />
                         </p>
                         <Link href="/teacher/class/new">
-                            <Button variant="outline" size="sm" className="mt-2 text-sky-600">
+                            <Button variant="outline" size="sm" className="mt-2 rounded-xl border-[var(--teacher-dashboard-border)] text-[var(--teacher-dashboard-primary)]">
                                 Create your first class
                             </Button>
                         </Link>

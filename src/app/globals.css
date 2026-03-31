@@ -52,6 +52,19 @@
   --student-dashboard-chart-pace: #7dd3fc;
   --student-dashboard-chart-fairness: #5eead4;
   --student-dashboard-grid: #334155;
+  --teacher-dashboard-bg: #f7f4ee;
+  --teacher-dashboard-sidebar: #162033;
+  --teacher-dashboard-sidebar-soft: #1d2a40;
+  --teacher-dashboard-surface: #ffffff;
+  --teacher-dashboard-surface-soft: #f5efe4;
+  --teacher-dashboard-border: #d9d1c1;
+  --teacher-dashboard-text: #172133;
+  --teacher-dashboard-text-muted: #6f7e95;
+  --teacher-dashboard-primary: #1f7ae0;
+  --teacher-dashboard-primary-soft: rgb(31 122 224 / 0.12);
+  --teacher-dashboard-success: #1f8f5f;
+  --teacher-dashboard-warning: #c88a12;
+  --teacher-dashboard-danger: #c94b3c;
   --radius: 0.625rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
@@ -113,6 +126,19 @@
   --color-student-dashboard-chart-pace: var(--student-dashboard-chart-pace);
   --color-student-dashboard-chart-fairness: var(--student-dashboard-chart-fairness);
   --color-student-dashboard-grid: var(--student-dashboard-grid);
+  --color-teacher-dashboard-bg: var(--teacher-dashboard-bg);
+  --color-teacher-dashboard-sidebar: var(--teacher-dashboard-sidebar);
+  --color-teacher-dashboard-sidebar-soft: var(--teacher-dashboard-sidebar-soft);
+  --color-teacher-dashboard-surface: var(--teacher-dashboard-surface);
+  --color-teacher-dashboard-surface-soft: var(--teacher-dashboard-surface-soft);
+  --color-teacher-dashboard-border: var(--teacher-dashboard-border);
+  --color-teacher-dashboard-text: var(--teacher-dashboard-text);
+  --color-teacher-dashboard-text-muted: var(--teacher-dashboard-text-muted);
+  --color-teacher-dashboard-primary: var(--teacher-dashboard-primary);
+  --color-teacher-dashboard-primary-soft: var(--teacher-dashboard-primary-soft);
+  --color-teacher-dashboard-success: var(--teacher-dashboard-success);
+  --color-teacher-dashboard-warning: var(--teacher-dashboard-warning);
+  --color-teacher-dashboard-danger: var(--teacher-dashboard-danger);
   --font-sans: var(--font-inter);
   --font-mono: var(--font-geist-mono);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -160,6 +186,14 @@
 
 body {
   font-family: var(--font-sans, "Inter", system-ui, sans-serif);
+}
+
+h1,
+h2,
+h3,
+[data-display="true"] {
+  font-family: var(--font-display, var(--font-sans, "Inter", system-ui, sans-serif));
+  letter-spacing: -0.035em;
 }
 
 /* Smooth transitions for interactive elements */
@@ -241,5 +275,29 @@ body {
 
   .student-text-muted {
     color: var(--student-dashboard-text-muted);
+  }
+
+  .teacher-dashboard-shell {
+    background:
+      radial-gradient(circle at top left, rgb(31 122 224 / 0.08), transparent 32%),
+      radial-gradient(circle at top right, rgb(200 138 18 / 0.06), transparent 28%),
+      linear-gradient(180deg, #fbf8f1 0%, var(--teacher-dashboard-bg) 100%);
+    color: var(--teacher-dashboard-text);
+  }
+
+  .teacher-surface {
+    background-color: var(--teacher-dashboard-surface);
+    border-color: var(--teacher-dashboard-border);
+    color: var(--teacher-dashboard-text);
+  }
+
+  .teacher-surface-soft {
+    background-color: var(--teacher-dashboard-surface-soft);
+    border-color: color-mix(in srgb, var(--teacher-dashboard-border) 80%, white);
+    color: var(--teacher-dashboard-text);
+  }
+
+  .teacher-text-muted {
+    color: var(--teacher-dashboard-text-muted);
   }
 }

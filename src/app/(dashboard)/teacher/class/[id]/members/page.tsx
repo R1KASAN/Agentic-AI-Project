@@ -6,7 +6,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Users } from "lucide-react";
 import { ThaiRiskBadge } from "@/components/domain/teacher/ThaiRiskBadge";
-import { deriveTeacherDisplayRiskLevel } from "@/lib/teacherDashboard";
+import {
+  deriveTeacherDisplayRiskLevel,
+  getTeacherMemberActivityByClass,
+} from "@/lib/teacherDashboard";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -206,41 +209,75 @@ export default async function ClassMembersPage({ params }: Props) {
     );
   }
 
-  // 4. Fetch check-in data for each student
+  let activityByStudentId: Record<
+    string,
+    { student_id: string; check_in_count: number; last_check_in: string | null }
+  > = {};
+
+  try {
+    activityByStudentId = await getTeacherMemberActivityByClass(
+      user.id,
+      classId,
+      supabase
+    );
+  } catch (activityError) {
+    const message =
+      activityError instanceof Error
+        ? activityError.message
+        : "Unknown activity lookup error";
+
+    console.error("[teacher/class/members][activity_error]", {
+      classId,
+      message,
+    });
+
+    return (
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <Link
+            href={`/teacher/class/${classId}`}
+            className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 transition-colors w-fit"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Dashboard
+          </Link>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+              สมาชิก — {classData.name}
+            </h1>
+            <ThaiRiskBadge
+              score={null}
+              policyLevel={derivedRiskLevel === "NO_DATA" ? null : derivedRiskLevel}
+              size="sm"
+            />
+          </div>
+        </div>
+        <MembersQueryErrorState
+          inviteCode={classData.invite_code}
+          message={message}
+        />
+      </div>
+    );
+  }
+
+  // 4. Merge enrollment data with safe server-side member activity
   const members: MemberWithCheckIn[] = enrollments?.length
-    ? await Promise.all(
-        enrollments.map(async (enrollment) => {
-          const profile = Array.isArray(enrollment.users)
-            ? enrollment.users[0] ?? null
-            : enrollment.users;
-          const fullName = profile?.full_name || "ไม่ระบุชื่อ";
+    ? enrollments.map((enrollment) => {
+        const profile = Array.isArray(enrollment.users)
+          ? enrollment.users[0] ?? null
+          : enrollment.users;
+        const fullName = profile?.full_name || "ไม่ระบุชื่อ";
+        const activity = activityByStudentId[enrollment.student_id];
 
-          const [{ data: lastCheckInData }, { count: checkInCount }] = await Promise.all([
-            supabase
-              .from("student_pulses")
-              .select("created_at")
-              .eq("student_id", enrollment.student_id)
-              .eq("class_id", classId)
-              .order("created_at", { ascending: false })
-              .limit(1)
-              .maybeSingle(),
-            supabase
-              .from("student_pulses")
-              .select("*", { count: "exact", head: true })
-              .eq("student_id", enrollment.student_id)
-              .eq("class_id", classId),
-          ]);
-
-          return {
-            enrollment_id: `${classId}:${enrollment.student_id}`,
-            joined_at: enrollment.created_at,
-            full_name: fullName,
-            student_id: enrollment.student_id,
-            check_in_count: checkInCount || 0,
-            last_check_in: lastCheckInData?.created_at || null,
-          };
-        })
-      )
+        return {
+          enrollment_id: `${classId}:${enrollment.student_id}`,
+          joined_at: enrollment.created_at,
+          full_name: fullName,
+          student_id: enrollment.student_id,
+          check_in_count: activity?.check_in_count ?? 0,
+          last_check_in: activity?.last_check_in ?? null,
+        };
+      })
     : [];
 
   // Sort by full_name ASC
