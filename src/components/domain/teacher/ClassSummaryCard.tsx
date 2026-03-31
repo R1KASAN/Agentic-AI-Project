@@ -31,7 +31,7 @@ export function ClassSummaryCard({ data }: ClassSummaryCardProps) {
     else if (risk_level === 'ROUTINE') numericScore = 20;
 
     return (
-        <Card className="teacher-surface h-full overflow-hidden rounded-[28px] border shadow-[0_18px_45px_rgba(23,33,51,0.08)] transition-all hover:-translate-y-1 hover:shadow-[0_24px_56px_rgba(23,33,51,0.12)]">
+        <Card className="teacher-surface h-full overflow-hidden rounded-[28px] border bg-[linear-gradient(180deg,rgba(15,27,45,0.98),rgba(10,19,33,0.94))] shadow-[0_18px_48px_rgba(2,8,23,0.42)] transition-all hover:-translate-y-1 hover:shadow-[0_26px_62px_rgba(2,8,23,0.56)]">
             <CardContent className="flex h-full flex-col justify-between p-6">
                 <div className="space-y-5">
                     <div className="flex items-start justify-between gap-3">
@@ -53,19 +53,19 @@ export function ClassSummaryCard({ data }: ClassSummaryCardProps) {
 
                     <div className="flex flex-wrap items-center gap-2">
                         {inquiry_mode_suggested && (
-                            <Badge variant="secondary" className="border-violet-200 bg-violet-50 text-violet-700">
+                            <Badge variant="secondary" className="border-[color:var(--teacher-dashboard-border)] bg-[var(--teacher-dashboard-surface-soft)] text-[var(--teacher-dashboard-text)]">
                                 <HelpCircle className="mr-1 h-3 w-3" />
                                 Inquiry Mode
                             </Badge>
                         )}
                         {blocked_reason === "frequency_limit_exceeded" && (
-                            <Badge variant="outline" className="border-[var(--teacher-dashboard-border)] text-[var(--teacher-dashboard-text-muted)]">
+                            <Badge variant="outline" className="border-[var(--teacher-dashboard-border)] bg-[var(--teacher-dashboard-surface-soft)] text-[var(--teacher-dashboard-text-muted)]">
                                 <PauseCircle className="mr-1 h-3 w-3" />
                                 No new draft this cycle
                             </Badge>
                         )}
                         {blocked_reason === "k_anonymity" && (
-                            <Badge variant="outline" className="border-sky-200 bg-sky-50 text-sky-700">
+                            <Badge variant="outline" className="border-[color:var(--teacher-dashboard-border)] bg-[rgba(147,197,253,0.12)] text-[var(--teacher-dashboard-primary)]">
                                 <ShieldCheck className="mr-1 h-3 w-3" />
                                 Waiting for safe aggregate signal
                             </Badge>
@@ -80,12 +80,12 @@ export function ClassSummaryCard({ data }: ClassSummaryCardProps) {
                         </div>
 
                         {pending_recommendations > 0 ? (
-                            <div className="flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1.5 text-[var(--teacher-dashboard-warning)]">
+                            <div className="flex items-center gap-2 rounded-full bg-[rgba(253,230,138,0.12)] px-3 py-1.5 text-[var(--teacher-dashboard-warning)]">
                                 <Bell className="h-4 w-4 animate-pulse" />
                                 <span className="font-semibold">{pending_recommendations} Actions required</span>
                             </div>
                         ) : (
-                            <div className="flex items-center gap-2 rounded-full bg-sky-100 px-3 py-1.5 text-sky-700">
+                            <div className="flex items-center gap-2 rounded-full bg-[rgba(147,197,253,0.12)] px-3 py-1.5 text-[var(--teacher-dashboard-primary)]">
                                 <Activity className="h-4 w-4" />
                                 <span>
                                   {blocked_reason === "k_anonymity"

@@ -93,7 +93,7 @@ export default function ClassDetailClient({
   async function handleApprove(id: string, note: string, editedDraft: string) {
     const result = await approveRecommendation(id, note, editedDraft);
     if (!result.success) {
-      toast.error(result.error ?? "ไม่สามารถอนุมัติ draft นี้ได้");
+      toast.error(result.error ?? "ไม่สามารถอนุมัติฉบับร่างนี้ได้");
       return;
     }
     if (result.webhookFailed) {
@@ -101,7 +101,7 @@ export default function ClassDetailClient({
         "บันทึกการอนุมัติแล้ว แต่การส่งต่อไปยัง workflow ยังไม่สมบูรณ์",
       );
     } else {
-      toast.success("อนุมัติ draft แล้ว");
+      toast.success("อนุมัติฉบับร่างแล้ว");
     }
     router.refresh();
   }
@@ -109,10 +109,10 @@ export default function ClassDetailClient({
   async function handleDismiss(id: string, reason: string) {
     const result = await dismissRecommendation(id, reason);
     if (!result.success) {
-      toast.error(result.error ?? "ไม่สามารถ dismiss draft นี้ได้");
+      toast.error(result.error ?? "ไม่สามารถข้ามฉบับร่างนี้ได้");
       return;
     }
-    toast.success("ข้าม draft นี้แล้ว");
+    toast.success("ข้ามฉบับร่างนี้แล้ว");
     router.refresh();
   }
 
@@ -401,8 +401,8 @@ export default function ClassDetailClient({
                 {blockedByFrequency
                   ? "ระบบยังไม่สร้างข้อความใหม่ เพื่อไม่ให้ถี่เกินไป"
                   : blockedByKAnonymity
-                    ? "ระบบยังไม่แสดง draft ใหม่ เพราะข้อมูลรวมยังไม่ถึงเกณฑ์ความเป็นส่วนตัวขั้นต่ำ"
-                    : "ไม่มี draft ที่รอตรวจในตอนนี้"}
+                    ? "ระบบยังไม่แสดงฉบับร่างใหม่ เพราะข้อมูลรวมยังไม่ถึงเกณฑ์ความเป็นส่วนตัวขั้นต่ำ"
+                    : "ยังไม่มีฉบับร่างที่รอตรวจในตอนนี้"}
               </p>
               <p>
                 {blockedByFrequency

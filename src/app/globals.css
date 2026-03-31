@@ -52,19 +52,19 @@
   --student-dashboard-chart-pace: #7dd3fc;
   --student-dashboard-chart-fairness: #5eead4;
   --student-dashboard-grid: #334155;
-  --teacher-dashboard-bg: #f7f4ee;
-  --teacher-dashboard-sidebar: #162033;
-  --teacher-dashboard-sidebar-soft: #1d2a40;
-  --teacher-dashboard-surface: #ffffff;
-  --teacher-dashboard-surface-soft: #f5efe4;
-  --teacher-dashboard-border: #d9d1c1;
-  --teacher-dashboard-text: #172133;
-  --teacher-dashboard-text-muted: #6f7e95;
-  --teacher-dashboard-primary: #1f7ae0;
-  --teacher-dashboard-primary-soft: rgb(31 122 224 / 0.12);
-  --teacher-dashboard-success: #1f8f5f;
-  --teacher-dashboard-warning: #c88a12;
-  --teacher-dashboard-danger: #c94b3c;
+  --teacher-dashboard-bg: #081121;
+  --teacher-dashboard-sidebar: #020817;
+  --teacher-dashboard-sidebar-soft: #132134;
+  --teacher-dashboard-surface: #0f1b2d;
+  --teacher-dashboard-surface-soft: #16263b;
+  --teacher-dashboard-border: #243449;
+  --teacher-dashboard-text: #e5e7eb;
+  --teacher-dashboard-text-muted: #94a3b8;
+  --teacher-dashboard-primary: #93c5fd;
+  --teacher-dashboard-primary-soft: rgb(147 197 253 / 0.14);
+  --teacher-dashboard-success: #d1fae5;
+  --teacher-dashboard-warning: #fde68a;
+  --teacher-dashboard-danger: #fecaca;
   --radius: 0.625rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
@@ -279,9 +279,9 @@ h3,
 
   .teacher-dashboard-shell {
     background:
-      radial-gradient(circle at top left, rgb(31 122 224 / 0.08), transparent 32%),
-      radial-gradient(circle at top right, rgb(200 138 18 / 0.06), transparent 28%),
-      linear-gradient(180deg, #fbf8f1 0%, var(--teacher-dashboard-bg) 100%);
+      radial-gradient(circle at top left, rgb(99 102 241 / 0.14), transparent 32%),
+      radial-gradient(circle at top right, rgb(14 165 233 / 0.12), transparent 28%),
+      linear-gradient(180deg, #0d1626 0%, var(--teacher-dashboard-bg) 100%);
     color: var(--teacher-dashboard-text);
   }
 
@@ -293,7 +293,7 @@ h3,
 
   .teacher-surface-soft {
     background-color: var(--teacher-dashboard-surface-soft);
-    border-color: color-mix(in srgb, var(--teacher-dashboard-border) 80%, white);
+    border-color: var(--teacher-dashboard-border);
     color: var(--teacher-dashboard-text);
   }
 

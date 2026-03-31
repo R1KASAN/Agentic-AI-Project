@@ -44,13 +44,13 @@ function defaultMetrics(classId: string): ClassMetrics {
 
 function defaultAuditByClassIds(classIds: string[]) {
   return Object.fromEntries(
-    classIds.map((classId) => [classId, null])
+    classIds.map((classId) => [classId, null]),
   ) as Record<string, AuditSignal | null>;
 }
 
 function defaultClimateByClassIds(classIds: string[]) {
   return Object.fromEntries(
-    classIds.map((classId) => [classId, [] as ClassClimateSummary[]])
+    classIds.map((classId) => [classId, [] as ClassClimateSummary[]]),
   ) as Record<string, ClassClimateSummary[]>;
 }
 
@@ -121,7 +121,7 @@ type AuditSignalRow = {
 export type TeacherDisplayRiskLevel = PolicyLevel | "NO_DATA";
 
 export function deriveAggregateRiskLevel(
-  climate: ClassClimateSummary[]
+  climate: ClassClimateSummary[],
 ): PolicyLevel | null {
   const comparableWeeks = latestComparableWeeks(climate);
   if (comparableWeeks.length < 2) {
@@ -146,9 +146,11 @@ export function deriveAggregateRiskLevel(
 }
 
 export function derivePendingRecommendationRiskLevel(
-  policyLevels: Array<string | null | undefined>
+  policyLevels: Array<string | null | undefined>,
 ): PolicyLevel | null {
-  if (policyLevels.some((level) => typeof level === "string" && level.length > 0)) {
+  if (
+    policyLevels.some((level) => typeof level === "string" && level.length > 0)
+  ) {
     return "WARNING";
   }
 
@@ -157,7 +159,7 @@ export function derivePendingRecommendationRiskLevel(
 
 export function deriveTeacherDisplayRiskLevel(
   climate: ClassClimateSummary[],
-  policyLevels: Array<string | null | undefined> = []
+  policyLevels: Array<string | null | undefined> = [],
 ): TeacherDisplayRiskLevel {
   return (
     deriveAggregateRiskLevel(climate) ??
@@ -167,7 +169,7 @@ export function deriveTeacherDisplayRiskLevel(
 }
 
 export function getRiskScoreFromLevel(
-  riskLevel: TeacherDisplayRiskLevel
+  riskLevel: TeacherDisplayRiskLevel,
 ): number | null {
   switch (riskLevel) {
     case "CRITICAL":
@@ -183,7 +185,7 @@ export function getRiskScoreFromLevel(
 
 function mapMetricsRowToClassMetrics(
   row: MetricsRpcRow | null | undefined,
-  classId: string
+  classId: string,
 ): ClassMetrics {
   if (!row) {
     return defaultMetrics(classId);
@@ -191,7 +193,7 @@ function mapMetricsRowToClassMetrics(
 
   const dismissalRate = Number(row.dismissal_rate ?? 0);
   const dismissalPatternConsecutive = Number(
-    row.dismissal_pattern_consecutive ?? 0
+    row.dismissal_pattern_consecutive ?? 0,
   );
   const teacherFlagInquiryMode = row.teacher_flag_inquiry_mode === true;
 
@@ -207,7 +209,7 @@ function mapMetricsRowToClassMetrics(
     inquiryModeSuggested: deriveInquiryModeSuggested(
       teacherFlagInquiryMode,
       dismissalRate,
-      dismissalPatternConsecutive
+      dismissalPatternConsecutive,
     ),
     teacherFlagInquiryMode,
     dismissalPatternConsecutive,
@@ -236,7 +238,7 @@ function mapAuditRowToSignal(row: AuditSignalRow | null | undefined) {
       decisionPath?.blocked_reason ??
       decisionPath?.reason ??
       null,
-    eventType
+    eventType,
   );
 
   return {
@@ -253,10 +255,13 @@ async function getDashboardRpcClient(supabase?: TeacherDashboardClient) {
     return supabase;
   }
 
-  if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  if (
+    process.env.NEXT_PUBLIC_SUPABASE_URL &&
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+  ) {
     return createServiceClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
     );
   }
 
@@ -264,13 +269,16 @@ async function getDashboardRpcClient(supabase?: TeacherDashboardClient) {
 }
 
 function getTeacherDashboardServiceClient() {
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  if (
+    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    !process.env.SUPABASE_SERVICE_ROLE_KEY
+  ) {
     throw new Error("Missing Supabase service role configuration");
   }
 
   return createServiceClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
+    process.env.SUPABASE_SERVICE_ROLE_KEY,
   );
 }
 
@@ -290,7 +298,10 @@ function normalizeEventType(value: unknown): AuditEventType {
   }
 }
 
-function normalizeBlockedReason(value: unknown, eventType: AuditEventType): AuditBlockedReason {
+function normalizeBlockedReason(
+  value: unknown,
+  eventType: AuditEventType,
+): AuditBlockedReason {
   if (typeof value === "string") {
     const normalized = value.toLowerCase();
     if (
@@ -320,7 +331,7 @@ function normalizeBlockedReason(value: unknown, eventType: AuditEventType): Audi
 function deriveInquiryModeSuggested(
   teacherFlagInquiryMode: boolean,
   dismissalRate: number,
-  dismissalPatternConsecutive: number
+  dismissalPatternConsecutive: number,
 ) {
   return (
     teacherFlagInquiryMode ||
@@ -336,9 +347,14 @@ function latestComparableWeeks(climate: ClassClimateSummary[]) {
 
 function deriveTrend(
   latestWeek: ClassClimateSummary | undefined,
-  previousWeek: ClassClimateSummary | undefined
+  previousWeek: ClassClimateSummary | undefined,
 ): StudentFeedbackTrend {
-  if (!latestWeek || !previousWeek || latestWeek.avg_mood === null || previousWeek.avg_mood === null) {
+  if (
+    !latestWeek ||
+    !previousWeek ||
+    latestWeek.avg_mood === null ||
+    previousWeek.avg_mood === null
+  ) {
     return "insufficient_data";
   }
 
@@ -355,11 +371,15 @@ function deriveTrend(
 function buildSummaryLine(
   latestWeek: ClassClimateSummary | undefined,
   trend: StudentFeedbackTrend,
-  hasPendingRecommendation: boolean
+  hasPendingRecommendation: boolean,
 ) {
-  if (!latestWeek || latestWeek.avg_mood === null || trend === "insufficient_data") {
+  if (
+    !latestWeek ||
+    latestWeek.avg_mood === null ||
+    trend === "insufficient_data"
+  ) {
     return hasPendingRecommendation
-      ? "มี action pending แต่ข้อมูลรวมยังไม่พอสำหรับสรุปความเสี่ยงของห้องนี้"
+      ? "มีฉบับร่างรออนุมัติ แต่ข้อมูลรวมยังไม่พอสำหรับสรุปความเสี่ยงของห้องนี้"
       : "ยังไม่มีข้อมูลพอสำหรับสรุปความเสี่ยงของห้องนี้";
   }
 
@@ -386,12 +406,12 @@ function buildSummaryLine(
   return "สัญญาณรวมของห้องยังอยู่ในเกณฑ์ค่อนข้างปกติในรอบล่าสุด";
 }
 
-function normalizeActions(
-  actions: Recommendation["actions_json"]
-): string[] {
+function normalizeActions(actions: Recommendation["actions_json"]): string[] {
   if (Array.isArray(actions)) {
     return actions
-      .map((value) => (typeof value === "string" ? value.trim() : String(value)))
+      .map((value) =>
+        typeof value === "string" ? value.trim() : String(value),
+      )
       .filter(Boolean);
   }
 
@@ -404,7 +424,9 @@ function normalizeActions(
   return [];
 }
 
-function getConfidenceLabel(score: number | null): RecommendationConfidenceLabel {
+function getConfidenceLabel(
+  score: number | null,
+): RecommendationConfidenceLabel {
   if (score === null) {
     return null;
   }
@@ -419,7 +441,7 @@ function getConfidenceLabel(score: number | null): RecommendationConfidenceLabel
 
 function getRationaleTag(
   recommendation: Recommendation,
-  climate: ClassClimateSummary[]
+  climate: ClassClimateSummary[],
 ): RecommendationRationaleTag {
   const reasoning = recommendation.reasoning?.toLowerCase() ?? "";
   const latestWeek = latestComparableWeeks(climate)[0];
@@ -454,7 +476,7 @@ function getRationaleTag(
 function buildReasoningSummary(
   recommendation: Recommendation,
   climate: ClassClimateSummary[],
-  metrics: ClassMetrics
+  metrics: ClassMetrics,
 ): string | null {
   const latestWeek = latestComparableWeeks(climate)[0];
   const rationaleTag = getRationaleTag(recommendation, climate);
@@ -464,23 +486,23 @@ function buildReasoningSummary(
   }
 
   if (rationaleTag === "low_mood") {
-    return "สัญญาณรวมของห้องบอกว่าบรรยากาศล่าสุดค่อนข้างอ่อนลง ระบบจึงเสนอ draft นี้เพื่อช่วยพยุงห้องอย่างระมัดระวัง";
+    return "สัญญาณรวมของห้องบอกว่าบรรยากาศล่าสุดค่อนข้างอ่อนลง ระบบจึงเสนอฉบับร่างนี้เพื่อช่วยพยุงห้องอย่างระมัดระวัง";
   }
 
   if (rationaleTag === "pace_friction") {
-    return "มีสัญญาณรวมว่าจังหวะการเรียนอาจตึงเกินไปสำหรับบางช่วง ระบบจึงเสนอ draft ที่ช่วยผ่อนแรงเสียดทาน";
+    return "มีสัญญาณรวมว่าจังหวะการเรียนอาจตึงเกินไปสำหรับบางช่วง ระบบจึงเสนอฉบับร่างที่ช่วยผ่อนแรงเสียดทาน";
   }
 
   if (rationaleTag === "fairness_signal") {
-    return "สัญญาณรวมสะท้อนว่าความรู้สึกเรื่องความเป็นธรรมอาจแกว่งในช่วงล่าสุด จึงมี draft นี้เพื่อช่วยสื่อสารอย่างนุ่มนวล";
+    return "สัญญาณรวมสะท้อนว่าความรู้สึกเรื่องความเป็นธรรมอาจแกว่งในช่วงล่าสุด จึงมีฉบับร่างนี้เพื่อช่วยสื่อสารอย่างนุ่มนวล";
   }
 
   if (rationaleTag === "trend_shift") {
-    return "ระบบเห็นการเปลี่ยนแปลงของแนวโน้มรวมเมื่อเทียบกับรอบก่อน จึงเสนอ draft นี้เพื่อให้ครูติดตามแบบทันจังหวะ";
+    return "ระบบเห็นการเปลี่ยนแปลงของแนวโน้มรวมเมื่อเทียบกับรอบก่อน จึงเสนอฉบับร่างนี้เพื่อให้ครูติดตามแบบทันจังหวะ";
   }
 
   if (recommendation.fallback_used) {
-    return "draft นี้อิงกฎความปลอดภัยและสัญญาณรวมของห้อง เพื่อให้ยังคงได้ข้อเสนอที่พอใช้ได้แม้ความมั่นใจของโมเดลไม่สูงมาก";
+    return "ฉบับร่างนี้อิงกฎความปลอดภัยและสัญญาณรวมของห้อง เพื่อให้ยังคงได้ข้อเสนอที่พอใช้ได้แม้ความมั่นใจของโมเดลไม่สูงมาก";
   }
 
   if (recommendation.reasoning) {
@@ -492,7 +514,7 @@ function buildReasoningSummary(
   }
 
   if (latestWeek?.avg_mood !== null && latestWeek?.avg_mood !== undefined) {
-    return "draft นี้อ้างอิงสัญญาณรวมล่าสุดของห้อง และพยายามเสนอข้อความที่เหมาะกับระดับความเสี่ยงปัจจุบัน";
+    return "ฉบับร่างนี้อ้างอิงสัญญาณรวมล่าสุดของห้อง และพยายามเสนอข้อความที่เหมาะกับระดับความเสี่ยงปัจจุบัน";
   }
 
   return null;
@@ -501,7 +523,7 @@ function buildReasoningSummary(
 export function mapRecommendationToViewModel(
   recommendation: Recommendation,
   climate: ClassClimateSummary[],
-  metrics: ClassMetrics
+  metrics: ClassMetrics,
 ): RecommendationViewModel {
   const confidenceScore =
     typeof recommendation.confidence_score === "number"
@@ -536,17 +558,17 @@ export function mapRecommendationToViewModel(
 export function mapRecommendationsToViewModels(
   recommendations: Recommendation[],
   climate: ClassClimateSummary[],
-  metrics: ClassMetrics
+  metrics: ClassMetrics,
 ): RecommendationViewModel[] {
   return recommendations.map((recommendation) =>
-    mapRecommendationToViewModel(recommendation, climate, metrics)
+    mapRecommendationToViewModel(recommendation, climate, metrics),
   );
 }
 
 export function buildStudentFeedbackSummary(
   climate: ClassClimateSummary[],
   metrics: ClassMetrics,
-  options: { hasPendingRecommendation?: boolean } = {}
+  options: { hasPendingRecommendation?: boolean } = {},
 ): StudentFeedbackSummary {
   const comparableWeeks = latestComparableWeeks(climate);
   const latestWeek = comparableWeeks[0];
@@ -564,13 +586,13 @@ export function buildStudentFeedbackSummary(
     summaryLine: buildSummaryLine(
       latestWeek,
       trend,
-      options.hasPendingRecommendation === true
+      options.hasPendingRecommendation === true,
     ),
   };
 }
 
 export function buildRedactedVoiceState(
-  climate: ClassClimateSummary[]
+  climate: ClassClimateSummary[],
 ): RedactedVoiceState {
   const comparableWeeks = latestComparableWeeks(climate);
   const latestWeek = comparableWeeks[0];
@@ -580,7 +602,7 @@ export function buildRedactedVoiceState(
       status: "insufficient_signal",
       snippets: [],
       message:
-        "ยังมีสัญญาณรวมไม่พอสำหรับแสดง voice excerpts แบบปลอดภัยในรอบนี้ ระบบจะรอจนมีข้อมูลรวมที่เพียงพอก่อน",
+        "ยังมีสัญญาณรวมไม่พอสำหรับแสดงถ้อยคำสรุปแบบปลอดภัยในรอบนี้ ระบบจะรอจนมีข้อมูลรวมที่เพียงพอก่อน",
     };
   }
 
@@ -588,19 +610,19 @@ export function buildRedactedVoiceState(
     status: "pipeline_pending",
     snippets: [],
     message:
-      "ระบบ redacted snippet pipeline ยังไม่ถูกเชื่อมใน phase นี้ จึงยังไม่แสดงถ้อยคำจากนักเรียน แม้จะมีสัญญาณรวมเพียงพอแล้ว",
+      "ระบบสำหรับสรุปถ้อยคำที่ปกปิดข้อมูลยังไม่ถูกเชื่อมในเฟสนี้ จึงยังไม่แสดงถ้อยคำจากนักเรียน แม้จะมีสัญญาณรวมเพียงพอแล้ว",
   };
 }
 
 function hasAggregateSignal(climate: ClassClimateSummary[]) {
   return latestComparableWeeks(climate).some(
-    (week) => week.check_in_count >= 3
+    (week) => week.check_in_count >= 3,
   );
 }
 
 export function buildRedactedVoiceStateFromRpc(
   climate: ClassClimateSummary[],
-  snippets: RedactedVoiceRpcRow[] | null
+  snippets: RedactedVoiceRpcRow[] | null,
 ): RedactedVoiceState {
   if (snippets === null) {
     return buildRedactedVoiceState(climate);
@@ -612,7 +634,7 @@ export function buildRedactedVoiceStateFromRpc(
       snippets: [],
       message: hasAggregateSignal(climate)
         ? "ยังไม่มีเสียงนักเรียนแบบรวมที่ปลอดภัยพอจะนำมาแสดงในช่วงนี้"
-        : "ยังไม่มีสัญญาณรวมที่เพียงพอสำหรับแสดงเสียงนักเรียนแบบลบข้อมูลระบุตัวตน",
+        : "ยังไม่มีสัญญาณรวมที่เพียงพอสำหรับแสดงเสียงนักเรียนที่ปกปิดข้อมูลระบุตัวตน",
     };
   }
 
@@ -630,7 +652,7 @@ export function buildRedactedVoiceStateFromRpc(
 
 export async function getClassRedactedVoice(
   classId: string,
-  weeks = 4
+  weeks = 4,
 ): Promise<RedactedVoiceRpcRow[] | null> {
   const supabase = await createClient();
 
@@ -669,8 +691,7 @@ export async function getClassRedactedVoice(
         row.source_window && typeof row.source_window === "object"
           ? (row.source_window as Record<string, unknown>)
           : null,
-      created_at:
-        typeof row.created_at === "string" ? row.created_at : null,
+      created_at: typeof row.created_at === "string" ? row.created_at : null,
     }))
     .filter((row) => row.id && row.text_redacted);
 }
@@ -698,12 +719,16 @@ export async function getClassMetrics(classId: string): Promise<ClassMetrics> {
   return mapMetricsRowToClassMetrics(row, classId);
 }
 
-export async function getLatestAuditSignal(classId: string): Promise<AuditSignal | null> {
+export async function getLatestAuditSignal(
+  classId: string,
+): Promise<AuditSignal | null> {
   const supabase = await createClient();
 
   const { data, error } = await supabase
     .from("n8n_audit_logs")
-    .select("class_id, event_type, policy_selected, blocked_reason, decision_path_json, created_at")
+    .select(
+      "class_id, event_type, policy_selected, blocked_reason, decision_path_json, created_at",
+    )
     .eq("class_id", classId)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -729,7 +754,7 @@ export async function getLatestAuditSignal(classId: string): Promise<AuditSignal
 
 async function getClassMetricsBatch(
   classIds: string[],
-  supabase?: TeacherDashboardClient
+  supabase?: TeacherDashboardClient,
 ) {
   const uniqueClassIds = normalizeClassIds(classIds);
   if (uniqueClassIds.length === 0) {
@@ -752,30 +777,35 @@ async function getClassMetricsBatch(
     });
 
     const legacyMetricsEntries = await Promise.all(
-      uniqueClassIds.map(async (classId) => [classId, await getClassMetrics(classId)] as const)
+      uniqueClassIds.map(
+        async (classId) => [classId, await getClassMetrics(classId)] as const,
+      ),
     );
 
-    return Object.fromEntries(legacyMetricsEntries) as Record<string, ClassMetrics>;
+    return Object.fromEntries(legacyMetricsEntries) as Record<
+      string,
+      ClassMetrics
+    >;
   }
 
   const rows = Array.isArray(data) ? (data as MetricsRpcRow[]) : [];
   const rowByClassId = new Map(
     rows
       .filter((row) => typeof row.class_id === "string")
-      .map((row) => [row.class_id as string, row])
+      .map((row) => [row.class_id as string, row]),
   );
 
   return Object.fromEntries(
     uniqueClassIds.map((classId) => [
       classId,
       mapMetricsRowToClassMetrics(rowByClassId.get(classId), classId),
-    ])
+    ]),
   ) as Record<string, ClassMetrics>;
 }
 
 async function getLatestAuditSignalsByClassIds(
   classIds: string[],
-  supabase?: TeacherDashboardClient
+  supabase?: TeacherDashboardClient,
 ) {
   const uniqueClassIds = normalizeClassIds(classIds);
   if (uniqueClassIds.length === 0) {
@@ -786,7 +816,7 @@ async function getLatestAuditSignalsByClassIds(
   const { data, error } = await client
     .from("n8n_audit_logs")
     .select(
-      "class_id, event_type, policy_selected, blocked_reason, decision_path_json, created_at"
+      "class_id, event_type, policy_selected, blocked_reason, decision_path_json, created_at",
     )
     .in("class_id", uniqueClassIds)
     .order("created_at", { ascending: false });
@@ -815,13 +845,13 @@ async function getLatestAuditSignalsByClassIds(
     uniqueClassIds.map((classId) => [
       classId,
       mapAuditRowToSignal(latestByClassId.get(classId)),
-    ])
+    ]),
   ) as Record<string, AuditSignal | null>;
 }
 
 export async function getClassDashboardSignals(
   classIds: string[],
-  supabase?: TeacherDashboardClient
+  supabase?: TeacherDashboardClient,
 ) {
   const uniqueClassIds = normalizeClassIds(classIds);
   if (uniqueClassIds.length === 0) {
@@ -845,7 +875,7 @@ export async function getClassDashboardSignals(
 export async function getTeacherMemberActivityByClass(
   teacherId: string,
   classId: string,
-  supabase?: TeacherDashboardClient
+  supabase?: TeacherDashboardClient,
 ) {
   const authClient = supabase ?? (await createClient());
   const { data: ownedClass, error: ownershipError } = await authClient
@@ -886,7 +916,8 @@ export async function getTeacherMemberActivityByClass(
       activityByStudentId[row.student_id] = {
         student_id: row.student_id,
         check_in_count: 1,
-        last_check_in: typeof row.created_at === "string" ? row.created_at : null,
+        last_check_in:
+          typeof row.created_at === "string" ? row.created_at : null,
       };
       continue;
     }
@@ -900,7 +931,7 @@ export async function getTeacherMemberActivityByClass(
 export async function getClimateSummariesByClassIds(
   classIds: string[],
   weeks = 4,
-  supabase?: TeacherDashboardClient
+  supabase?: TeacherDashboardClient,
 ) {
   const uniqueClassIds = normalizeClassIds(classIds);
   if (uniqueClassIds.length === 0) {
@@ -909,10 +940,13 @@ export async function getClimateSummariesByClassIds(
 
   const rpcClient = await getDashboardRpcClient(supabase);
   const climateByClassId = defaultClimateByClassIds(uniqueClassIds);
-  const { data, error } = await rpcClient.rpc("get_class_climate_summary_batch", {
-    p_class_ids: uniqueClassIds,
-    p_weeks: weeks,
-  });
+  const { data, error } = await rpcClient.rpc(
+    "get_class_climate_summary_batch",
+    {
+      p_class_ids: uniqueClassIds,
+      p_weeks: weeks,
+    },
+  );
 
   if (error) {
     console.warn("[teacher-dashboard][climate_summary_batch_error]", {
@@ -930,7 +964,7 @@ export async function getClimateSummariesByClassIds(
           {
             p_class_id: classId,
             p_weeks: weeks,
-          }
+          },
         );
 
         if (legacyError) {
@@ -945,10 +979,13 @@ export async function getClimateSummariesByClassIds(
         }
 
         return [classId, (legacyData ?? []) as ClassClimateSummary[]] as const;
-      })
+      }),
     );
 
-    return Object.fromEntries(legacyEntries) as Record<string, ClassClimateSummary[]>;
+    return Object.fromEntries(legacyEntries) as Record<
+      string,
+      ClassClimateSummary[]
+    >;
   }
 
   for (const row of (data ?? []) as ClassClimateSummary[]) {
@@ -965,13 +1002,13 @@ export async function getClimateSummariesByClassIds(
 export async function getTeacherDashboardOverviewData(
   teacherId: string,
   weeks = 4,
-  supabase?: TeacherDashboardClient
+  supabase?: TeacherDashboardClient,
 ): Promise<TeacherDashboardOverviewData> {
   const client = supabase ?? (await createClient());
   const { data: classesData, error } = await client
     .from("classes")
     .select(
-      "id, name, invite_code, created_at, risk_level, risk_score, recommendations(status, policy_level)"
+      "id, name, invite_code, created_at, risk_level, risk_score, recommendations(status, policy_level)",
     )
     .eq("teacher_id", teacherId)
     .is("archived_at", null)
@@ -1001,12 +1038,18 @@ export async function getTeacherDashboardOverviewData(
     };
   }
 
-  const [{ data: enrollments, error: enrollmentsError }, dashboardSignals, climateByClassId] =
-    await Promise.all([
-      client.from("class_enrollments").select("class_id").in("class_id", uniqueClassIds),
-      getClassDashboardSignals(uniqueClassIds, client),
-      getClimateSummariesByClassIds(uniqueClassIds, weeks, client),
-    ]);
+  const [
+    { data: enrollments, error: enrollmentsError },
+    dashboardSignals,
+    climateByClassId,
+  ] = await Promise.all([
+    client
+      .from("class_enrollments")
+      .select("class_id")
+      .in("class_id", uniqueClassIds),
+    getClassDashboardSignals(uniqueClassIds, client),
+    getClimateSummariesByClassIds(uniqueClassIds, weeks, client),
+  ]);
 
   if (enrollmentsError) {
     console.error("[teacher-dashboard][enrollments_error]", {
