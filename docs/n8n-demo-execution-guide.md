@@ -7,6 +7,9 @@
 
 เป้าหมายคือให้เอกสารนี้ใช้เป็นทั้ง **คู่มืออธิบายระบบ**, **สคริปต์พูดหน้ากล้อง**, และ **checklist ตอนกดรัน n8n** ได้ในไฟล์เดียว
 
+> หมายเหตุสำคัญเรื่องสถานะ runtime: workflow บางตัวใน repo นี้เป็นไฟล์ reference / import template และไม่ได้ publish อยู่ใน n8n UI ปัจจุบัน  
+> จากไฟล์ที่ตรวจพบ `W06-morning-briefing-v2`, `loop-closure-notification` และ `agentic-ai-recommendation` มี `active: false` ใน JSON จึงไม่ควรคาดว่าจะเห็นเป็น workflow active ใน n8n เว้นแต่จะ import และเปิดใช้งานเอง
+
 ---
 
 ## 1) ภาพรวม workflow ที่ใช้ตอนนี้
@@ -381,4 +384,3 @@ node สำคัญ:
 ถ้าต้องสรุประบบ n8n ของโปรเจกต์นี้ในประโยคเดียว:
 
 > ข้อมูลนักเรียนถูก seed และ aggregate อย่างปลอดภัยก่อน จากนั้น n8n จะใช้ workflow ตัวแม่และ child workflows เพื่อคัดกรอง, redaction, วิเคราะห์, สร้าง recommendation, ให้ครู approve, แล้วปิด loop กลับไปหานักเรียนอย่างเป็นระบบครับ
-
