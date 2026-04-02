@@ -426,7 +426,7 @@ function TeacherResponseCard({
             <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg text-[var(--student-dashboard-text)]">
                     <MessageSquare className="h-5 w-5 text-[var(--student-dashboard-text-muted)]" />
-                    การตอบสนองล่าสุดจากครู
+                    อัปเดตล่าสุดที่ครูสื่อสารกับห้อง
                 </CardTitle>
             </CardHeader>
             <CardContent>
@@ -443,10 +443,13 @@ function TeacherResponseCard({
                         <p className="text-sm leading-6 text-[var(--student-dashboard-text)]">
                             {recentAction.note}
                         </p>
+                        <p className="text-xs leading-5 text-[var(--student-dashboard-text-muted)]">
+                            ข้อความนี้จะแสดงเฉพาะเมื่อครูเลือกแชร์อัปเดตกลับมาที่ห้องเรียนอย่างตั้งใจ และจะไม่แสดงบริบทภายในของครูหรือระบบ
+                        </p>
                     </div>
                 ) : (
                     <div className="rounded-2xl border border-dashed border-[color:var(--student-dashboard-border)] bg-[var(--student-dashboard-surface)] p-5 text-sm text-[var(--student-dashboard-text-muted)]">
-                        เมื่อครูดำเนินการหรืออัปเดตจากความคิดเห็นของห้องแล้ว นักเรียนจะเห็นอัปเดตล่าสุดที่นี่
+                        เมื่อครูเขียนข้อความตอบกลับและเลือกแชร์ให้นักเรียนเห็น ระบบจะแสดงอัปเดตล่าสุดไว้ที่นี่
                     </div>
                 )}
             </CardContent>

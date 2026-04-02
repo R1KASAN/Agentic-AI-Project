@@ -3,6 +3,12 @@
 เอกสารนี้จัดเป็นสคริปต์รายสไลด์แบบพร้อมวางใน Google Docs ได้ทันที  
 เหมาะสำหรับใช้ประกอบการอัดคลิปนำเสนอโปรเจกต์ **Class Climate Agent**
 
+## ไฟล์ประกอบการส่ง
+
+- Source code: repository โปรเจกต์นี้
+- Dataset: [supabase/seed/presentation-dataset.sql](/Users/ark1/Public/Climate%20Agent/supabase/seed/presentation-dataset.sql)
+- Clip link: วางลิงก์ Google Drive ของคลิปเดโมในเอกสารส่งงานแยกต่างหาก
+
 ---
 
 ## สไลด์ที่ 1: ชื่อระบบ + Logo ระบบ

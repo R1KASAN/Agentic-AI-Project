@@ -12,11 +12,13 @@ import type {
   DailyClimateSummary,
   PolicyLevel,
   Recommendation,
+  RecommendationActionStatus,
   RecommendationConfidenceLabel,
   RecommendationRationaleTag,
   RecommendationViewModel,
   RedactedVoiceRpcRow,
   RedactedVoiceState,
+  StructuredRecommendationPayloadV1,
   StudentFeedbackSummary,
   StudentFeedbackTrend,
 } from "@/types";
@@ -66,6 +68,23 @@ type RecommendationStatusRow = {
   status: string | null;
 };
 
+export const RECOMMENDATION_DETAIL_SELECT_BASE =
+  "id, class_id, content, status, dismissal_reason, action_taken_note, teacher_action_note, teacher_approval_status, communicated_to_students, created_at, updated_at, policy_level, ai_message_draft, actions_json, confidence_score, reasoning, inquiry_mode, fallback_used, priority, alert_sent_at, structured_payload, action_status, teacher_approved_at, teacher_implemented_at, teacher_feedback, feedback_sentiment, feedback_confidence, closure_share_note, not_actioned_at";
+
+export const RECOMMENDATION_DETAIL_SELECT =
+  `${RECOMMENDATION_DETAIL_SELECT_BASE}, restored_from_recommendation_id`;
+
+const RECOMMENDATION_DETAIL_SELECT_LEGACY =
+  "id, class_id, content, status, dismissal_reason, action_taken_note, teacher_action_note, teacher_approval_status, communicated_to_students, created_at, updated_at, policy_level, ai_message_draft, actions_json, confidence_score, reasoning, inquiry_mode, fallback_used, priority, alert_sent_at";
+
+const HISTORY_ACTION_STATUSES: RecommendationActionStatus[] = [
+  "approved",
+  "implemented",
+  "feedback_logged",
+  "dismissed",
+  "not_actioned",
+];
+
 export type TeacherDashboardOverviewClassRow = {
   id: string;
   name: string;
@@ -114,13 +133,198 @@ type AuditSignalRow = {
   class_id: string | null;
   event_type: unknown;
   policy_selected: string | null;
+  policy_applied?: string | null;
   blocked_reason: unknown;
+  skip_reason?: unknown;
   decision_path_json: unknown;
+  action_taken?: unknown;
   created_at?: string | null;
   timestamp?: string | null;
 };
 
 export type TeacherDisplayRiskLevel = PolicyLevel | "NO_DATA";
+
+export function isPendingRecommendation(
+  recommendation: Pick<
+    Recommendation,
+    "status" | "action_status" | "teacher_approval_status"
+  >,
+) {
+  return (
+    recommendation.action_status === "pending" ||
+    recommendation.status === "pending" ||
+    recommendation.teacher_approval_status === "pending"
+  );
+}
+
+export function deriveHistoryStatus(
+  recommendation: Pick<
+    Recommendation,
+    "status" | "action_status" | "teacher_approval_status"
+  >,
+): RecommendationActionStatus | null {
+  if (
+    recommendation.action_status &&
+    HISTORY_ACTION_STATUSES.includes(recommendation.action_status)
+  ) {
+    return recommendation.action_status;
+  }
+
+  if (
+    recommendation.status === "approved" ||
+    recommendation.teacher_approval_status === "approved"
+  ) {
+    return "approved";
+  }
+
+  if (
+    recommendation.status === "dismissed" ||
+    recommendation.teacher_approval_status === "dismissed"
+  ) {
+    return "dismissed";
+  }
+
+  return null;
+}
+
+export function sortRecommendationsByCreatedAtDesc<T extends { created_at: string }>(
+  recommendations: T[],
+) {
+  return [...recommendations].sort(
+    (left, right) =>
+      new Date(right.created_at).getTime() - new Date(left.created_at).getTime(),
+  );
+}
+
+export function filterHistoryRecommendations<T extends Recommendation>(
+  recommendations: T[],
+) {
+  return sortRecommendationsByCreatedAtDesc(
+    recommendations.filter((recommendation) =>
+      deriveHistoryStatus(recommendation) !== null,
+    ),
+  );
+}
+
+function shouldRetryRecommendationDetailQuery(error: {
+  code?: string | null;
+  message?: string | null;
+}) {
+  return error.code === "42703";
+}
+
+// Spec 6: tolerate partially-migrated databases by retrying reads without the
+// restore provenance column until the latest migration is applied everywhere.
+export async function fetchRecommendationRowsByClassId(
+  classId: string,
+  options: {
+    status?: Recommendation["status"];
+    limit?: number;
+  } = {},
+) {
+  const supabase = await createClient();
+
+  const buildQuery = (selectClause: string) => {
+    let query = supabase
+      .from("recommendations")
+      .select(selectClause)
+      .eq("class_id", classId)
+      .order("created_at", { ascending: false });
+
+    if (options.status) {
+      query = query.eq("status", options.status);
+    }
+
+    if (typeof options.limit === "number") {
+      query = query.limit(options.limit);
+    }
+
+    return query;
+  };
+
+  const selectFallbacks = [
+    RECOMMENDATION_DETAIL_SELECT,
+    RECOMMENDATION_DETAIL_SELECT_BASE,
+    RECOMMENDATION_DETAIL_SELECT_LEGACY,
+  ];
+
+  let data: unknown[] | null = null;
+  let error: {
+    code?: string | null;
+    message?: string | null;
+    details?: string | null;
+    hint?: string | null;
+  } | null = null;
+
+  for (const selectClause of selectFallbacks) {
+    const result = await buildQuery(selectClause);
+    data = result.data;
+    error = result.error;
+
+    if (!error) {
+      break;
+    }
+
+    if (!shouldRetryRecommendationDetailQuery(error)) {
+      break;
+    }
+  }
+
+  const normalizedRows = (data ?? []) as unknown as Recommendation[];
+
+  return {
+    data: normalizedRows.map((row) => ({
+      ...row,
+      structured_payload:
+        "structured_payload" in row ? row.structured_payload ?? null : null,
+      action_status: "action_status" in row ? row.action_status ?? null : null,
+      teacher_approved_at:
+        "teacher_approved_at" in row ? row.teacher_approved_at ?? null : null,
+      teacher_implemented_at:
+        "teacher_implemented_at" in row
+          ? row.teacher_implemented_at ?? null
+          : null,
+      teacher_feedback:
+        "teacher_feedback" in row ? row.teacher_feedback ?? null : null,
+      feedback_sentiment:
+        "feedback_sentiment" in row ? row.feedback_sentiment ?? null : null,
+      feedback_confidence:
+        "feedback_confidence" in row ? row.feedback_confidence ?? null : null,
+      closure_share_note:
+        "closure_share_note" in row ? row.closure_share_note ?? null : null,
+      not_actioned_at:
+        "not_actioned_at" in row ? row.not_actioned_at ?? null : null,
+      restored_from_recommendation_id:
+        "restored_from_recommendation_id" in row
+          ? row.restored_from_recommendation_id ?? null
+          : null,
+    })),
+    error,
+  };
+}
+
+export async function listRecommendationHistory(classId: string) {
+  const { data, error } = await fetchRecommendationRowsByClassId(classId);
+
+  if (error) {
+    console.error("[teacher-dashboard][history_list_error]", {
+      classId,
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+    });
+
+    return [] as Recommendation[];
+  }
+
+  return filterHistoryRecommendations((data ?? []) as Recommendation[]);
+}
+
+export async function countRecommendationHistory(classId: string) {
+  const recommendations = await listRecommendationHistory(classId);
+  return recommendations.length;
+}
 
 export function deriveAggregateRiskLevel(
   climate: ClassClimateSummary[],
@@ -230,13 +434,29 @@ function mapAuditRowToSignal(row: AuditSignalRow | null | undefined) {
     return null;
   }
 
-  const eventType = normalizeEventType(row.event_type);
+  const inferredEventType =
+    typeof row.event_type === "string"
+      ? row.event_type
+      : typeof row.skip_reason === "string"
+        ? row.skip_reason.includes("frequency")
+          ? "frequency_guard"
+          : row.skip_reason.includes("k_anonymity")
+            ? "k_anonymity"
+            : typeof row.action_taken === "string"
+              ? row.action_taken
+              : null
+        : typeof row.action_taken === "string"
+          ? row.action_taken
+          : null;
+
+  const eventType = normalizeEventType(inferredEventType);
   const decisionPath =
     row.decision_path_json && typeof row.decision_path_json === "object"
       ? (row.decision_path_json as Record<string, unknown>)
       : null;
   const blockedReason = normalizeBlockedReason(
     row.blocked_reason ??
+      row.skip_reason ??
       decisionPath?.blocked_reason ??
       decisionPath?.reason ??
       null,
@@ -246,10 +466,64 @@ function mapAuditRowToSignal(row: AuditSignalRow | null | undefined) {
   return {
     classId: row.class_id,
     eventType,
-    policySelected: row.policy_selected ?? null,
+    policySelected:
+      row.policy_selected ?? row.policy_applied ?? null,
     blockedReason,
     createdAt: row.created_at ?? row.timestamp ?? null,
   } satisfies AuditSignal;
+}
+
+function isMissingAuditTableError(error: {
+  code?: string | null;
+  message?: string;
+}) {
+  return (
+    error.code === "PGRST205" ||
+    error.code === "42P01" ||
+    error.message?.includes("schema cache") ||
+    error.message?.includes("does not exist") ||
+    error.message?.includes("Could not find the table")
+  );
+}
+
+async function selectLatestAuditSignalRows(
+  client: TeacherDashboardClient,
+  classIds: string[],
+) {
+  const uniqueClassIds = normalizeClassIds(classIds);
+  if (uniqueClassIds.length === 0) {
+    return [] as AuditSignalRow[];
+  }
+
+  const pluralQuery = await client
+    .from("n8n_audit_logs")
+    .select(
+      "class_id, event_type, policy_selected, blocked_reason, decision_path_json, created_at",
+    )
+    .in("class_id", uniqueClassIds)
+    .order("created_at", { ascending: false });
+
+  if (!pluralQuery.error) {
+    return (pluralQuery.data ?? []) as AuditSignalRow[];
+  }
+
+  if (!isMissingAuditTableError(pluralQuery.error)) {
+    throw pluralQuery.error;
+  }
+
+  const singularQuery = await client
+    .from("n8n_audit_log")
+    .select(
+      "class_id, policy_applied, skip_reason, decision_path_json, timestamp, action_taken",
+    )
+    .in("class_id", uniqueClassIds)
+    .order("timestamp", { ascending: false });
+
+  if (singularQuery.error) {
+    throw singularQuery.error;
+  }
+
+  return (singularQuery.data ?? []) as AuditSignalRow[];
 }
 
 async function getDashboardRpcClient(supabase?: TeacherDashboardClient) {
@@ -409,21 +683,179 @@ function buildSummaryLine(
 }
 
 function normalizeActions(actions: Recommendation["actions_json"]): string[] {
+  const unique = new Set<string>();
+
+  function pushAction(action: string | null) {
+    if (!action) {
+      return;
+    }
+
+    const cleaned = action
+      .replace(/\s+/g, " ")
+      .replace(/^[\s"'`•-]+|[\s"'`]+$/g, "")
+      .trim();
+
+    if (!cleaned || unique.has(cleaned)) {
+      return;
+    }
+
+    unique.add(cleaned);
+  }
+
+  function mapMachineAction(action: string, priority?: string | null) {
+    switch (action) {
+      case "teacher_follow_up":
+        return priority === "high"
+          ? [
+              "เปิดพื้นที่คุยสั้น ๆ กับห้องก่อนเริ่มเนื้อหาถัดไป",
+              "เช็กว่านักเรียนติดตรงไหนหรือกังวลเรื่องใดมากที่สุด",
+              "ติดตามผลอีกครั้งในคาบถัดไป",
+            ]
+          : [
+              "เช็กกับห้องสั้น ๆ ว่าช่วงไหนของคาบที่ยังติดขัด",
+              "ปรับจังหวะหรือคำอธิบายให้ช้าลงเล็กน้อย",
+              "ดูผลตอบรับอีกครั้งในคาบถัดไป",
+            ];
+      case "reflective_prompt":
+        return [
+          "เติมบริบทสั้น ๆ ว่าปัญหาน่าจะเกิดช่วงไหนของคาบ",
+          "บอกระบบว่าคุณครูอยากให้ช่วยสรุปหรือช่วยร่างเรื่องใดต่อ",
+          "ค่อยตัดสินใจอีกครั้งหลังได้บริบทเพิ่ม",
+        ];
+      default:
+        return null;
+    }
+  }
+
+  function humanizeActionValue(value: string) {
+    return value
+      .replace(/[_-]+/g, " ")
+      .replace(/\bhigh\b/gi, "เร่งด่วน")
+      .replace(/\bmedium\b/gi, "ควรติดตาม")
+      .replace(/\blow\b/gi, "ติดตามตามปกติ")
+      .trim();
+  }
+
   if (Array.isArray(actions)) {
-    return actions
-      .map((value) =>
-        typeof value === "string" ? value.trim() : String(value),
-      )
-      .filter(Boolean);
+    actions.forEach((value) => {
+      if (typeof value !== "string") {
+        pushAction(String(value));
+        return;
+      }
+
+      const normalized = value.trim();
+      if (!normalized) {
+        return;
+      }
+
+      const machineMatch = normalized.match(
+        /^recommended_action\s*:\s*([a-z_]+)$/i,
+      );
+      if (machineMatch) {
+        mapMachineAction(machineMatch[1]?.toLowerCase() ?? "")?.forEach(
+          pushAction,
+        );
+        return;
+      }
+
+      if (/^priority\s*:/i.test(normalized)) {
+        return;
+      }
+
+      pushAction(normalized);
+    });
+
+    return [...unique];
   }
 
   if (actions && typeof actions === "object") {
-    return Object.entries(actions)
-      .map(([key, value]) => `${key}: ${String(value)}`.trim())
-      .filter(Boolean);
+    const normalizedActions = actions as Record<string, unknown>;
+    const priority =
+      typeof normalizedActions.priority === "string"
+        ? normalizedActions.priority
+        : null;
+    const recommendedAction =
+      typeof normalizedActions.recommended_action === "string"
+        ? normalizedActions.recommended_action
+        : null;
+
+    if (recommendedAction) {
+      mapMachineAction(recommendedAction, priority)?.forEach(pushAction);
+    }
+
+    const nestedSteps = [
+      normalizedActions.steps,
+      normalizedActions.suggestions,
+      normalizedActions.next_steps,
+    ]
+      .filter(Array.isArray)
+      .flatMap((value) => value as unknown[]);
+
+    nestedSteps.forEach((step) => {
+      if (typeof step === "string") {
+        pushAction(step);
+      }
+    });
+
+    Object.entries(normalizedActions).forEach(([key, value]) => {
+      if (
+        key === "recommended_action" ||
+        key === "priority" ||
+        key === "steps" ||
+        key === "suggestions" ||
+        key === "next_steps"
+      ) {
+        return;
+      }
+
+      if (typeof value !== "string") {
+        return;
+      }
+
+      const cleanedValue = value.trim();
+      if (!cleanedValue) {
+        return;
+      }
+
+      if (key === "note" || key === "summary") {
+        pushAction(cleanedValue);
+        return;
+      }
+
+      pushAction(`${humanizeActionValue(key)}: ${humanizeActionValue(cleanedValue)}`);
+    });
+
+    return [...unique];
   }
 
   return [];
+}
+
+function polishTeacherDraftText(
+  text: string | null | undefined,
+  options: { inquiryMode: boolean; fallbackUsed: boolean },
+) {
+  const cleaned = text?.replace(/\s+/g, " ").trim();
+  if (!cleaned) {
+    return null;
+  }
+
+  if (options.inquiryMode) {
+    return "ก่อนเลือกส่งข้อความถึงนักเรียน ลองเติมบริบทสั้น ๆ ว่าช่วงไหนของคาบที่น่ากังวล หรืออยากให้ระบบช่วยสรุปเรื่องใดเพิ่ม";
+  }
+
+  return cleaned
+    .replace(
+      /^ระบบเห็นสัญญาณน่ากังวลต่อเนื่อง\s*/u,
+      "ช่วงนี้ห้องมีสัญญาณที่ควรดูใกล้ชิด ",
+    )
+    .replace(
+      /^ระบบเห็นสัญญาณที่น่ากังวล\s*/u,
+      "ตอนนี้ห้องนี้มีสัญญาณที่ควรติดตาม ",
+    )
+    .replace(/^ระบบจึงเสนอให้ครู\s*/u, "แนะนำให้ครู ")
+    .replace(/^ระบบกำลังชวนให้ครู\s*/u, "ชวนครู ")
+    .trim();
 }
 
 function getConfidenceLabel(
@@ -484,27 +916,27 @@ function buildReasoningSummary(
   const rationaleTag = getRationaleTag(recommendation, climate);
 
   if (recommendation.inquiry_mode || metrics.inquiryModeSuggested) {
-    return "ระบบกำลังชวนให้ครูช่วยเติมบริบทก่อน เพื่อให้คำแนะนำรอบถัดไปสอดคล้องกับห้องนี้มากขึ้น";
+    return "ตอนนี้สัญญาณของห้องยังต้องตีความเพิ่มอีกเล็กน้อย จึงเหมาะกับการเติมบริบทก่อนรีบส่งข้อความตอบกลับ";
   }
 
   if (rationaleTag === "low_mood") {
-    return "สัญญาณรวมของห้องบอกว่าบรรยากาศล่าสุดค่อนข้างอ่อนลง ระบบจึงเสนอฉบับร่างนี้เพื่อช่วยพยุงห้องอย่างระมัดระวัง";
+    return "ภาพรวมอารมณ์ของห้องลดลงชัดในรอบล่าสุด จึงควรเริ่มจากการลดแรงกดดันและเปิดพื้นที่ให้สะท้อนสั้น ๆ";
   }
 
   if (rationaleTag === "pace_friction") {
-    return "มีสัญญาณรวมว่าจังหวะการเรียนอาจตึงเกินไปสำหรับบางช่วง ระบบจึงเสนอฉบับร่างที่ช่วยผ่อนแรงเสียดทาน";
+    return "มีสัญญาณว่าจังหวะของคาบอาจเร็วหรือหนักเกินไปในบางช่วง จึงควรเช็กความเข้าใจและผ่อนจังหวะก่อน";
   }
 
   if (rationaleTag === "fairness_signal") {
-    return "สัญญาณรวมสะท้อนว่าความรู้สึกเรื่องความเป็นธรรมอาจแกว่งในช่วงล่าสุด จึงมีฉบับร่างนี้เพื่อช่วยสื่อสารอย่างนุ่มนวล";
+    return "สัญญาณรวมบอกว่าบางช่วงเด็กอาจรู้สึกว่าโอกาสหรือความชัดเจนยังไม่เท่ากัน จึงควรสื่อสารให้ชัดและเช็กมุมมองของห้องเพิ่ม";
   }
 
   if (rationaleTag === "trend_shift") {
-    return "ระบบเห็นการเปลี่ยนแปลงของแนวโน้มรวมเมื่อเทียบกับรอบก่อน จึงเสนอฉบับร่างนี้เพื่อให้ครูติดตามแบบทันจังหวะ";
+    return "แนวโน้มของห้องเปลี่ยนจากรอบก่อนค่อนข้างชัด จึงควรใช้ข้อความนี้เป็นจุดตั้งต้นเพื่อติดตามให้ทันจังหวะ";
   }
 
   if (recommendation.fallback_used) {
-    return "ฉบับร่างนี้อิงกฎความปลอดภัยและสัญญาณรวมของห้อง เพื่อให้ยังคงได้ข้อเสนอที่พอใช้ได้แม้ความมั่นใจของโมเดลไม่สูงมาก";
+    return "รอบนี้ระบบสรุปข้อความตั้งต้นจากบริบทรวมล่าสุด เพื่อให้ครูมีจุดเริ่มต้นที่อ่านง่ายก่อนปรับใช้จริง";
   }
 
   if (recommendation.reasoning) {
@@ -512,14 +944,163 @@ function buildReasoningSummary(
       .replace(/\s+/g, " ")
       .replace(/^[\s"'`]+|[\s"'`]+$/g, "")
       .slice(0, 180);
-    return compact || null;
+    return compact
+      ? compact
+          .replace(/^ระบบเห็น/u, "ตอนนี้")
+          .replace(/^ระบบ/u, "ภาพรวมรอบนี้")
+      : null;
   }
 
   if (latestWeek?.avg_mood !== null && latestWeek?.avg_mood !== undefined) {
-    return "ฉบับร่างนี้อ้างอิงสัญญาณรวมล่าสุดของห้อง และพยายามเสนอข้อความที่เหมาะกับระดับความเสี่ยงปัจจุบัน";
+    return "ข้อความนี้อ้างอิงสัญญาณรวมล่าสุดของห้อง และตั้งใจช่วยให้ครูตอบสนองได้เหมาะกับระดับความเสี่ยงตอนนี้";
   }
 
   return null;
+}
+
+function parseStructuredPayload(
+  value: unknown,
+): StructuredRecommendationPayloadV1 | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const payload = value as Partial<StructuredRecommendationPayloadV1>;
+  if (
+    payload.version !== 1 ||
+    (payload.mode !== "action" && payload.mode !== "inquiry") ||
+    (payload.source !== "llm" && payload.source !== "fallback") ||
+    typeof payload.teacherSummary !== "string" ||
+    typeof payload.situationHypothesis !== "string" ||
+    typeof payload.recommendedTeacherMove !== "string" ||
+    !Array.isArray(payload.teacherActionPlan) ||
+    !Array.isArray(payload.watchSignals) ||
+    typeof payload.whyThisHelps !== "string"
+  ) {
+    return null;
+  }
+
+  return {
+    version: 1,
+    mode: payload.mode,
+    source: payload.source,
+    teacherSummary: payload.teacherSummary,
+    situationHypothesis: payload.situationHypothesis,
+    recommendedTeacherMove: payload.recommendedTeacherMove,
+    studentMessageDraft:
+      typeof payload.studentMessageDraft === "string"
+        ? payload.studentMessageDraft
+        : null,
+    teacherActionPlan: payload.teacherActionPlan
+      .filter((step): step is string => typeof step === "string" && step.length > 0)
+      .slice(0, 3),
+    watchSignals: payload.watchSignals
+      .filter(
+        (signal): signal is string => typeof signal === "string" && signal.length > 0,
+      )
+      .slice(0, 3),
+    whyThisHelps: payload.whyThisHelps,
+    postClassReflectionPrompt:
+      typeof payload.postClassReflectionPrompt === "string"
+        ? payload.postClassReflectionPrompt
+        : null,
+  };
+}
+
+function deriveActionStatus(
+  recommendation: Recommendation,
+): RecommendationActionStatus {
+  if (isPendingRecommendation(recommendation)) {
+    return "pending";
+  }
+
+  const historyDisplayStatus = deriveHistoryStatus(recommendation);
+  if (historyDisplayStatus) {
+    return historyDisplayStatus;
+  }
+
+  return "pending";
+}
+
+// Spec 2/6: legacy recommendations are upgraded into the same dual-output shape at render time.
+function buildLegacyStructuredPayload(
+  recommendation: Recommendation,
+  climate: ClassClimateSummary[],
+  metrics: ClassMetrics,
+): StructuredRecommendationPayloadV1 {
+  const inquiryMode =
+    recommendation.inquiry_mode === true || metrics.inquiryModeSuggested;
+  const reasoningSummary =
+    buildReasoningSummary(recommendation, climate, metrics) ??
+    "ระบบอ่านบริบทรวมของห้องแล้ว และสรุปเป็นข้อความตั้งต้นให้ครูใช้ต่อได้";
+  const polishedDraft =
+    polishTeacherDraftText(
+      recommendation.ai_message_draft ?? recommendation.content ?? null,
+      {
+        inquiryMode,
+        fallbackUsed: recommendation.fallback_used === true,
+      },
+    ) ?? "ยังไม่มีข้อความตั้งต้นในรอบนี้";
+  const teacherPlan = normalizeActions(recommendation.actions_json);
+
+  if (inquiryMode) {
+    return {
+      version: 1,
+      mode: "inquiry",
+      source: recommendation.fallback_used ? "fallback" : "llm",
+      teacherSummary: "สัญญาณรวมของห้องยังต้องเติมบริบทจากครูอีกเล็กน้อยก่อนตัดสินใจส่งข้อความถึงนักเรียน",
+      situationHypothesis:
+        "ข้อมูลรวมเริ่มบอกว่าห้องมีแรงตึงบางช่วง แต่ยังไม่พอจะชี้จุดที่ควรแก้ก่อนอย่างมั่นใจ",
+      recommendedTeacherMove: "เติมบริบทสั้น ๆ ว่าปัญหาน่าจะเกิดช่วงไหนของคาบ",
+      studentMessageDraft: null,
+      teacherActionPlan:
+        teacherPlan.length > 0
+          ? teacherPlan
+          : [
+              "เติมบริบทสั้น ๆ ว่าปัญหาน่าจะเกิดช่วงไหนของคาบ",
+              "บอกระบบว่าคุณครูอยากให้ช่วยต่อเรื่องใด",
+              "ค่อยตัดสินใจอีกครั้งหลังได้บริบทเพิ่ม",
+            ],
+      watchSignals: [
+        "ช่วงที่เด็กเริ่มเงียบพร้อมกัน",
+        "กิจกรรมที่ทำให้เด็กถามน้อยลง",
+        "จังหวะที่ครูรู้สึกว่าห้องเริ่มหลุดจากการมีส่วนร่วม",
+      ],
+      whyThisHelps: reasoningSummary,
+      postClassReflectionPrompt: null,
+    };
+  }
+
+  return {
+    version: 1,
+    mode: "action",
+    source: recommendation.fallback_used ? "fallback" : "llm",
+    teacherSummary: reasoningSummary,
+    situationHypothesis:
+      buildReasoningSummary(recommendation, climate, metrics) ??
+      "ห้องนี้น่าจะกำลังมีแรงตึงบางช่วงของคาบและควรเริ่มจากการเช็กความเข้าใจก่อน",
+    recommendedTeacherMove:
+      teacherPlan[0] ?? "เริ่มคาบถัดไปด้วยการเช็กอินสั้น ๆ ก่อนเดินเนื้อหา",
+    studentMessageDraft: polishedDraft,
+    teacherActionPlan:
+      teacherPlan.length > 0
+        ? teacherPlan
+        : [
+            "เปิดช่วงเช็กอินสั้น ๆ ก่อนเริ่มเนื้อหาใหม่",
+            "เช็กว่านักเรียนติดตรงไหนหรือกังวลเรื่องใดมากที่สุด",
+            "ติดตามผลอีกครั้งในคาบถัดไป",
+          ],
+    watchSignals: [
+      "นักเรียนเริ่มถามหรือมีส่วนร่วมมากขึ้นหรือไม่",
+      "บรรยากาศช่วงต้นคาบผ่อนลงหรือไม่",
+      "คำถามเดิมยังกลับมาซ้ำในคาบถัดไปหรือไม่",
+    ],
+    whyThisHelps:
+      buildReasoningSummary(recommendation, climate, metrics) ??
+      "การเปิดพื้นที่คุยสั้น ๆ และผ่อนจังหวะช่วงต้นคาบช่วยลดแรงกดดันและทำให้ครูเห็นจุดที่ควรช่วยได้เร็วขึ้น",
+    postClassReflectionPrompt:
+      "หลังลองใช้แล้ว เด็กตอบสนองอย่างไร และช่วงไหนของคาบที่ยังควรปรับอีก",
+  };
 }
 
 export function mapRecommendationToViewModel(
@@ -531,20 +1112,42 @@ export function mapRecommendationToViewModel(
     typeof recommendation.confidence_score === "number"
       ? recommendation.confidence_score
       : null;
+  const actionStatus = deriveActionStatus(recommendation);
+  const historyDisplayStatus = deriveHistoryStatus(recommendation);
+  const structuredPayload =
+    parseStructuredPayload(recommendation.structured_payload) ??
+    buildLegacyStructuredPayload(recommendation, climate, metrics);
+  const teacherPlan =
+    structuredPayload.teacherActionPlan.length > 0
+      ? structuredPayload.teacherActionPlan
+      : normalizeActions(recommendation.actions_json);
+
+  const primaryStudentDraft =
+    structuredPayload.studentMessageDraft ??
+    polishTeacherDraftText(
+      recommendation.ai_message_draft ?? recommendation.content ?? null,
+      {
+        inquiryMode:
+          recommendation.inquiry_mode === true || metrics.inquiryModeSuggested,
+        fallbackUsed: recommendation.fallback_used === true,
+      },
+    );
 
   return {
     id: recommendation.id,
     classId: recommendation.class_id,
     status: recommendation.status,
+    actionStatus,
+    historyDisplayStatus,
+    isActionableDraft: isPendingRecommendation(recommendation),
     createdAt: recommendation.created_at,
     policyLevel: recommendation.policy_level ?? null,
     priority: recommendation.priority ?? null,
     inquiryMode:
       recommendation.inquiry_mode === true || metrics.inquiryModeSuggested,
     fallbackUsed: recommendation.fallback_used === true,
-    aiMessageDraft:
-      recommendation.ai_message_draft ?? recommendation.content ?? null,
-    actions: normalizeActions(recommendation.actions_json),
+    aiMessageDraft: primaryStudentDraft,
+    actions: teacherPlan,
     confidenceScore,
     confidenceLabel: getConfidenceLabel(confidenceScore),
     reasoningSummary: buildReasoningSummary(recommendation, climate, metrics),
@@ -554,6 +1157,19 @@ export function mapRecommendationToViewModel(
       recommendation.teacher_action_note ??
       recommendation.action_taken_note ??
       null,
+    structuredPayload,
+    teacherApprovedAt: recommendation.teacher_approved_at ?? null,
+    teacherImplementedAt: recommendation.teacher_implemented_at ?? null,
+    teacherFeedback: recommendation.teacher_feedback ?? null,
+    feedbackSentiment: recommendation.feedback_sentiment ?? null,
+    closureShareNote: recommendation.closure_share_note ?? null,
+    restoredFromRecommendationId:
+      recommendation.restored_from_recommendation_id ?? null,
+    studentFacingDraft: primaryStudentDraft,
+    teacherPlan,
+    watchSignals: structuredPayload.watchSignals,
+    whyThisHelps: structuredPayload.whyThisHelps,
+    postClassReflectionPrompt: structuredPayload.postClassReflectionPrompt,
   };
 }
 
@@ -707,36 +1323,45 @@ export function buildTeacherActionContext(
   if (pendingRecommendation) {
     return {
       mode: "pending",
-      title: "ฉบับร่างที่รออนุมัติ",
+      title: "ข้อเสนอแนะที่ครูใช้ตัดสินใจได้",
       summary:
+        pendingRecommendation.structuredPayload?.teacherSummary ??
         pendingRecommendation.reasoningSummary ??
         "Agentic AI สร้างฉบับร่างไว้แล้ว และกำลังรอให้ครูตรวจสอบก่อนส่งต่อ",
       draftText:
+        pendingRecommendation.studentFacingDraft ??
         pendingRecommendation.aiMessageDraft ??
         pendingRecommendation.reasoningSummary ??
         null,
       actionContext:
-        pendingRecommendation.reasoningSummary ?? feedbackSummary.summaryLine,
+        pendingRecommendation.structuredPayload?.recommendedTeacherMove ??
+        pendingRecommendation.reasoningSummary ??
+        feedbackSummary.summaryLine,
       actions:
-        pendingRecommendation.actions.length > 0
-          ? pendingRecommendation.actions
+        pendingRecommendation.teacherPlan.length > 0
+          ? pendingRecommendation.teacherPlan
           : buildFallbackTeacherActions(riskLevel, blockedReason),
-      sourceLabel: "Agentic AI draft",
+      sourceLabel:
+        pendingRecommendation.structuredPayload?.source === "fallback"
+          ? "ข้อความและแผนครูจาก fallback planner"
+          : "ข้อความและแผนครูจาก Agentic AI",
     };
   }
 
   if (riskLevel === "WARNING" || riskLevel === "CRITICAL") {
     const draftText =
+      referenceRecommendation?.studentFacingDraft ??
       referenceRecommendation?.aiMessageDraft ??
       buildFallbackTeacherDraft(feedbackSummary, riskLevel, blockedReason);
     const actionContext =
+      referenceRecommendation?.structuredPayload?.recommendedTeacherMove ??
       referenceRecommendation?.reasoningSummary ??
       buildFallbackTeacherDraft(feedbackSummary, riskLevel, blockedReason);
 
     return {
       mode: "fallback",
       title: referenceRecommendation
-        ? "ฉบับร่างล่าสุดจาก Agentic AI"
+        ? "ข้อความร่างจากรอบก่อน"
         : "สรุปจากบริบทล่าสุด",
       summary:
         blockedReason === "frequency_limit_exceeded"
@@ -745,12 +1370,12 @@ export function buildTeacherActionContext(
       draftText,
       actionContext,
       actions: referenceRecommendation?.actions.length
-        ? referenceRecommendation.actions
+        ? referenceRecommendation.teacherPlan
         : buildFallbackTeacherActions(riskLevel, blockedReason),
       sourceLabel: referenceRecommendation
         ? referenceRecommendation.status === "approved"
-          ? "ฉบับร่างล่าสุดที่เคยอนุมัติ"
-          : "ฉบับร่างล่าสุดจากรอบก่อน"
+          ? "ข้อความที่เคยอนุมัติไว้ก่อนหน้า"
+          : "ข้อความร่างจากรอบก่อน ยังไม่ใช่ฉบับร่างใหม่"
         : "fallback จากบริบทล่าสุด",
     };
   }
@@ -875,26 +1500,9 @@ export async function getClassRedactedVoice(
 }
 
 export async function getClassMetrics(classId: string): Promise<ClassMetrics> {
-  const supabase = await createClient();
-
-  const { data, error } = await supabase.rpc("get_teacher_metrics", {
-    p_class_id: classId,
-    p_lookback_days: 30,
-  });
-
-  if (error) {
-    console.error("[teacher-dashboard][metrics_error]", {
-      classId,
-      message: error.message,
-      code: error.code,
-      details: error.details,
-      hint: error.hint,
-    });
-    return defaultMetrics(classId);
-  }
-
-  const row = (Array.isArray(data) ? data[0] : data) as MetricsRpcRow | null;
-  return mapMetricsRowToClassMetrics(row, classId);
+  const rpcClient = await getDashboardRpcClient();
+  const batchData = await getClassMetricsBatch([classId], rpcClient);
+  return batchData[classId] ?? defaultMetrics(classId);
 }
 
 export async function getLatestAuditSignal(
@@ -902,32 +1510,25 @@ export async function getLatestAuditSignal(
 ): Promise<AuditSignal | null> {
   const supabase = await createClient();
 
-  const { data, error } = await supabase
-    .from("n8n_audit_logs")
-    .select(
-      "class_id, event_type, policy_selected, blocked_reason, decision_path_json, created_at",
-    )
-    .eq("class_id", classId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (error) {
+  try {
+    const rows = await selectLatestAuditSignalRows(supabase, [classId]);
+    return mapAuditRowToSignal(rows[0]);
+  } catch (error) {
+    const typedError = error as {
+      message?: string;
+      code?: string | null;
+      details?: string | null;
+      hint?: string | null;
+    };
     console.error("[teacher-dashboard][audit_error]", {
       classId,
-      message: error.message,
-      code: error.code,
-      details: error.details,
-      hint: error.hint,
+      message: typedError.message,
+      code: typedError.code,
+      details: typedError.details,
+      hint: typedError.hint,
     });
     return null;
   }
-
-  if (!data) {
-    return null;
-  }
-
-  return mapAuditRowToSignal(data as AuditSignalRow);
 }
 
 async function getClassMetricsBatch(
@@ -991,27 +1592,29 @@ async function getLatestAuditSignalsByClassIds(
   }
 
   const client = supabase ?? (await createClient());
-  const { data, error } = await client
-    .from("n8n_audit_logs")
-    .select(
-      "class_id, event_type, policy_selected, blocked_reason, decision_path_json, created_at",
-    )
-    .in("class_id", uniqueClassIds)
-    .order("created_at", { ascending: false });
+  let data: AuditSignalRow[];
 
-  if (error) {
+  try {
+    data = await selectLatestAuditSignalRows(client, uniqueClassIds);
+  } catch (error) {
+    const typedError = error as {
+      message?: string;
+      code?: string | null;
+      details?: string | null;
+      hint?: string | null;
+    };
     console.error("[teacher-dashboard][audit_batch_error]", {
       classIds: uniqueClassIds,
-      message: error.message,
-      code: error.code,
-      details: error.details,
-      hint: error.hint,
+      message: typedError.message,
+      code: typedError.code,
+      details: typedError.details,
+      hint: typedError.hint,
     });
     return defaultAuditByClassIds(uniqueClassIds);
   }
 
   const latestByClassId = new Map<string, AuditSignalRow>();
-  for (const row of (data ?? []) as AuditSignalRow[]) {
+  for (const row of data) {
     if (typeof row.class_id !== "string" || latestByClassId.has(row.class_id)) {
       continue;
     }

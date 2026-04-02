@@ -9,6 +9,7 @@ import {
   Check,
   Clock,
   HelpCircle,
+  History,
   Loader2,
   Pencil,
   Sparkles,
@@ -22,8 +23,24 @@ import type {
 
 interface RecommendationListProps {
   recommendations: RecommendationViewModel[];
-  onApprove?: (id: string, note: string, editedDraft: string) => Promise<void>;
+  onApprove?: (
+    id: string,
+    note: string,
+    editedDraft: string,
+    shareWithStudents: boolean,
+  ) => Promise<void>;
   onDismiss?: (id: string, reason: string) => Promise<void>;
+  onImplemented?: (
+    id: string,
+    closureShareNote: string,
+    shareWithStudents: boolean,
+  ) => Promise<void>;
+  onFeedback?: (id: string, feedback: string) => Promise<void>;
+  onNotActioned?: (id: string, reason: string) => Promise<void>;
+  onRestore?: (id: string) => Promise<void>;
+  enableDecisionWorkspace?: boolean;
+  enableStructuredRecommendationPayload?: boolean;
+  historyMode?: boolean;
   emptyStateTitle?: string;
   emptyStateBody?: string;
 }
@@ -34,7 +51,10 @@ const STATUS_BADGES: Record<
 > = {
   pending: { label: "รออนุมัติ", variant: "warning" },
   approved: { label: "อนุมัติแล้ว", variant: "success" },
+  implemented: { label: "ลองใช้แล้ว", variant: "success" },
+  feedback_logged: { label: "สะท้อนผลแล้ว", variant: "default" },
   dismissed: { label: "ข้ามแล้ว", variant: "secondary" },
+  not_actioned: { label: "ยังไม่ใช้ตอนนั้น", variant: "secondary" },
   sent: { label: "ส่งแล้ว", variant: "default" },
 };
 
@@ -64,12 +84,12 @@ const POLICY_BADGES: Record<
 };
 
 const RATIONALE_LABELS: Record<string, string> = {
-  trend_shift: "แนวโน้มเปลี่ยน",
-  low_mood: "บรรยากาศอ่อนลง",
-  pace_friction: "จังหวะการเรียนตึง",
-  fairness_signal: "สัญญาณเรื่องความเป็นธรรม",
+  trend_shift: "แนวโน้มเปลี่ยนชัด",
+  low_mood: "อารมณ์ห้องอ่อนลง",
+  pace_friction: "จังหวะคาบตึง",
+  fairness_signal: "ควรเช็กความรู้สึกเรื่องความเป็นธรรม",
   mixed_signal: "หลายสัญญาณร่วมกัน",
-  unknown: "สัญญาณรวมของห้อง",
+  unknown: "ภาพรวมของห้อง",
 };
 
 const MAX_QUICK_ACTION_LENGTH = 48;
@@ -148,6 +168,13 @@ export function RecommendationList({
   recommendations,
   onApprove,
   onDismiss,
+  onImplemented,
+  onFeedback,
+  onNotActioned,
+  onRestore,
+  enableDecisionWorkspace = false,
+  enableStructuredRecommendationPayload = false,
+  historyMode = false,
   emptyStateTitle = "ยังไม่มีประวัติข้อความรออนุมัติ",
   emptyStateBody = "ฉบับร่างและการตัดสินของครูจะแสดงที่นี่เมื่อห้องมีสัญญาณเพียงพอ",
 }: RecommendationListProps) {
@@ -175,6 +202,15 @@ export function RecommendationList({
           recommendation={recommendation}
           onApprove={onApprove}
           onDismiss={onDismiss}
+          onImplemented={onImplemented}
+          onFeedback={onFeedback}
+          onNotActioned={onNotActioned}
+          onRestore={onRestore}
+          enableDecisionWorkspace={enableDecisionWorkspace}
+          enableStructuredRecommendationPayload={
+            enableStructuredRecommendationPayload
+          }
+          historyMode={historyMode}
         />
       ))}
     </div>
@@ -185,32 +221,67 @@ function RecommendationCard({
   recommendation,
   onApprove,
   onDismiss,
+  onImplemented,
+  onFeedback,
+  onNotActioned,
+  onRestore,
+  enableDecisionWorkspace,
+  enableStructuredRecommendationPayload,
+  historyMode = false,
 }: {
   recommendation: RecommendationViewModel;
-  onApprove?: (id: string, note: string, editedDraft: string) => Promise<void>;
+  onApprove?: (
+    id: string,
+    note: string,
+    editedDraft: string,
+    shareWithStudents: boolean,
+  ) => Promise<void>;
   onDismiss?: (id: string, reason: string) => Promise<void>;
+  onImplemented?: (
+    id: string,
+    closureShareNote: string,
+    shareWithStudents: boolean,
+  ) => Promise<void>;
+  onFeedback?: (id: string, feedback: string) => Promise<void>;
+  onNotActioned?: (id: string, reason: string) => Promise<void>;
+  onRestore?: (id: string) => Promise<void>;
+  enableDecisionWorkspace?: boolean;
+  enableStructuredRecommendationPayload?: boolean;
+  historyMode?: boolean;
 }) {
   const [loading, setLoading] = useState(false);
   const [draftNote, setDraftNote] = useState("");
+  const [feedbackNote, setFeedbackNote] = useState("");
   const [selectedQuickAction, setSelectedQuickAction] = useState<string | null>(
     null,
   );
   const [showAllQuickActions, setShowAllQuickActions] = useState(false);
-  const initialDraft = recommendation.aiMessageDraft ?? "";
+  const initialDraft =
+    recommendation.studentFacingDraft ?? recommendation.aiMessageDraft ?? "";
   const [editableDraft, setEditableDraft] = useState(initialDraft);
   const [draftEditorValue, setDraftEditorValue] = useState(initialDraft);
   const [showInput, setShowInput] = useState<
-    "edit" | "approve" | "dismiss" | null
+    "edit" | "approve" | "dismiss" | "implemented" | "feedback" | "not_actioned" | null
   >(null);
+  const structuredPayload =
+    enableStructuredRecommendationPayload && recommendation.structuredPayload
+      ? recommendation.structuredPayload
+      : null;
+  const isDecisionWorkspace =
+    enableDecisionWorkspace && structuredPayload !== null;
 
-  const status = STATUS_BADGES[recommendation.status] || STATUS_BADGES.pending;
+  const statusKey =
+    recommendation.historyDisplayStatus ??
+    recommendation.actionStatus ??
+    recommendation.status;
+  const status = STATUS_BADGES[statusKey ?? recommendation.status] || STATUS_BADGES.pending;
   const policy = recommendation.policyLevel
     ? POLICY_BADGES[recommendation.policyLevel]
     : null;
-  const isPending = recommendation.status === "pending";
+  const isPending = !historyMode && recommendation.isActionableDraft;
   const isInquiryCard = recommendation.inquiryMode;
   const isDraftEmpty = editableDraft.trim().length === 0;
-  const cannotApprove = isInquiryCard && draftNote.trim().length === 0;
+  const shareWithStudents = !isInquiryCard;
   const confidenceTone = getConfidenceTone(recommendation.confidenceLabel);
   const quickActions = getQuickActions(recommendation);
   const visibleQuickActions = showAllQuickActions
@@ -219,13 +290,50 @@ function RecommendationCard({
   const hasMoreQuickActions =
     quickActions.length > INITIAL_VISIBLE_QUICK_ACTIONS;
 
-  async function handleApprove() {
+  const timelineSteps = [
+    { key: "pending", label: "รอตรวจ" },
+    { key: "approved", label: "ใช้ข้อความนี้" },
+    { key: "implemented", label: "ลองใช้แล้ว" },
+    { key: "feedback_logged", label: "สะท้อนผลแล้ว" },
+  ] as const;
+  const currentTimelineIndex = Math.max(
+    0,
+    timelineSteps.findIndex((step) => step.key === statusKey),
+  );
+
+  async function handleApprove(noteOverride?: string) {
     setLoading(true);
     await (onApprove ?? (async () => {}))(
       recommendation.id,
-      draftNote,
+      noteOverride ?? draftNote,
       editableDraft.trim(),
+      shareWithStudents,
     );
+    setLoading(false);
+    setShowInput(null);
+  }
+
+  async function handleImplemented() {
+    setLoading(true);
+    await (onImplemented ?? (async () => {}))(
+      recommendation.id,
+      draftNote,
+      draftNote.trim().length > 0,
+    );
+    setLoading(false);
+    setShowInput(null);
+  }
+
+  async function handleFeedbackSubmit() {
+    setLoading(true);
+    await (onFeedback ?? (async () => {}))(recommendation.id, feedbackNote);
+    setLoading(false);
+    setShowInput(null);
+  }
+
+  async function handleNotActioned() {
+    setLoading(true);
+    await (onNotActioned ?? (async () => {}))(recommendation.id, draftNote);
     setLoading(false);
     setShowInput(null);
   }
@@ -240,11 +348,6 @@ function RecommendationCard({
   function handleOpenEdit() {
     setDraftEditorValue(editableDraft);
     setShowInput("edit");
-  }
-
-  function handleOpenApprove() {
-    setShowAllQuickActions(false);
-    setShowInput("approve");
   }
 
   function handleSaveDraft() {
@@ -311,7 +414,7 @@ function RecommendationCard({
                     className="border-violet-200 bg-violet-500/10 text-[10px] text-violet-200"
                   >
                     <HelpCircle className="mr-1 h-3 w-3" />
-                    โหมดค้นหาบริบท
+                    ต้องเติมบริบทก่อน
                   </Badge>
                 )}
                 {recommendation.fallbackUsed && (
@@ -320,7 +423,7 @@ function RecommendationCard({
                     className="border-[color:var(--teacher-dashboard-border)] bg-[var(--teacher-dashboard-surface-soft)] text-[10px] text-[var(--teacher-dashboard-text-muted)]"
                   >
                     <Wand2 className="mr-1 h-3 w-3" />
-                    ใช้ safety fallback
+                    สรุปจากบริบทรวมล่าสุด
                   </Badge>
                 )}
                 {recommendation.confidenceLabel && (
@@ -349,25 +452,76 @@ function RecommendationCard({
                 </span>
               </div>
 
-              <p className="text-sm font-medium leading-relaxed text-[var(--teacher-dashboard-text)]">
-                {editableDraft || "ยังไม่มีข้อความร่าง"}
-              </p>
+              {isDecisionWorkspace ? (
+                <div className="space-y-4">
+                  <div className="grid gap-2 sm:grid-cols-4">
+                    {timelineSteps.map((step, index) => {
+                      const isDone = index <= currentTimelineIndex;
+                      return (
+                        <div
+                          key={`${recommendation.id}-${step.key}`}
+                          className={`rounded-2xl border px-3 py-2 text-xs ${
+                            isDone
+                              ? "border-emerald-200 bg-emerald-500/10 text-emerald-100"
+                              : "border-[color:var(--teacher-dashboard-border)] bg-[var(--teacher-dashboard-surface-soft)] text-[var(--teacher-dashboard-text-muted)]"
+                          }`}
+                        >
+                          {step.label}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <WorkspaceSection
+                    title="สถานการณ์ของห้องตอนนี้"
+                    body={structuredPayload.teacherSummary}
+                  />
+                  <WorkspaceSection
+                    title="ข้อเสนอหลักของระบบ"
+                    body={`${structuredPayload.recommendedTeacherMove} ${structuredPayload.whyThisHelps}`.trim()}
+                  />
+                  <WorkspaceSection
+                    title={
+                      isInquiryCard
+                        ? "บริบทที่ครูเติมเพิ่ม"
+                        : "ข้อความที่จะตอบสนองกับนักเรียน"
+                    }
+                    body={
+                      editableDraft ??
+                      structuredPayload.studentMessageDraft ??
+                      "รอให้ครูเติมข้อความที่ต้องการสื่อสารก่อน"
+                    }
+                  />
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--teacher-dashboard-text-muted)]">
+                    {isInquiryCard
+                      ? "คำถามตั้งต้นสำหรับเก็บบริบท"
+                      : "ข้อความตั้งต้นที่ครูปรับและใช้ต่อได้"}
+                  </p>
+                  <div className="rounded-[24px] border border-[color:var(--teacher-dashboard-border)] bg-[var(--teacher-dashboard-surface-soft)] px-4 py-3">
+                    <p className="text-sm font-medium leading-relaxed text-[var(--teacher-dashboard-text)]">
+                      {editableDraft || "ยังไม่มีข้อความตั้งต้นในรอบนี้"}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
         {isInquiryCard && (
           <div className="rounded-[24px] border border-[rgba(167,139,250,0.28)] bg-violet-500/10 px-4 py-3 text-sm leading-6 text-violet-100">
-            ระบบกำลังใช้โหมดค้นหาบริบท
-            เพราะสัญญาณจากการตอบสนองก่อนหน้าบอกว่าควรชวนครูสะท้อนบริบทเพิ่มเติม
-            แทนการเร่งเสนอทางแก้
+            รอบนี้ยังเหมาะกับการเก็บบริบทจากครูก่อน
+            เพื่อให้คำแนะนำรอบถัดไปตรงกับสถานการณ์ของห้องมากขึ้น
           </div>
         )}
 
-        {recommendation.reasoningSummary && (
+        {recommendation.reasoningSummary && !isDecisionWorkspace && (
           <div className="teacher-surface-soft rounded-[24px] border px-4 py-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--teacher-dashboard-text-muted)]">
-              เหตุผลที่ระบบเสนอฉบับร่างนี้
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--teacher-dashboard-text-muted)]">
+              สรุปที่ควรรู้ตอนนี้
             </p>
             <p className="mt-2 text-sm leading-relaxed text-[var(--teacher-dashboard-text)]">
               {recommendation.reasoningSummary}
@@ -375,13 +529,18 @@ function RecommendationCard({
           </div>
         )}
 
-        {recommendation.actions.length > 0 && (
+        {(isDecisionWorkspace
+          ? recommendation.teacherPlan.length > 0
+          : recommendation.actions.length > 0) && (
           <div className="teacher-surface-soft rounded-[24px] border px-4 py-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--teacher-dashboard-text-muted)]">
-              ตัวอย่างแนวทางตอบสนอง
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--teacher-dashboard-text-muted)]">
+              แผนที่ครูลองใช้ได้ทันที
             </p>
             <ul className="mt-2 space-y-2 text-sm text-[var(--teacher-dashboard-text)]">
-              {recommendation.actions.map((action, index) => (
+              {(isDecisionWorkspace
+                ? recommendation.teacherPlan
+                : recommendation.actions
+              ).map((action, index) => (
                 <li
                   key={`${recommendation.id}-${index}`}
                   className="flex gap-2"
@@ -394,16 +553,31 @@ function RecommendationCard({
           </div>
         )}
 
+        {isDecisionWorkspace && recommendation.watchSignals.length > 0 && (
+          <div className="teacher-surface-soft rounded-[24px] border px-4 py-3">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--teacher-dashboard-text-muted)]">
+              หลังคาบนี้ช่วยสังเกตเพิ่ม
+            </p>
+            <ul className="mt-2 space-y-2 text-sm text-[var(--teacher-dashboard-text)]">
+              {recommendation.watchSignals.map((signal, index) => (
+                <li key={`${recommendation.id}-watch-${index}`} className="flex gap-2">
+                  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-teal-300" />
+                  <span>{signal}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {recommendation.fallbackUsed && (
           <div className="teacher-surface-soft rounded-[24px] border border-dashed px-4 py-3 text-sm leading-6 text-[var(--teacher-dashboard-text-muted)]">
-            ฉบับร่างนี้มาจาก safety fallback แบบ rules-assisted
-            เพื่อคงคุณภาพขั้นต่ำของข้อเสนอ แม้ความมั่นใจของโมเดลจะยังไม่สูงมาก
+            ข้อความนี้สรุปจากบริบทล่าสุดของห้อง เพื่อให้ครูมีข้อความตั้งต้นที่อ่านง่ายก่อนปรับใช้จริง
           </div>
         )}
 
         {recommendation.teacherActionNote && (
           <div className="teacher-surface-soft rounded-[24px] p-3 text-xs text-[var(--teacher-dashboard-text-muted)]">
-            <span className="font-medium">บันทึกการตอบสนองของครู:</span>{" "}
+            <span className="font-medium">สิ่งที่ครูเคยบันทึกไว้:</span>{" "}
             {recommendation.teacherActionNote}
           </div>
         )}
@@ -421,29 +595,37 @@ function RecommendationCard({
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--teacher-dashboard-text-muted)]">
                   <Pencil className="h-3.5 w-3.5" />
-                  ข้อความที่จะสื่อสารกับนักเรียน
+                    {isInquiryCard
+                      ? "คำถามตั้งต้นสำหรับเก็บบริบท"
+                      : "ข้อความที่จะตอบสนองกับนักเรียน"}
                 </div>
                 <Textarea
                   value={draftEditorValue}
                   onChange={(event) => setDraftEditorValue(event.target.value)}
-                  placeholder="ปรับข้อความที่ต้องการสื่อสารกับนักเรียนก่อนอนุมัติ…"
+                  placeholder={
+                    isInquiryCard
+                      ? "ปรับคำถามหรือข้อความที่ใช้เก็บบริบทก่อนบันทึก…"
+                      : "ปรับข้อความที่จะตอบสนองกับนักเรียนให้เหมาะกับห้องนี้…"
+                  }
                   rows={4}
                   className="min-h-28 rounded-2xl border-[color:var(--teacher-dashboard-border)] bg-[var(--teacher-dashboard-surface)] text-[var(--teacher-dashboard-text)] placeholder:text-[var(--teacher-dashboard-text-muted)]"
                 />
                 <p className="text-xs text-[var(--teacher-dashboard-text-muted)]">
-                  กดบันทึกเพื่ออัปเดตข้อความที่จะสื่อสารบนการ์ดนี้ก่อนค่อยไปขั้นอนุมัติ
+                  {isInquiryCard
+                    ? "บันทึกเพื่อปรับถ้อยคำของคำถามก่อนเก็บบริบทภายใน"
+                    : "บันทึกเพื่อปรับข้อความที่จะส่งต่อให้นักเรียนก่อนอนุมัติ"}
                 </p>
               </div>
             )}
-            {showInput !== "edit" && (
+            {showInput !== "edit" && showInput !== "feedback" && (
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--teacher-dashboard-text-muted)]">
                   {showInput === "approve" ? (
                     <>
                       <Check className="h-3.5 w-3.5" />
                       {isInquiryCard
-                        ? "บริบทเพิ่มเติมจากครู"
-                        : "บันทึกการตอบสนองของครู"}
+                        ? "บริบทที่ครูอยากเติมเพิ่ม"
+                        : "สิ่งที่ครูจะสื่อสารหรือทำต่อ"}
                     </>
                   ) : (
                     <>
@@ -456,8 +638,8 @@ function RecommendationCard({
                   <>
                     <p className="text-xs text-[var(--teacher-dashboard-text-muted)]">
                       {isInquiryCard
-                        ? "ระบบจะใช้บริบทนี้ช่วยตีความสัญญาณของห้อง"
-                        : "เลือกตัวอย่างแล้วปรับเพิ่มได้"}
+                        ? "ข้อมูลส่วนนี้ใช้เป็นบริบทภายในเพื่อช่วยให้ระบบตีความห้องได้ตรงขึ้น และจะไม่แสดงให้นักเรียนเห็น"
+                        : "ถ้าใส่ข้อความนี้ นักเรียนจะเห็นในส่วนอัปเดตจากครูของหน้าฟีดแบ็ก"}
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {visibleQuickActions.map((action) => {
@@ -515,11 +697,31 @@ function RecommendationCard({
                   value={draftNote}
                   onChange={(event) => setDraftNote(event.target.value)}
                   placeholder={
-                    showInput === "approve"
+                    showInput === "approve" || showInput === "implemented"
                       ? isInquiryCard
-                        ? "ระบุบริบทเพิ่มเติมที่อยากให้ระบบรับรู้ก่อนอนุมัติ…"
-                        : "ระบุว่าคุณจะตอบสนองต่อเรื่องนี้อย่างไร…"
+                        ? "เติมบริบทสั้น ๆ ว่าปัญหาน่าจะเกิดช่วงไหนของคาบ หรืออยากให้ระบบช่วยอะไรต่อ…"
+                        : showInput === "implemented"
+                          ? "ถ้าต้องการแชร์ผลที่ลองใช้แล้วให้นักเรียนเห็น ให้พิมพ์ข้อความสั้น ๆ ตรงนี้…"
+                          : "ระบุว่าคุณครูจะตอบสนองหรือสื่อสารกับห้องนี้อย่างไร…"
                       : "ระบุเหตุผลที่ปฏิเสธฉบับร่างนี้…"
+                  }
+                  rows={3}
+                  className="min-h-24 rounded-2xl border-[color:var(--teacher-dashboard-border)] bg-[var(--teacher-dashboard-surface)] text-[var(--teacher-dashboard-text)] placeholder:text-[var(--teacher-dashboard-text-muted)]"
+                />
+              </div>
+            )}
+            {showInput === "feedback" && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--teacher-dashboard-text-muted)]">
+                  <Check className="h-3.5 w-3.5" />
+                  หลังคาบนี้ช่วยสะท้อนผลสั้น ๆ
+                </div>
+                <Textarea
+                  value={feedbackNote}
+                  onChange={(event) => setFeedbackNote(event.target.value)}
+                  placeholder={
+                    recommendation.postClassReflectionPrompt ??
+                    "หลังลองใช้แล้ว เด็กตอบสนองอย่างไร และยังควรปรับอะไรต่อ"
                   }
                   rows={3}
                   className="min-h-24 rounded-2xl border-[color:var(--teacher-dashboard-border)] bg-[var(--teacher-dashboard-surface)] text-[var(--teacher-dashboard-text)] placeholder:text-[var(--teacher-dashboard-text-muted)]"
@@ -537,22 +739,30 @@ function RecommendationCard({
                 size="sm"
                 onClick={
                   showInput === "edit"
-                    ? handleSaveDraft
+                  ? handleSaveDraft
                     : showInput === "approve"
-                      ? handleApprove
+                      ? () => handleApprove()
+                      : showInput === "implemented"
+                        ? handleImplemented
+                        : showInput === "feedback"
+                          ? handleFeedbackSubmit
+                          : showInput === "not_actioned"
+                            ? handleNotActioned
                       : handleDismiss
                 }
                 disabled={
                   loading ||
                   ((showInput === "approve" || showInput === "edit") &&
                     isDraftEmpty) ||
-                  (showInput === "approve" && cannotApprove)
+                  (showInput === "feedback" && feedbackNote.trim().length === 0)
                 }
                 className={
-                  showInput === "approve"
+                  showInput === "approve" || showInput === "implemented"
                     ? "bg-emerald-600 text-white hover:bg-emerald-500"
                     : showInput === "edit"
                       ? "bg-sky-600 text-white hover:bg-sky-500"
+                      : showInput === "feedback"
+                        ? "bg-teal-600 text-white hover:bg-teal-500"
                       : "bg-slate-700 text-white hover:bg-slate-600"
                 }
               >
@@ -560,7 +770,17 @@ function RecommendationCard({
                 {showInput === "edit"
                   ? "บันทึก"
                   : showInput === "approve"
-                    ? "ยืนยันการอนุมัติ"
+                    ? isInquiryCard
+                      ? "บันทึกบริบทนี้"
+                      : shareWithStudents
+                        ? "อนุมัติและแชร์ให้นักเรียน"
+                        : "อนุมัติไว้ใช้ภายใน"
+                    : showInput === "implemented"
+                      ? "บันทึกว่าลองใช้แล้ว"
+                      : showInput === "feedback"
+                        ? "บันทึก feedback"
+                        : showInput === "not_actioned"
+                          ? "บันทึกว่ายังไม่ใช้ตอนนี้"
                     : "ยืนยันการข้าม"}
               </Button>
               <Button
@@ -590,16 +810,18 @@ function RecommendationCard({
               onClick={handleOpenEdit}
             >
               <Pencil className="mr-1 h-3.5 w-3.5" />
-              แก้ข้อความที่จะสื่อสาร
+              {isInquiryCard ? "แก้บริบท" : "แก้ข้อความ"}
             </Button>
             <Button
               size="sm"
               variant="outline"
               className="h-11 rounded-2xl border-emerald-200 bg-[var(--teacher-dashboard-surface)] text-emerald-200 hover:bg-[var(--teacher-dashboard-surface-soft)] hover:text-emerald-100"
-              onClick={handleOpenApprove}
+              onClick={() => handleApprove("")}
+              disabled={loading || isDraftEmpty}
             >
+              {loading && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}
               <Check className="mr-1 h-3.5 w-3.5" />
-              {isInquiryCard ? "ส่งต่อพร้อมบริบท" : "อนุมัติ"}
+              {isInquiryCard ? "อนุมัติบริบทนี้" : "อนุมัติ"}
             </Button>
             <Button
               size="sm"
@@ -612,28 +834,96 @@ function RecommendationCard({
             </Button>
           </div>
         )}
+
+        {historyMode && onRestore && (
+          <div className="flex flex-wrap gap-2 pt-1">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-11 rounded-2xl border-sky-200 bg-[var(--teacher-dashboard-surface)] text-sky-200 hover:bg-[var(--teacher-dashboard-surface-soft)] hover:text-sky-100"
+              onClick={async () => {
+                setLoading(true);
+                await onRestore(recommendation.id);
+                setLoading(false);
+              }}
+              disabled={loading}
+            >
+              {loading && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}
+              <History className="mr-1 h-3.5 w-3.5" />
+              Restore ข้อความนี้
+            </Button>
+          </div>
+        )}
+
+        {!historyMode &&
+          !isPending &&
+          recommendation.actionStatus === "approved" &&
+          !showInput && (
+          <div className="flex flex-wrap gap-2 pt-1">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-11 rounded-2xl border-emerald-200 bg-[var(--teacher-dashboard-surface)] text-emerald-200 hover:bg-[var(--teacher-dashboard-surface-soft)] hover:text-emerald-100"
+              onClick={() => setShowInput("implemented")}
+            >
+              <Check className="mr-1 h-3.5 w-3.5" />
+              ทำแล้ว
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-11 rounded-2xl border-[color:var(--teacher-dashboard-border)] bg-[var(--teacher-dashboard-surface)] text-[var(--teacher-dashboard-text-muted)] hover:bg-[var(--teacher-dashboard-surface-soft)] hover:text-[var(--teacher-dashboard-text)]"
+              onClick={() => setShowInput("feedback")}
+            >
+              <Pencil className="mr-1 h-3.5 w-3.5" />
+              ให้ feedback
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-11 rounded-2xl border-[color:var(--teacher-dashboard-border)] bg-[var(--teacher-dashboard-surface)] text-[var(--teacher-dashboard-text-muted)] hover:bg-[var(--teacher-dashboard-surface-soft)] hover:text-[var(--teacher-dashboard-text)]"
+              onClick={() => setShowInput("not_actioned")}
+            >
+              <X className="mr-1 h-3.5 w-3.5" />
+              ยังไม่ใช้ตอนนี้
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
+  );
+}
+
+function WorkspaceSection({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="teacher-surface-soft rounded-[24px] border px-4 py-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--teacher-dashboard-text-muted)]">
+        {title}
+      </p>
+      <p className="mt-2 text-sm leading-relaxed text-[var(--teacher-dashboard-text)]">
+        {body}
+      </p>
+    </div>
   );
 }
 
 function getConfidenceTone(label: RecommendationConfidenceLabel) {
   if (label === "สูง") {
     return {
-      label: "ความมั่นใจสูง",
+      label: "พร้อมใช้ได้ทันที",
       className: "border-emerald-200 bg-emerald-50 text-emerald-700",
     };
   }
 
   if (label === "กลาง") {
     return {
-      label: "ความมั่นใจกลาง",
+      label: "ควรอ่านก่อนใช้",
       className: "border-amber-200 bg-amber-50 text-amber-700",
     };
   }
 
   return {
-    label: "ใช้ด้วยความระวัง",
+    label: "ควรปรับก่อนใช้",
       className: "border-[var(--teacher-dashboard-border)] bg-[var(--teacher-dashboard-surface-soft)] text-[var(--teacher-dashboard-text-muted)]",
   };
 }

@@ -28,7 +28,7 @@ export function AIDraftActionCard({ id, content, category, priority, aiGenerated
         try {
             let res: { success: boolean; error?: string };
             if (status === 'approved' || status === 'edited') {
-                const r = await approveRecommendation(id, newContent || content)
+                const r = await approveRecommendation(id, '', newContent || content, true)
                 res = { success: r.success ?? false, error: r.error }
             } else {
                 const r = await dismissRecommendation(id, dismissalReason || 'Dismissed by Teacher')

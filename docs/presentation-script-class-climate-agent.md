@@ -8,6 +8,7 @@
 **Tech Stack:** Next.js, React, Tailwind CSS, Supabase, n8n, LangChain / Gemini  
 **Dataset:** `supabase/seed/presentation-dataset.sql`
 **Demo Setup:** apply Supabase migrations, provision demo auth accounts, then seed the canonical demo bundle from `supabase/seed/presentation-dataset.sql`
+**Submission Pack:** source code + dataset seed, plus Google Drive clip link in the final submission
 
 ---
 
@@ -408,15 +409,19 @@ flowchart LR
 - API / Supabase integration
 - n8n workflow
 - AI analysis
-- Testing
+- Testing with Playwright
 
 #### สคริปต์คำบรรยาย (ภาษาไทย):
-> ในการพัฒนา เราเริ่มจากการออกแบบ UX/UI ของแต่ละหน้าก่อน แล้วจึงวางฐานข้อมูลและระบบ authentication บน Supabase ให้รองรับ flow ของจริงครับ  
-> ฝั่ง frontend เราใช้ Next.js และ React เป็นแกนหลัก ร่วมกับ Tailwind CSS และ shadcn/ui เพื่อให้หน้าจออ่านง่าย สวย และ responsive  
-> ฝั่ง backend เราเชื่อมผ่าน API routes ของ Next.js เพื่อรับ check-in, feedback และ event จาก n8n อย่างเป็นระบบ  
-> จากนั้นเราพัฒนา n8n workflows แยกเป็นงานย่อยและงานหลัก เพื่อลดความซับซ้อนในการดูแล  
-> ในส่วนของ AI เราใช้ LLM ผ่าน agentic workflow เพื่อสรุปและสร้าง recommendation draft โดยให้ผลลัพธ์อยู่ในขอบเขตที่ปลอดภัย  
-> สุดท้ายเราทดสอบด้วย browser flow จริงและ execution log เพื่อยืนยันว่าระบบทำงานได้ครบทั้งฝั่งนักเรียน ครู และ workflow automation ครับ
+> ในมุมของ Development Process Review เราเริ่มจากการออกแบบ flow การใช้งานก่อนครับ ว่าฝั่งนักเรียนต้องส่ง check-in ได้ง่าย ส่วนฝั่งครูต้องอ่านภาพรวมและตัดสินใจได้เร็ว  
+> จากนั้นเราออกแบบฐานข้อมูลและระบบ authentication บน Supabase ให้รองรับข้อมูลหลักของระบบ เช่น users, classes, class enrollments, student pulses, recommendations และ notifications รวมถึงกำหนด role และสิทธิ์การเข้าถึงให้ตรงกับ student และ teacher ครับ  
+> เมื่อโครงสร้างข้อมูลพร้อมแล้ว เราจึงพัฒนา frontend ด้วย Next.js และ React โดยใช้ Tailwind CSS และ shadcn/ui เพื่อสร้างหน้า login, student dashboard, teacher dashboard และ class detail ให้ใช้งานจริงได้  
+> ฝั่ง backend เราใช้ Next.js Route Handlers เป็น API layer สำหรับรับ student check-in, ดึง student feedback, รับ webhook จาก n8n และเชื่อมข้อมูลกับ Supabase อย่างเป็นระบบ  
+> ในส่วนของ Agentic AI เราใช้ n8n เป็น workflow orchestrator โดยแยก workflow หลักและ tool workflows ออกจากกัน เช่น workflow สำหรับ climate recommendation, workflow สำหรับ redaction และ sub-workflows สำหรับดึง aggregate summary, trend comparison และ metrics ที่จำเป็นต่อการวิเคราะห์  
+> ส่วน LLM จะรับเฉพาะข้อมูลที่ผ่าน privacy guard และ aggregation แล้ว ไม่ใช้ raw student data โดยตรงครับ ในทางปฏิบัติ LLM จะอ่าน 5 ส่วนหลักคือ aggregate ล่าสุดของห้อง, trend เทียบรอบก่อน, ประวัติการตอบสนองของครู, redacted voice summary และ closure history ล่าสุด จากนั้นจะคิด 3 คำถามก่อนร่างเสมอว่า ตอนนี้ห้องกำลังมีปัญหาอะไร, ครูควรเริ่มทำอะไร, และควรสื่อสารกับนักเรียนอย่างไรให้ช่วยสถานการณ์ได้จริง  
+> ผลลัพธ์จึงไม่ได้มีแค่สรุปสถานการณ์ แต่จะออกมาเป็น 2 ชั้นพร้อมกัน คือ `studentMessageDraft` ซึ่งเป็นข้อความตั้งต้นที่ครูแก้ก่อนส่งถึงนักเรียนได้ และ `teacherActionPlan` ซึ่งเป็นแผนสั้น ๆ ที่ครูลองใช้ในคาบถัดไปได้จริงครับ  
+> สำหรับการทดสอบ เราใช้ทั้ง execution log และ browser automation เพื่อให้มั่นใจว่าระบบทำงานได้ครบจริง โดยเฉพาะ Playwright ซึ่งเราใช้ตรวจ flow สำคัญแบบ end-to-end เช่น login ของครูและนักเรียน, student check-in ไปจนถึง feedback, และ teacher dashboard ไปจนถึงหน้า class detail  
+> จุดสำคัญคือ Playwright ช่วยให้เราเห็นปัญหาที่เกิดกับการใช้งานจริงบนหน้าเว็บ เช่น redirect ไม่ถูกต้อง, state ไม่อัปเดต, หรือข้อความบนหน้าจอไม่ตรงกับข้อมูลในระบบ ทำให้เราปรับระบบได้ก่อนนำไปเดโมครับ  
+> ดังนั้นในภาพรวม เครื่องมือแต่ละตัวจะรับผิดชอบคนละส่วนอย่างชัดเจน คือ Next.js ดูแล web application, Supabase ดูแล data และ auth, n8n ดูแล orchestration, LLM ดูแลการวิเคราะห์และสรุป, และ Playwright ช่วยยืนยันว่า flow ทั้งหมดทำงานร่วมกันได้จริงครับ
 
 ### 4.3 จุดเน้นที่ควรพูดเพิ่ม
 

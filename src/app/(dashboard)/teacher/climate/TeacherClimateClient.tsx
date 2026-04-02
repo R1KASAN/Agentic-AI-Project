@@ -150,10 +150,12 @@ function OverviewStatus({
   inquiryModeSuggested,
   pendingRecommendations,
   blockedReason,
+  riskLevel,
 }: {
   inquiryModeSuggested: boolean;
   pendingRecommendations: number;
   blockedReason: AuditBlockedReason;
+  riskLevel: TeacherDisplayRiskLevel;
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -168,13 +170,17 @@ function OverviewStatus({
       )}
       {pendingRecommendations > 0 ? (
         <span className="rounded-full bg-[rgba(253,230,138,0.12)] px-2.5 py-1 text-xs font-medium text-[var(--teacher-dashboard-warning)]">
-          {pendingRecommendations} รายการรอตรวจ
+          {pendingRecommendations} ฉบับร่างรอตรวจ
         </span>
       ) : (
         <span className="rounded-full bg-[rgba(147,197,253,0.12)] px-2.5 py-1 text-xs font-medium text-[var(--teacher-dashboard-primary)]">
-          {blockedReason === "k_anonymity"
-            ? "กำลังรอสัญญาณรวม"
-            : "ติดตามครบแล้ว"}
+          {blockedReason === "frequency_limit_exceeded"
+            ? "เพิ่งติดตามไปแล้ว"
+            : blockedReason === "k_anonymity"
+              ? "ยังรอข้อมูลรวมที่ปลอดภัย"
+              : riskLevel === "WARNING" || riskLevel === "CRITICAL"
+                ? "ยังไม่มีฉบับร่างล่าสุดจากระบบ"
+              : "ไม่มีรายการรอตรวจ"}
         </span>
       )}
     </div>
@@ -415,6 +421,7 @@ function ClimateOverviewState({ classes }: { classes: TeacherClimateOverviewClas
                 inquiryModeSuggested={classEntry.inquiryModeSuggested}
                 pendingRecommendations={classEntry.pendingRecommendations}
                 blockedReason={classEntry.blockedReason}
+                riskLevel={classEntry.riskLevel}
               />
 
               <div className="grid gap-3 sm:grid-cols-2">
@@ -548,6 +555,7 @@ function ClimateDrilldownState({
               inquiryModeSuggested={selectedClass.inquiryModeSuggested}
               pendingRecommendations={selectedClass.pendingRecommendations}
               blockedReason={selectedClass.blockedReason}
+              riskLevel={selectedClass.riskLevel}
             />
           </div>
 

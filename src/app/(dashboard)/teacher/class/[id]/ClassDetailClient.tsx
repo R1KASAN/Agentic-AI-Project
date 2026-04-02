@@ -3,6 +3,10 @@
 import {
   approveRecommendation,
   dismissRecommendation,
+  markRecommendationImplemented,
+  markRecommendationNotActioned,
+  restoreRecommendationAsDraft,
+  saveRecommendationFeedback,
 } from "@/lib/actions/teacher";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -54,6 +58,10 @@ interface ClassDetailClientProps {
   auditSignal: AuditSignal | null;
   feedbackSummary: StudentFeedbackSummary;
   redactedVoice: RedactedVoiceState;
+  featureFlags: {
+    enableDecisionWorkspace: boolean;
+    enableStructuredRecommendationPayload: boolean;
+  };
 }
 
 export default function ClassDetailClient({
@@ -73,8 +81,24 @@ export default function ClassDetailClient({
   auditSignal,
   feedbackSummary,
   redactedVoice,
+  featureFlags,
 }: ClassDetailClientProps) {
   const router = useRouter();
+
+  function getApproveFailureMessage(reasonCode?: string) {
+    switch (reasonCode) {
+      case "db_state_not_changed":
+        return "ระบบตอบกลับไม่ตรงกับที่คาดไว้ หลังอนุมัติแล้วสถานะยังไม่เปลี่ยนเป็นข้อความที่แชร์ได้จริง";
+      case "schema_mismatch":
+        return "โครงสร้างฐานข้อมูลของ recommendation ยังไม่ตรงกับ flow ปัจจุบัน จึงยังบันทึกการอนุมัติรอบนี้ไม่ได้";
+      case "forbidden_or_rls":
+        return "ระบบไม่สามารถอัปเดต recommendation นี้ได้ อาจติดสิทธิ์การเข้าถึงหรือ session ของครู";
+      case "db_update_failed":
+        return "ระบบบันทึกการอนุมัติไม่สำเร็จ จึงยังไม่ส่งข้อความต่อให้นักเรียน";
+      default:
+        return "ไม่สามารถอนุมัติฉบับร่างนี้ได้";
+    }
+  }
 
   // Type guard to prevent runtime crashes if Supabase RPC returns malformed data
   if (!Array.isArray(climate)) {
@@ -88,7 +112,7 @@ export default function ClassDetailClient({
 
   const latestWeek = climate.find((c) => c.avg_mood !== null);
   const pendingRecommendations = recommendations.filter(
-    (recommendation) => recommendation.status === "pending",
+    (recommendation) => recommendation.isActionableDraft,
   );
   const blockedByFrequency =
     pendingRecommendations.length === 0 &&
@@ -106,18 +130,28 @@ export default function ClassDetailClient({
         })
       : null;
 
-  async function handleApprove(id: string, note: string, editedDraft: string) {
-    const result = await approveRecommendation(id, note, editedDraft);
+  async function handleApprove(
+    id: string,
+    note: string,
+    editedDraft: string,
+    shareWithStudents: boolean,
+  ) {
+    const result = await approveRecommendation(
+      id,
+      note,
+      editedDraft,
+      shareWithStudents,
+    );
     if (!result.success) {
-      toast.error(result.error ?? "ไม่สามารถอนุมัติฉบับร่างนี้ได้");
+      toast.error(result.error ?? getApproveFailureMessage(result.reasonCode));
       return;
     }
     if (result.webhookFailed) {
       toast.warning(
-        "บันทึกการอนุมัติแล้ว แต่การส่งต่อไปยัง workflow ยังไม่สมบูรณ์",
+        "บันทึกการอนุมัติและแชร์ให้นักเรียนแล้ว แต่การส่งต่อไปยัง workflow ยังไม่สมบูรณ์",
       );
     } else {
-      toast.success("อนุมัติฉบับร่างแล้ว");
+      toast.success("อนุมัติฉบับร่างและแชร์ให้นักเรียนแล้ว");
     }
     router.refresh();
   }
@@ -129,6 +163,54 @@ export default function ClassDetailClient({
       return;
     }
     toast.success("ข้ามฉบับร่างนี้แล้ว");
+    router.refresh();
+  }
+
+  async function handleImplemented(
+    id: string,
+    closureShareNote: string,
+    shareWithStudents: boolean,
+  ) {
+    const result = await markRecommendationImplemented(
+      id,
+      closureShareNote,
+      shareWithStudents,
+    );
+    if (!result.success) {
+      toast.error(result.error ?? "ไม่สามารถบันทึกว่าลองใช้แล้วได้");
+      return;
+    }
+    toast.success("บันทึกว่าคุณครูลองใช้แล้ว");
+    router.refresh();
+  }
+
+  async function handleFeedback(id: string, feedback: string) {
+    const result = await saveRecommendationFeedback(id, feedback);
+    if (!result.success) {
+      toast.error(result.error ?? "ไม่สามารถบันทึก feedback ได้");
+      return;
+    }
+    toast.success("บันทึก feedback ของคุณครูแล้ว");
+    router.refresh();
+  }
+
+  async function handleNotActioned(id: string, reason: string) {
+    const result = await markRecommendationNotActioned(id, reason);
+    if (!result.success) {
+      toast.error(result.error ?? "ไม่สามารถบันทึกว่ายังไม่ใช้คำแนะนำนี้ได้");
+      return;
+    }
+    toast.success("บันทึกว่ายังไม่ใช้คำแนะนำนี้แล้ว");
+    router.refresh();
+  }
+
+  async function handleRestore(id: string) {
+    const result = await restoreRecommendationAsDraft(id);
+    if (!result.success) {
+      toast.error(result.error ?? "ไม่สามารถสร้าง draft ใหม่จากข้อความเดิมได้");
+      return;
+    }
+    toast.success("สร้างฉบับร่างใหม่จากข้อความเดิมแล้ว");
     router.refresh();
   }
 
@@ -396,10 +478,14 @@ export default function ClassDetailClient({
             data-display="true"
             className="flex items-center gap-2 text-2xl font-semibold text-[var(--student-dashboard-text)]"
           >
-            ฉบับร่าง / แนวทางตอบสนอง
+            {pendingRecommendations.length > 0
+              ? "ข้อเสนอแนะที่ครูตรวจได้"
+              : actionContext.mode === "fallback"
+                ? "สรุปบริบทล่าสุด"
+                : "ข้อเสนอแนะที่ครูตรวจได้"}
             {pendingRecommendations.length > 0 && (
               <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-200">
-                {pendingRecommendations.length} รออนุมัติ
+                {pendingRecommendations.length} ฉบับร่างรอตรวจ
               </span>
             )}
           </h2>
@@ -451,7 +537,9 @@ export default function ClassDetailClient({
                 {actionContext.draftText && (
                   <div className="rounded-[24px] border border-dashed border-sky-200/60 bg-[var(--student-dashboard-surface-raised)] px-4 py-3">
                     <p className="text-xs font-medium uppercase tracking-[0.12em] text-[var(--student-dashboard-text-muted)]">
-                      ฉบับร่างล่าสุด
+                      {actionContext.mode === "fallback"
+                        ? "สรุปบริบทล่าสุด"
+                        : "ข้อความตั้งต้นล่าสุด"}
                     </p>
                     <p className="mt-2 text-sm leading-6 text-[var(--student-dashboard-text)]">
                       {actionContext.draftText}
@@ -507,6 +595,14 @@ export default function ClassDetailClient({
             recommendations={pendingRecommendations}
             onApprove={handleApprove}
             onDismiss={handleDismiss}
+            onImplemented={handleImplemented}
+            onFeedback={handleFeedback}
+            onNotActioned={handleNotActioned}
+            onRestore={handleRestore}
+            enableDecisionWorkspace={featureFlags.enableDecisionWorkspace}
+            enableStructuredRecommendationPayload={
+              featureFlags.enableStructuredRecommendationPayload
+            }
             emptyStateTitle="ยังไม่มีฉบับร่างที่รออนุมัติ"
             emptyStateBody="ฉบับร่างใหม่จะปรากฏที่นี่เมื่อห้องมีสัญญาณเพียงพอและผ่าน safety checks"
           />

@@ -209,15 +209,15 @@ export function ClientClasses({ classes }: ClientClassesProps) {
                                     <div className="mt-3 flex items-center gap-2 text-sm">
                                         {cls.pending_recommendations > 0 ? (
                                             <span className="rounded-full bg-[rgba(253,230,138,0.12)] px-2.5 py-1 font-medium text-[var(--teacher-dashboard-warning)]">
-                                                {cls.pending_recommendations} pending draft
+                                                {cls.pending_recommendations} drafts pending review
                                             </span>
                                         ) : (
                                             <span className="rounded-full bg-[rgba(147,197,253,0.12)] px-2.5 py-1 font-medium text-[var(--teacher-dashboard-primary)]">
                                                 {cls.blocked_reason === "frequency_limit_exceeded"
-                                                    ? "no new draft this cycle"
+                                                    ? "recently followed up"
                                                     : cls.blocked_reason === "k_anonymity"
-                                                      ? "waiting for safe aggregate signal"
-                                                      : "all caught up"}
+                                                      ? "waiting for safe aggregate data"
+                                                      : "no pending review"}
                                             </span>
                                         )}
                                     </div>

@@ -7,7 +7,9 @@ import {
   buildRedactedVoiceStateFromRpc,
   buildTeacherActionContext,
   buildStudentFeedbackSummary,
+  countRecommendationHistory,
   deriveTeacherDisplayRiskLevel,
+  fetchRecommendationRowsByClassId,
   getClassRedactedVoice,
   getClassMetrics,
   getRiskScoreFromLevel,
@@ -15,6 +17,7 @@ import {
   mapRecommendationToViewModel,
   mapRecommendationsToViewModels,
 } from "@/lib/teacherDashboard";
+import { getFeatureFlags } from "@/lib/featureFlags";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -58,7 +61,7 @@ export default async function ClassDetailPage({ params }: Props) {
     climateResult,
     pendingRecsResult,
     latestRecommendationResult,
-    historyCountResult,
+    historyCount,
     metrics,
     auditSignal,
     redactedVoiceRows,
@@ -72,28 +75,9 @@ export default async function ClassDetailPage({ params }: Props) {
       p_class_id: id,
       p_weeks: 4,
     }),
-    supabase
-      .from("recommendations")
-      .select(
-        "id, class_id, content, status, dismissal_reason, action_taken_note, teacher_action_note, communicated_to_students, created_at, updated_at, policy_level, ai_message_draft, actions_json, confidence_score, reasoning, inquiry_mode, fallback_used, priority, alert_sent_at",
-      )
-      .eq("class_id", id)
-      .eq("status", "pending")
-      .order("created_at", { ascending: false })
-      .limit(10),
-    supabase
-      .from("recommendations")
-      .select(
-        "id, class_id, content, status, dismissal_reason, action_taken_note, teacher_action_note, communicated_to_students, created_at, updated_at, policy_level, ai_message_draft, actions_json, confidence_score, reasoning, inquiry_mode, fallback_used, priority, alert_sent_at",
-      )
-      .eq("class_id", id)
-      .order("created_at", { ascending: false })
-      .limit(1),
-    supabase
-      .from("recommendations")
-      .select("*", { count: "exact", head: true })
-      .eq("class_id", id)
-      .in("status", ["approved", "dismissed"]),
+    fetchRecommendationRowsByClassId(id, { status: "pending", limit: 10 }),
+    fetchRecommendationRowsByClassId(id, { limit: 1 }),
+    countRecommendationHistory(id),
     getClassMetrics(id),
     getLatestAuditSignal(id),
     getClassRedactedVoice(id, 4),
@@ -129,12 +113,14 @@ export default async function ClassDetailPage({ params }: Props) {
 
   const rawClimate = climateResult.data;
   const climateData = Array.isArray(rawClimate) ? rawClimate : [];
+  const pendingRecommendationRows = pendingRecsResult.data ?? [];
+  const latestRecommendationRows = latestRecommendationResult.data ?? [];
   const feedbackSummary = buildStudentFeedbackSummary(climateData, metrics, {
-    hasPendingRecommendation: (pendingRecsResult.data ?? []).length > 0,
+    hasPendingRecommendation: pendingRecommendationRows.length > 0,
   });
   const derivedRiskLevel = deriveTeacherDisplayRiskLevel(
     climateData,
-    (pendingRecsResult.data ?? []).map(
+    pendingRecommendationRows.map(
       (recommendation) => recommendation.policy_level ?? null,
     ),
   );
@@ -143,13 +129,12 @@ export default async function ClassDetailPage({ params }: Props) {
     redactedVoiceRows,
   );
   const recommendationViewModels = mapRecommendationsToViewModels(
-    pendingRecsResult.data ?? [],
+    pendingRecommendationRows,
     climateData,
     metrics,
   );
-  const latestRecommendationRow = Array.isArray(latestRecommendationResult.data)
-    ? latestRecommendationResult.data[0] ?? null
-    : latestRecommendationResult.data ?? null;
+  const featureFlags = getFeatureFlags();
+  const latestRecommendationRow = latestRecommendationRows[0] ?? null;
   const latestRecommendation = latestRecommendationRow
     ? mapRecommendationToViewModel(latestRecommendationRow, climateData, metrics)
     : null;
@@ -178,11 +163,12 @@ export default async function ClassDetailPage({ params }: Props) {
       recommendations={recommendationViewModels}
       latestRecommendation={latestRecommendation}
       actionContext={actionContext}
-      historyCount={historyCountResult.count ?? 0}
+      historyCount={historyCount}
       metrics={metrics}
       auditSignal={auditSignal}
       feedbackSummary={feedbackSummary}
       redactedVoice={redactedVoice}
+      featureFlags={featureFlags}
     />
   );
 }

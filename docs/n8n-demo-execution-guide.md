@@ -318,11 +318,42 @@ workflow นี้คือ “สมองหลัก” ของระบบ
 8. ส่งแจ้งเตือนเฉพาะเมื่อถึงเงื่อนไข
 9. บันทึก audit
 
+มองแบบ `input -> reasoning -> output` จะเป็นแบบนี้:
+
+```text
+input
+aggregate ล่าสุด + trend comparison + teacher history + approved/dismissed history
++ closure history + redacted voice summary + blocked reasons + room metadata
+
+reasoning
+ตอบ 3 คำถามหลัก:
+1. ตอนนี้ห้องกำลังมีปัญหาอะไร
+2. ครูควรทำอะไรเป็นขั้นแรก
+3. ควรสื่อสารกับนักเรียนอย่างไรให้ช่วยสถานการณ์ได้จริง
+
+จากนั้นตรวจ rubric 5 ข้อ:
+- specificity
+- teacher usability
+- student clarity
+- actionability
+- privacy safety
+
+ถ้า structured payload ไม่ครบหรือ confidence ต่ำ ระบบจะ reject ผล LLM และไปใช้ fallback planner
+
+output
+structuredPayload.version = 1
+- studentMessageDraft
+- teacherActionPlan
+- watchSignals
+- whyThisHelps
+```
+
 ### 7.3 ประโยคที่ควรใช้พูดตอนพรีเซนต์
 
 > ส่วน workflow หลักของระบบจะเริ่มจากข้อมูลแบบ aggregate ก่อนเสมอครับ  
-> จากนั้น n8n จะดึง context ที่จำเป็น เช่น teacher metrics และ recommendation เดิม แล้วค่อยให้ LLM วิเคราะห์  
-> ผลลัพธ์จะไม่ถูกส่งออกไปแบบทันที แต่จะผ่าน confidence check, frequency guard และ audit log ก่อน เพื่อให้เป็น human-in-the-loop และปลอดภัยต่อการใช้งานจริงครับ
+> จากนั้น n8n จะดึง context ที่จำเป็น เช่น teacher metrics, recommendation history, closure history และ redacted voice summary แล้วค่อยให้ LLM วิเคราะห์  
+> ในเชิง reasoning ระบบจะบังคับให้ LLM ตอบก่อนว่า ห้องกำลังมีปัญหาอะไร, ครูควรเริ่มทำอะไร, และควรสื่อสารกับนักเรียนอย่างไร จากนั้นค่อยสร้าง `studentMessageDraft` และ `teacherActionPlan`  
+> ผลลัพธ์จะไม่ถูกส่งออกไปแบบทันที แต่จะผ่าน confidence check, parser validation, frequency guard และ audit log ก่อน ถ้าคุณภาพยังไม่พอระบบจะตกกลับไปใช้ fallback planner เพื่อให้ยังได้ draft ที่ใช้งานได้จริงและปลอดภัยครับ
 
 ---
 
