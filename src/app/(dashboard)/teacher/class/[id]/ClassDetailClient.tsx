@@ -35,6 +35,7 @@ import type {
   RedactedVoiceState,
   StudentFeedbackSummary,
 } from "@/types";
+import type { TeacherActionContextSummary } from "@/lib/teacherDashboard";
 
 interface ClassDetailClientProps {
   classId: string;
@@ -46,6 +47,8 @@ interface ClassDetailClientProps {
   studentCount: number;
   climate: ClassClimateSummary[];
   recommendations: RecommendationViewModel[];
+  latestRecommendation: RecommendationViewModel | null;
+  actionContext: TeacherActionContextSummary;
   historyCount: number;
   metrics: ClassMetrics;
   auditSignal: AuditSignal | null;
@@ -63,6 +66,8 @@ export default function ClassDetailClient({
   studentCount,
   climate,
   recommendations,
+  latestRecommendation,
+  actionContext,
   historyCount,
   metrics,
   auditSignal,
@@ -91,6 +96,15 @@ export default function ClassDetailClient({
   const blockedByKAnonymity =
     pendingRecommendations.length === 0 &&
     auditSignal?.blockedReason === "k_anonymity";
+
+  const latestRecommendationLabel =
+    latestRecommendation && latestRecommendation.createdAt
+      ? new Date(latestRecommendation.createdAt).toLocaleDateString("th-TH", {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        })
+      : null;
 
   async function handleApprove(id: string, note: string, editedDraft: string) {
     const result = await approveRecommendation(id, note, editedDraft);
@@ -402,24 +416,92 @@ export default function ClassDetailClient({
           </Link>
         </div>
         {pendingRecommendations.length === 0 ? (
-          <Card className="student-surface overflow-hidden rounded-[28px] border border-dashed border-sky-200/60">
-            <CardContent className="space-y-2 py-6 text-sm text-[var(--student-dashboard-text-muted)]">
-              <p className="font-medium text-[var(--student-dashboard-text)]">
-                {blockedByFrequency
-                  ? "ระบบยังไม่สร้างข้อความใหม่ เพื่อไม่ให้ถี่เกินไป"
-                  : blockedByKAnonymity
-                    ? "ระบบยังไม่แสดงฉบับร่างใหม่ เพราะข้อมูลรวมยังไม่ถึงเกณฑ์ความเป็นส่วนตัวขั้นต่ำ"
-                    : "ยังไม่มีฉบับร่างที่รอตรวจในตอนนี้"}
-              </p>
-              <p>
-                {blockedByFrequency
-                  ? "ระบบชะลอการสร้างฉบับร่างใหม่ชั่วคราวตาม frequency guard ของห้องนี้ คุณยังสามารถเปิดประวัติข้อความที่ผ่านมาเพื่อดูสิ่งที่เคยอนุมัติหรือข้ามไปแล้วได้"
-                  : blockedByKAnonymity
-                    ? "ระบบกำลังรอให้มีสัญญาณรวมที่ปลอดภัยพอก่อน เพื่อปกป้องความเป็นส่วนตัวของนักเรียนและคงมาตรฐาน k-anonymity ของห้องนี้"
-                    : "ห้องนี้ยังอาจไม่มี recommendation ใหม่เพราะข้อมูลยังไม่พอหรือ workflow ยังไม่พบสัญญาณที่ควรสร้างฉบับร่างในรอบนี้"}
-              </p>
-            </CardContent>
-          </Card>
+          actionContext.mode !== "empty" ? (
+            <Card className="student-surface overflow-hidden rounded-[28px] border border-[color:var(--student-dashboard-border)]">
+              <CardContent className="space-y-4 py-6">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge
+                    variant="secondary"
+                    className="rounded-full bg-[rgba(147,197,253,0.14)] text-[var(--teacher-dashboard-primary)]"
+                  >
+                    {actionContext.title}
+                  </Badge>
+                  {actionContext.sourceLabel && (
+                    <Badge
+                      variant="outline"
+                      className="rounded-full border-[color:var(--student-dashboard-border)] text-[var(--student-dashboard-text-muted)]"
+                    >
+                      {actionContext.sourceLabel}
+                    </Badge>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-[var(--student-dashboard-text)]">
+                    {actionContext.summary}
+                  </p>
+                  <p className="text-sm leading-6 text-[var(--student-dashboard-text-muted)]">
+                    {actionContext.actionContext}
+                  </p>
+                  {latestRecommendationLabel && latestRecommendation && (
+                    <p className="text-xs text-[var(--student-dashboard-text-muted)]">
+                      อ้างอิงข้อความล่าสุดเมื่อ {latestRecommendationLabel}
+                    </p>
+                  )}
+                </div>
+                {actionContext.draftText && (
+                  <div className="rounded-[24px] border border-dashed border-sky-200/60 bg-[var(--student-dashboard-surface-raised)] px-4 py-3">
+                    <p className="text-xs font-medium uppercase tracking-[0.12em] text-[var(--student-dashboard-text-muted)]">
+                      ฉบับร่างล่าสุด
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-[var(--student-dashboard-text)]">
+                      {actionContext.draftText}
+                    </p>
+                  </div>
+                )}
+                {actionContext.actions.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {actionContext.actions.map((action) => (
+                      <span
+                        key={action}
+                        className="rounded-full bg-[rgba(147,197,253,0.12)] px-3 py-1 text-xs text-[var(--teacher-dashboard-primary)]"
+                      >
+                        {action}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {blockedByFrequency && (
+                  <p className="text-xs leading-5 text-[var(--student-dashboard-text-muted)]">
+                    ระบบชะลอการแจ้งเตือนซ้ำไว้เพื่อกันข้อความถี่เกิน แต่ยังเก็บสรุปบริบทล่าสุดให้ใช้ตัดสินใจต่อได้
+                  </p>
+                )}
+                {blockedByKAnonymity && (
+                  <p className="text-xs leading-5 text-[var(--student-dashboard-text-muted)]">
+                    ระบบยังไม่เปิดฉบับร่างใหม่จนกว่าสัญญาณรวมจะถึงเกณฑ์ความเป็นส่วนตัวขั้นต่ำ
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="student-surface overflow-hidden rounded-[28px] border border-dashed border-sky-200/60">
+              <CardContent className="space-y-2 py-6 text-sm text-[var(--student-dashboard-text-muted)]">
+                <p className="font-medium text-[var(--student-dashboard-text)]">
+                  {blockedByFrequency
+                    ? "ระบบยังไม่สร้างข้อความใหม่ เพื่อไม่ให้ถี่เกินไป"
+                    : blockedByKAnonymity
+                      ? "ระบบยังไม่แสดงฉบับร่างใหม่ เพราะข้อมูลรวมยังไม่ถึงเกณฑ์ความเป็นส่วนตัวขั้นต่ำ"
+                      : "ยังไม่มีฉบับร่างที่รอตรวจในตอนนี้"}
+                </p>
+                <p>
+                  {blockedByFrequency
+                    ? "ระบบชะลอการสร้างฉบับร่างใหม่ชั่วคราวตาม frequency guard ของห้องนี้ คุณยังสามารถเปิดประวัติข้อความที่ผ่านมาเพื่อดูสิ่งที่เคยอนุมัติหรือข้ามไปแล้วได้"
+                    : blockedByKAnonymity
+                      ? "ระบบกำลังรอให้มีสัญญาณรวมที่ปลอดภัยพอก่อน เพื่อปกป้องความเป็นส่วนตัวของนักเรียนและคงมาตรฐาน k-anonymity ของห้องนี้"
+                      : "ห้องนี้ยังอาจไม่มี recommendation ใหม่เพราะข้อมูลยังไม่พอหรือ workflow ยังไม่พบสัญญาณที่ควรสร้างฉบับร่างในรอบนี้"}
+                </p>
+              </CardContent>
+            </Card>
+          )
         ) : (
           <RecommendationList
             recommendations={pendingRecommendations}

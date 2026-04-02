@@ -535,7 +535,7 @@
         -350
       ],
       "parameters": {
-        "jsCode": "return { json: { blocked_reason: \"frequency_limit_exceeded\", decision_path_json: { route: \"blocked_by_frequency_guard\" } } };"
+        "jsCode": "return { json: { ...$json, blocked_reason: \"frequency_limit_exceeded\", fallback_used: true, decision_path_json: { ...( $json.decision_path_json || {} ), route: \"blocked_by_frequency_guard\", blocked_by_frequency: true } } };"
       }
     },
     {
@@ -548,7 +548,7 @@
         -100
       ],
       "parameters": {
-        "jsCode": "return { json: { blocked_reason: \"frequency_limit_exceeded\", decision_path_json: { route: \"blocked_by_frequency_guard\" } } };"
+        "jsCode": "return { json: { ...$json, blocked_reason: \"frequency_limit_exceeded\", fallback_used: true, decision_path_json: { ...( $json.decision_path_json || {} ), route: \"blocked_by_frequency_guard\", blocked_by_frequency: true } } };"
       }
     },
     {
@@ -561,7 +561,7 @@
         100
       ],
       "parameters": {
-        "jsCode": "return { json: { blocked_reason: \"frequency_limit_exceeded\", decision_path_json: { route: \"blocked_by_frequency_guard\" } } };"
+        "jsCode": "return { json: { ...$json, blocked_reason: \"frequency_limit_exceeded\", fallback_used: true, decision_path_json: { ...( $json.decision_path_json || {} ), route: \"blocked_by_frequency_guard\", blocked_by_frequency: true } } };"
       }
     },
     {
@@ -664,6 +664,72 @@
       }
     },
     {
+      "id": "673f32c9-e747-4cf0-8809-7b3b38c234b52",
+      "name": "Insert Fallback Draft Recommendation (WARNING)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2400,
+        40
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/recommendations",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"class_id\": \"{{ $('Get Aggregated Climate Data').item.json.class_id }}\",\n  \"policy_level\": \"{{ $json.policy_level }}\",\n  \"content\": \"{{ ($json.recommendation_content || $json.ai_message_draft || '').toString().replace(/\\\\\"/g, '\\\\\\\"') }}\",\n  \"ai_message_draft\": \"{{ ($json.ai_message_draft || $json.recommendation_content || '').toString().replace(/\\\\\"/g, '\\\\\\\"') }}\",\n  \"confidence_score\": {{ Number($json.confidence_score || 0) }},\n  \"reasoning\": \"{{ ($json.reasoning || '').toString().replace(/\\\\\"/g, '\\\\\\\"') }}\",\n  \"inquiry_mode\": {{ $json.inquiry_mode || false }},\n  \"fallback_used\": true,\n  \"status\": \"pending\"\n}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "id": "673f32c9-e747-4cf0-8809-7b3b38c234c52",
+      "name": "Insert Fallback Draft Recommendation (CRITICAL)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2400,
+        240
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/recommendations",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"class_id\": \"{{ $('Get Aggregated Climate Data').item.json.class_id }}\",\n  \"policy_level\": \"{{ $json.policy_level }}\",\n  \"content\": \"{{ ($json.recommendation_content || $json.ai_message_draft || '').toString().replace(/\\\\\"/g, '\\\\\\\"') }}\",\n  \"ai_message_draft\": \"{{ ($json.ai_message_draft || $json.recommendation_content || '').toString().replace(/\\\\\"/g, '\\\\\\\"') }}\",\n  \"confidence_score\": {{ Number($json.confidence_score || 0) }},\n  \"reasoning\": \"{{ ($json.reasoning || '').toString().replace(/\\\\\"/g, '\\\\\\\"') }}\",\n  \"inquiry_mode\": {{ $json.inquiry_mode || false }},\n  \"fallback_used\": true,\n  \"status\": \"pending\"\n}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
       "id": "e0b57e79-ce4e-4f36-9b5f-9e79d1a8cbed2",
       "name": "Email Alert - WARNING to Teacher",
       "type": "n8n-nodes-base.httpRequest",
@@ -746,7 +812,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ ({ workflow_id: $workflow.id, execution_id: $execution.id, trigger_time: $now.toISO(), class_id: $('Get Aggregated Climate Data').item.json.class_id || null, policy_selected: $json.policy_level || null, confidence_score: Number($json.confidence_score || 0), triggered_by: 'climate_agent_schedule', inquiry_mode: $json.inquiry_mode || false, event_type: 'recommendation_generated', decision_path_json: $json.decision_path_json || $json.decision_path || {}, error_message: $json.error_message || '', blocked_reason: $json.blocked_reason || '' }) }}",
+    "jsonBody": "={{ ({ workflow_id: $workflow.id, execution_id: $execution.id, trigger_time: $now.toISO(), class_id: $('Get Aggregated Climate Data').item.json.class_id || null, policy_selected: $json.policy_level || null, confidence_score: Number($json.confidence_score || 0), triggered_by: 'climate_agent_schedule', inquiry_mode: $json.inquiry_mode || false, event_type: 'recommendation_generated', decision_path_json: $json.decision_path_json || $json.decision_path || {}, error_message: $json.error_message || '', blocked_reason: $json.blocked_reason || '', fallback_used: $json.fallback_used || false }) }}",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "supabaseApi"
       },
@@ -1122,7 +1188,7 @@
       "main": [
         [
           {
-            "node": "Insert Audit Log",
+            "node": "Insert Fallback Draft Recommendation (WARNING)",
             "type": "main",
             "index": 0
           }
@@ -1133,7 +1199,7 @@
       "main": [
         [
           {
-            "node": "Insert Audit Log",
+            "node": "Insert Fallback Draft Recommendation (CRITICAL)",
             "type": "main",
             "index": 0
           }
@@ -1167,6 +1233,28 @@
         [
           {
             "node": "Email Alert - CRITICAL to Admin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Fallback Draft Recommendation (WARNING)": {
+      "main": [
+        [
+          {
+            "node": "Insert Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Fallback Draft Recommendation (CRITICAL)": {
+      "main": [
+        [
+          {
+            "node": "Insert Audit Log",
             "type": "main",
             "index": 0
           }

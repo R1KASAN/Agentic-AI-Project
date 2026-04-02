@@ -8,25 +8,35 @@
 เป้าหมายคือให้เอกสารนี้ใช้เป็นทั้ง **คู่มืออธิบายระบบ**, **สคริปต์พูดหน้ากล้อง**, และ **checklist ตอนกดรัน n8n** ได้ในไฟล์เดียว
 
 > หมายเหตุสำคัญเรื่องสถานะ runtime: workflow บางตัวใน repo นี้เป็นไฟล์ reference / import template และไม่ได้ publish อยู่ใน n8n UI ปัจจุบัน  
-> จากไฟล์ที่ตรวจพบ `W06-morning-briefing-v2`, `loop-closure-notification` และ `agentic-ai-recommendation` มี `active: false` ใน JSON จึงไม่ควรคาดว่าจะเห็นเป็น workflow active ใน n8n เว้นแต่จะ import และเปิดใช้งานเอง
+> จากไฟล์ที่ตรวจพบ `W06-morning-briefing-v2`, `loop-closure-notification`, `agentic-ai-recommendation` และ `handle-teacher-approval` มี `active: false` ใน JSON จึงไม่ควรคาดว่าจะเห็นเป็น workflow active ใน n8n เว้นแต่จะ import และเปิดใช้งานเอง
+
+## 0) สถานะใช้งานจริงใน n8n ตอนนี้
+
+| กลุ่ม | Workflow | สถานะ |
+|---|---|---|
+| Live core | `climate-agent-main-v2` | ใช้งานจริง |
+| Demo harness | `phase-c-redaction-batch` | ใช้ทดสอบ/เดโมเส้นทาง redaction |
+| Live tool workflows | `Tool: Get Raw Snippet Batch`, `Tool: Write Redacted Snippets` | ใช้งานจริงในเส้นทางเดโม |
+| Reference / inactive | `W06-morning-briefing-v2`, `loop-closure-notification`, `agentic-ai-recommendation`, `handle-teacher-approval` | เก็บไว้ใน repo แต่ยังไม่ publish ใน UI ปัจจุบัน
 
 ---
 
 ## 1) ภาพรวม workflow ที่ใช้ตอนนี้
 
-ระบบ n8n ของโปรเจกต์นี้แบ่งได้เป็น 3 กลุ่มหลัก:
+ระบบ n8n ของโปรเจกต์นี้แบ่งได้เป็น 4 กลุ่มหลัก:
 
-### A. Production / user-facing workflows
+### A. Live core workflows
 
 | Workflow | ไฟล์ | Trigger | บทบาท | ใช้ในเดโม |
 |---|---|---|---|---|
 | `climate-agent-main-v2` | `n8n/workflows/climate-agent-main-v2.json` | Schedule (`Daily Climate Check Trigger`) | แกนวิเคราะห์ climate แบบ privacy-safe, สร้าง recommendation, enforce confidence/frequency guard, log audit | ใช้พูดอธิบาย “ระบบหลัก” |
-| `agentic-ai-recommendation` | `n8n/workflows/agentic-ai-recommendation.json` | Schedule | รุ่น agentic workflow แบบคลาสสิกที่ใช้ tool sub-workflows | ใช้อธิบายโครง agentic AI |
-| `W06-morning-briefing-v2` | `n8n/workflows/W06-morning-briefing-v2.json` | Schedule | daily briefing ให้ครู, สรุปภาพรวมก่อนสอน | ใช้เป็นภาพรวมการส่งคำแนะนำรายวัน |
-| `handle-teacher-approval` | `n8n/workflows/handle-teacher-approval.json` | Webhook | รับผล approve/dismiss จากครู, บันทึก audit, ตอบกลับ | ใช้อธิบาย human-in-the-loop |
-| `loop-closure-notification` | `n8n/workflows/loop-closure-notification.json` | Webhook | ส่ง notification กลับไปฝั่งนักเรียนเมื่อ loop ปิด | ใช้อธิบาย closing the loop |
+### B. Demo harness workflows
 
-### B. Tool / sub-workflows
+| Workflow | ไฟล์ | บทบาท |
+|---|---|---|
+| `phase-c-redaction-batch` | `n8n/workflows/phase-c-redaction-batch.json` | workflow ตัวแม่ที่ใช้เดโม redaction pipeline แบบ end-to-end |
+
+### C. Tool / sub-workflows ที่ใช้งานจริง
 
 | Tool workflow | บทบาท |
 |---|---|
@@ -39,15 +49,18 @@
 | `Tool: Get Raw Snippet Batch` | ดึง batch ความเห็นดิบที่ผ่าน guard มาแล้วจาก Supabase RPC |
 | `Tool: Write Redacted Snippets` | เขียนเสียงนักเรียนที่ถูก redacted กลับลงระบบ |
 
-### C. Demo harness workflows
+### D. Reference / inactive workflows
 
-| Workflow | ไฟล์ | บทบาท |
-|---|---|---|
-| `phase-c-redaction-batch` | `n8n/workflows/phase-c-redaction-batch.json` | workflow ตัวแม่ที่ใช้เดโม redaction pipeline แบบ end-to-end |
+| Workflow | ไฟล์ | สถานะ | บทบาท |
+|---|---|---|---|
+| `agentic-ai-recommendation` | `n8n/workflows/agentic-ai-recommendation.json` | inactive | รุ่น agentic workflow แบบคลาสสิกที่ใช้ tool sub-workflows |
+| `W06-morning-briefing-v2` | `n8n/workflows/W06-morning-briefing-v2.json` | inactive | daily briefing ให้ครู, สรุปภาพรวมก่อนสอน |
+| `handle-teacher-approval` | `n8n/workflows/handle-teacher-approval.json` | inactive | รับผล approve/dismiss จากครู, บันทึก audit, ตอบกลับ |
+| `loop-closure-notification` | `n8n/workflows/loop-closure-notification.json` | inactive | ส่ง notification กลับไปฝั่งนักเรียนเมื่อ loop ปิด |
 
 ---
 
-## 2) แผนที่การไหลของระบบ
+## 2) แผนที่การไหลของระบบที่ active จริง
 
 ```mermaid
 flowchart LR
@@ -66,8 +79,6 @@ flowchart LR
     CHILD --> LLM["Redaction LLM Chain / Ollama"]
     LLM --> WRITE["Tool: Write Redacted Snippets"]
     WRITE --> MAIN["climate-agent-main-v2"]
-    MAIN --> APPROVAL["handle-teacher-approval"]
-    APPROVAL --> LOOP["loop-closure-notification"]
 ```
 
 ภาพรวมที่ควรเล่าในคลิปคือ:
@@ -78,7 +89,7 @@ flowchart LR
 - child workflow `Tool: Get Raw Snippet Batch` จะดึง batch จริงจาก Supabase
 - LLM จะช่วย redaction / สรุป
 - งานฝั่ง recommendation หลักจะอยู่ที่ `climate-agent-main-v2`
-- ถ้าครู approve ระบบจะไปปิด loop ผ่าน `handle-teacher-approval` และ `loop-closure-notification`
+- ถ้าจะเล่าแนวคิด approval / loop closure ให้ยก `handle-teacher-approval` และ `loop-closure-notification` เป็น reference workflow ที่มีอยู่ใน repo แต่ยังไม่ publish ใน UI ปัจจุบัน และไม่ต้องวางไว้ใน flow หลักของระบบ active
 
 ---
 
@@ -314,7 +325,7 @@ workflow นี้คือ “สมองหลัก” ของระบบ
 
 ---
 
-## 8) Workflow สำหรับ approval และ loop closure
+## 8) Workflow สำหรับ approval และ loop closure (reference)
 
 ### 8.1 `handle-teacher-approval`
 
@@ -331,7 +342,8 @@ node สำคัญ:
 - `Insert Error Log`
 - `Respond 500`
 
-บทบาทของ workflow นี้คือรับผลการ approve/dismiss จากครูและบันทึกทุกอย่างไว้เป็นหลักฐาน
+บทบาทของ workflow นี้คือรับผลการ approve/dismiss จากครูและบันทึกทุกอย่างไว้เป็นหลักฐาน  
+สถานะปัจจุบัน: reference / inactive ใน repo ไม่ได้ publish ใน n8n UI ที่ใช้อยู่ตอนนี้
 
 ### 8.2 `loop-closure-notification`
 
@@ -341,12 +353,13 @@ node สำคัญ:
 - `Insert In-App Notifications`
 - `Notify Next.js Webhook`
 
-บทบาทของ workflow นี้คือปิด loop กลับไปยังฝั่งนักเรียน เมื่อครูมี action แล้วระบบจะส่ง notification และอัปเดตหน้าเว็บให้สะท้อน feedback loop ที่สมบูรณ์
+บทบาทของ workflow นี้คือปิด loop กลับไปยังฝั่งนักเรียน เมื่อครูมี action แล้วระบบจะส่ง notification และอัปเดตหน้าเว็บให้สะท้อน feedback loop ที่สมบูรณ์  
+สถานะปัจจุบัน: reference / inactive ใน repo ไม่ได้ publish ใน n8n UI ที่ใช้อยู่ตอนนี้
 
 ### 8.3 ประโยคที่ใช้พูดในเดโม
 
-> หลังครู approve ระบบจะไม่จบแค่ในฝั่งครูนะครับ  
-> n8n จะส่งผลต่อไปยัง workflow loop closure เพื่อแจ้งนักเรียนและอัปเดตสถานะในระบบ ทำให้ผู้ใช้เห็นว่าข้อเสนอแนะมีการตอบกลับจริง ไม่ได้หยุดอยู่ที่ AI วิเคราะห์อย่างเดียวครับ
+> ถ้าจะเล่าแนวคิด approval / loop closure ให้ยกสอง workflow นี้เป็น reference ใน repo นะครับ  
+> ตัวที่ active ใน UI ตอนนี้ไม่ได้ publish เส้นทางนี้อยู่ แต่ flow เชิงแนวคิดยังใช้เป็นภาพประกอบให้เข้าใจวงจรการตอบกลับของระบบได้ครับ
 
 ---
 
@@ -359,7 +372,7 @@ node สำคัญ:
 > ถ้าห้องนั้นมีข้อมูลปลอดภัยพอ ระบบจะคืน `status: ready` แล้วส่งต่อไปยัง LLM เพื่อ redaction และบันทึกผลลงระบบ  
 > ถ้าข้อมูลยังไม่พอ ระบบจะไม่ overclaim และจะคืนสถานะ invalid หรือ no safe batch อย่างชัดเจน  
 > หลังจากนั้น workflow หลัก `climate-agent-main-v2` จะนำข้อมูล aggregate ไปวิเคราะห์ สร้าง recommendation draft และคุมด้วย confidence / frequency guard ก่อนให้ครู approve  
-> สุดท้าย `handle-teacher-approval` และ `loop-closure-notification` จะปิด loop กลับไปยังนักเรียนครับ
+> ส่วนแนวคิด approval และ loop closure ให้ยก `handle-teacher-approval` และ `loop-closure-notification` เป็น reference workflow ที่อยู่ใน repo แต่ยังไม่ publish ใน UI ตอนนี้ครับ
 
 ---
 
@@ -374,8 +387,7 @@ node สำคัญ:
 - [ ] เปิด `climate-agent-main-v2`
 - [ ] ตรวจว่า `Get Aggregated Climate Data` ใช้ `Supabase account`
 - [ ] ตรวจว่ามี audit log เขียนครบ
-- [ ] เปิด `handle-teacher-approval`
-- [ ] เปิด `loop-closure-notification`
+- [ ] ถ้าจะอธิบาย approval / loop closure ให้ชี้ว่า workflow เหล่านี้เป็น reference ใน repo แต่ยังไม่ active ใน UI ปัจจุบัน
 
 ---
 

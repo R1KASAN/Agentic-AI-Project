@@ -27,15 +27,18 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RiskIndicator } from "@/components/domain/teacher/RiskIndicator";
 import { ThaiRiskBadge } from "@/components/domain/teacher/ThaiRiskBadge";
-import { useDailyClimateHistory } from "@/hooks/useDailyClimateHistory";
 import type {
   AuditBlockedReason,
   ClassClimateSummary,
   ClassMetrics,
+  DailyClimateSummary,
   RedactedVoiceState,
   StudentFeedbackTrend,
 } from "@/types";
-import type { TeacherDisplayRiskLevel } from "@/lib/teacherDashboard";
+import type {
+  TeacherActionContextSummary,
+  TeacherDisplayRiskLevel,
+} from "@/lib/teacherDashboard";
 
 type TeacherClimateOverviewClass = {
   id: string;
@@ -56,11 +59,13 @@ type TeacherClimateOverviewClass = {
   avgFairness: number | null;
   totalWeeksWithData: number;
   trend: StudentFeedbackTrend;
+  actionContext: TeacherActionContextSummary;
   climate: ClassClimateSummary[];
   metrics: ClassMetrics;
 };
 
 type TeacherClimateSelectedClass = TeacherClimateOverviewClass & {
+  dailyClimate: DailyClimateSummary[];
   redactedVoice: RedactedVoiceState;
 };
 
@@ -75,6 +80,11 @@ type TrendPoint = {
   pace: number | null;
   fairness: number | null;
   studentCount: number | null;
+};
+
+type DailyActivityNoticeState = {
+  dateLabel: string;
+  responseCount: number | null;
 };
 
 function formatThaiDate(value: string | null) {
@@ -305,6 +315,27 @@ function TrendChartCard({
   );
 }
 
+function DailyActivityStatusCard({
+  dateLabel,
+  responseCount,
+}: DailyActivityNoticeState) {
+  const countLabel =
+    responseCount === null ? "มีเช็กอินล่าสุดแล้ว" : `มี ${responseCount} คำตอบในวันนั้น`;
+
+  return (
+    <div className="teacher-surface-soft rounded-[24px] border p-4">
+      <div className="inline-flex items-center gap-2 rounded-full bg-[var(--teacher-dashboard-primary-soft)] px-3 py-1 text-xs font-medium text-[var(--teacher-dashboard-primary)]">
+        <CalendarDays className="h-3.5 w-3.5" />
+        มีเช็กอินล่าสุดแล้ว
+      </div>
+      <p className="mt-3 text-sm leading-7 text-[var(--teacher-dashboard-text)]">
+        วันที่ {dateLabel} {countLabel} แต่ aggregate รายวันของวันนั้นยังไม่พร้อมแสดง
+        เพราะระบบยังรอข้อมูลรวมอย่างน้อย 3 คนเพื่อคุ้มครองความเป็นส่วนตัวของนักเรียน
+      </p>
+    </div>
+  );
+}
+
 function ClimateOverviewState({ classes }: { classes: TeacherClimateOverviewClass[] }) {
   if (classes.length === 0) {
     return (
@@ -449,22 +480,33 @@ function ClimateDrilldownState({
     () => toWeeklyTrendPoints(selectedClass.climate),
     [selectedClass.climate],
   );
-  const { data: dailyTrend, isLoading: dailyLoading } = useDailyClimateHistory(
-    selectedClass.id,
-    14,
-  );
-
   const dailyChartData = useMemo<TrendPoint[]>(
     () =>
-      dailyTrend.map((point) => ({
-        label: point.date,
-        mood: point.mood,
-        pace: point.pace,
-        fairness: point.fairness,
-        studentCount: point.studentCount,
+      selectedClass.dailyClimate.map((point) => ({
+        label: point.check_in_date,
+        mood: point.avg_mood,
+        pace: point.avg_pace,
+        fairness: point.avg_fairness,
+        studentCount: point.total_responses,
       })),
-    [dailyTrend],
+    [selectedClass.dailyClimate],
   );
+  const latestDailyRow =
+    selectedClass.dailyClimate.length > 0
+      ? selectedClass.dailyClimate[selectedClass.dailyClimate.length - 1]
+      : null;
+  const latestDailyNeedsPrivacyNotice = Boolean(
+    latestDailyRow &&
+      latestDailyRow.avg_mood === null &&
+      latestDailyRow.avg_pace === null &&
+      latestDailyRow.avg_fairness === null,
+  );
+  const latestDailyNotice = latestDailyNeedsPrivacyNotice
+    ? {
+        dateLabel: latestDailyRow?.check_in_date ?? "วันที่ล่าสุด",
+        responseCount: latestDailyRow?.total_responses ?? null,
+      }
+    : null;
 
   const blockedCopy = blockedReasonCopy(selectedClass.blockedReason);
 
@@ -660,42 +702,89 @@ function ClimateDrilldownState({
           loading={false}
           emptyMessage="ยังมีข้อมูลรายสัปดาห์ไม่พอสำหรับแสดงแนวโน้มของห้องนี้"
         />
-        <TrendChartCard
-          title="Daily climate trend"
-          description="ดูสัญญาณรายวันล่าสุดเพื่อจับการเปลี่ยนแปลงที่เกิดเร็วกว่า weekly rollup"
-          data={dailyChartData}
-          loading={dailyLoading}
-          emptyMessage="ยังมีข้อมูลรายวันไม่พอสำหรับแสดงแนวโน้มของห้องนี้"
-        />
+        <div className="space-y-4">
+          {latestDailyNotice && (
+            <DailyActivityStatusCard {...latestDailyNotice} />
+          )}
+          <TrendChartCard
+            title="Daily climate trend"
+            description="ดูสัญญาณรายวันล่าสุดเพื่อจับการเปลี่ยนแปลงที่เกิดเร็วกว่า weekly rollup"
+            data={dailyChartData}
+            loading={false}
+            emptyMessage="ยังมีข้อมูลรายวันไม่พอสำหรับแสดงแนวโน้มของห้องนี้"
+          />
+        </div>
       </div>
 
       <Card className="product-section-card">
         <CardContent className="flex flex-col gap-4 p-5 lg:flex-row lg:items-start lg:justify-between">
-          <div className="space-y-3">
-            <h2 className="text-lg font-semibold text-[var(--teacher-dashboard-text)]">
-              Action context
-            </h2>
-            <p className="text-sm teacher-text-muted">
-              ใช้หน้า Class Detail เป็น workspace สำหรับ approve หรือ dismiss
-              ฉบับร่าง ส่วนหน้านี้ตั้งใจให้ครูอ่าน climate signal ก่อนตัดสินใจ
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Badge className="bg-[rgba(253,230,138,0.12)] text-[var(--teacher-dashboard-warning)] hover:bg-[rgba(253,230,138,0.12)]">
-                {selectedClass.pendingRecommendations} ฉบับร่างรอตรวจ
-              </Badge>
-              {selectedClass.latestPolicySelected && (
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-lg font-semibold text-[var(--teacher-dashboard-text)]">
+                    Action context
+                  </h2>
+                  <Badge
+                    variant="outline"
+                    className="rounded-full border-[color:var(--teacher-dashboard-border)] text-[var(--teacher-dashboard-text-muted)]"
+                  >
+                    {selectedClass.actionContext.title}
+                  </Badge>
+                </div>
+                <p className="text-sm teacher-text-muted">
+                  {selectedClass.actionContext.summary}
+                </p>
+                <div className="teacher-surface-soft rounded-[24px] border px-4 py-3">
+                  <p className="text-sm leading-6 text-[var(--teacher-dashboard-text)]">
+                    {selectedClass.actionContext.actionContext}
+                  </p>
+                  {selectedClass.actionContext.draftText && (
+                    <div className="mt-3 rounded-[18px] border border-dashed border-[color:var(--teacher-dashboard-border)] bg-[rgba(2,8,23,0.18)] px-3 py-2">
+                      <p className="text-xs font-medium uppercase tracking-[0.12em] teacher-text-muted">
+                        ฉบับร่างล่าสุด
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-[var(--teacher-dashboard-text)]">
+                        {selectedClass.actionContext.draftText}
+                      </p>
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge className="bg-[rgba(253,230,138,0.12)] text-[var(--teacher-dashboard-warning)] hover:bg-[rgba(253,230,138,0.12)]">
+                    {selectedClass.pendingRecommendations} ฉบับร่างรอตรวจ
+                  </Badge>
+                  {selectedClass.latestPolicySelected && (
                 <Badge
                   variant="outline"
                   className="border-[var(--teacher-dashboard-border)] text-[var(--teacher-dashboard-text-muted)]"
-                >
-                  นโยบายล่าสุด: {selectedClass.latestPolicySelected}
-                </Badge>
-              )}
-            </div>
-            {blockedCopy && (
-              <p className="text-sm teacher-text-muted">{blockedCopy}</p>
-            )}
-          </div>
+                    >
+                      นโยบายล่าสุด: {selectedClass.latestPolicySelected}
+                    </Badge>
+                  )}
+                  {selectedClass.actionContext.sourceLabel && (
+                    <Badge
+                      variant="outline"
+                      className="border-[color:var(--teacher-dashboard-border)] text-[var(--teacher-dashboard-text-muted)]"
+                    >
+                      {selectedClass.actionContext.sourceLabel}
+                    </Badge>
+                  )}
+                </div>
+                {blockedCopy && (
+                  <p className="text-sm teacher-text-muted">{blockedCopy}</p>
+                )}
+                {selectedClass.actionContext.actions.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {selectedClass.actionContext.actions.map((action) => (
+                      <span
+                        key={action}
+                        className="rounded-full bg-[rgba(147,197,253,0.12)] px-3 py-1 text-xs font-medium text-[var(--teacher-dashboard-primary)]"
+                      >
+                        {action}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
 
           <div className="flex flex-col gap-2 sm:flex-row">
             <Link href={`/teacher/class/${selectedClass.id}`}>

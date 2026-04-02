@@ -151,9 +151,19 @@ Also removed: `"maxRetries": 1` (not a valid parameter)
 
 ### Immediate (After Import)
 1. Configure credentials
-2. Update webhook URL to production
-3. Run dry-run test
-4. Fix any credential/connection errors
+2. Rebind every `supabaseApi` node to the live credential named `Supabase account`
+3. Verify no node still shows `Supabase API` or `supabase-api-cred-id`
+4. Update webhook URL to production
+5. Run dry-run test
+6. Fix any credential/connection errors
+
+### Supabase Rebind Checklist
+1. Create or confirm one n8n credential of type `supabaseApi`
+2. Use the live credential name `Supabase account`
+3. Set `SUPABASE_URL` to the project URL
+4. Set the credential secret to the Supabase service-role key
+5. Open the imported workflow and re-select `Supabase account` on each Supabase HTTP node
+6. Save the workflow once all missing-credential banners are gone
 
 ### Short-term (First Week)
 1. Activate workflow
@@ -187,7 +197,15 @@ If you still get errors after import:
 - **Solution**: 
   1. Configure credentials in n8n settings
   2. Reload workflow
-  3. Select credentials for each node
+  3. Select `Supabase account` for each `supabaseApi` node
+
+### "Credentials for 'Supabase API' are not set"
+- **Cause**: Workflow JSON still points to an old placeholder name or imported without a live rebind
+- **Solution**:
+  1. Confirm a real `supabaseApi` credential exists in n8n
+  2. Rename or use the live credential `Supabase account`
+  3. Open every Supabase HTTP node and re-select `Supabase account`
+  4. Save the workflow and test one read node plus one insert node
 
 ### "Workflow execution failed"
 - **Check**: 
@@ -222,4 +240,3 @@ If you still get errors after import:
 **Status**: ✅ **READY FOR PRODUCTION**  
 **Import URL**: Use `n8n/workflows/W06-morning-briefing.json`  
 **Support**: See FIX-SUMMARY.md for detailed documentation  
-

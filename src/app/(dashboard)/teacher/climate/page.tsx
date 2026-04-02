@@ -4,9 +4,11 @@ import { createClient } from "@/lib/supabase/server";
 import TeacherClimateClient from "./TeacherClimateClient";
 import {
   buildRedactedVoiceStateFromRpc,
+  buildTeacherActionContext,
   buildStudentFeedbackSummary,
   deriveTeacherDisplayRiskLevel,
   getClassRedactedVoice,
+  getTeacherDailyClimateSummary,
   getRiskScoreFromLevel,
   getTeacherDashboardOverviewData,
 } from "@/lib/teacherDashboard";
@@ -49,6 +51,11 @@ export default async function TeacherClimatePage({ searchParams }: Props) {
     const feedbackSummary = buildStudentFeedbackSummary(climate, metrics, {
       hasPendingRecommendation: pendingRecommendations.length > 0,
     });
+    const actionContext = buildTeacherActionContext(
+      feedbackSummary,
+      riskLevel,
+      auditByClassId[cls.id]?.blockedReason ?? null,
+    );
 
     return {
       id: cls.id,
@@ -69,6 +76,7 @@ export default async function TeacherClimatePage({ searchParams }: Props) {
       avgFairness: feedbackSummary.avgFairness,
       totalWeeksWithData: feedbackSummary.totalWeeksWithData,
       trend: feedbackSummary.trend,
+      actionContext,
       climate,
       metrics,
     };
@@ -85,10 +93,14 @@ export default async function TeacherClimatePage({ searchParams }: Props) {
   const redactedVoiceRows = selectedClass
     ? await getClassRedactedVoice(selectedClass.id, 4)
     : null;
+  const dailyClimate = selectedClass
+    ? await getTeacherDailyClimateSummary(user.id, selectedClass.id, 14, supabase)
+    : [];
 
   const selectedClimate = selectedClass
     ? {
         ...selectedClass,
+        dailyClimate,
         redactedVoice: buildRedactedVoiceStateFromRpc(
           selectedClass.climate,
           redactedVoiceRows

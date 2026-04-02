@@ -9,6 +9,7 @@ import type {
   AuditSignal,
   ClassClimateSummary,
   ClassMetrics,
+  DailyClimateSummary,
   PolicyLevel,
   Recommendation,
   RecommendationConfidenceLabel,
@@ -592,6 +593,182 @@ export function buildStudentFeedbackSummary(
   };
 }
 
+export type TeacherActionContextMode = "pending" | "fallback" | "empty";
+
+export interface TeacherActionContextSummary {
+  mode: TeacherActionContextMode;
+  title: string;
+  summary: string;
+  draftText: string | null;
+  actionContext: string;
+  actions: string[];
+  sourceLabel: string | null;
+}
+
+function formatCompactScore(value: number | null) {
+  return value === null ? "ยังไม่มีค่าเฉลี่ย" : `${value.toFixed(1)}/5`;
+}
+
+function describeTeacherTrend(trend: StudentFeedbackTrend) {
+  switch (trend) {
+    case "up":
+      return "กำลังฟื้นตัว";
+    case "down":
+      return "อ่อนลงเล็กน้อย";
+    case "flat":
+      return "ค่อนข้างทรงตัว";
+    default:
+      return "ยังสรุปแนวโน้มไม่ได้";
+  }
+}
+
+function buildFallbackTeacherActions(
+  riskLevel: TeacherDisplayRiskLevel,
+  blockedReason: AuditBlockedReason,
+) {
+  if (riskLevel === "CRITICAL") {
+    return [
+      "เปิดพื้นที่คุยสั้น ๆ กับห้อง",
+      "เช็กนักเรียนที่อาจต้องการการช่วยเหลือเพิ่ม",
+      "ติดตามผลในคาบถัดไปทันที",
+    ];
+  }
+
+  if (riskLevel === "WARNING") {
+    return [
+      "ชวนสะท้อนสิ่งที่ติดขัดในคาบนี้",
+      "ปรับจังหวะคาบและยกตัวอย่างให้ชัดขึ้น",
+      "ติดตามสัญญาณรวมในรอบถัดไป",
+    ];
+  }
+
+  if (blockedReason === "frequency_limit_exceeded") {
+    return [
+      "รอจังหวะที่เหมาะสมก่อนส่งการแจ้งเตือนซ้ำ",
+      "เปิดประวัติการตอบสนองก่อนหน้าเพื่อดูบริบท",
+      "เตรียมแผนคุยสั้น ๆ หากสัญญาณยังอ่อนลง",
+    ];
+  }
+
+  return [
+    "รักษาสิ่งที่ทำงานได้ดีในรอบนี้",
+    "ติดตามสัญญาณรวมต่อเนื่อง",
+    "บันทึกสิ่งที่อยากทำซ้ำในคาบถัดไป",
+  ];
+}
+
+function buildFallbackTeacherDraft(
+  feedbackSummary: StudentFeedbackSummary,
+  riskLevel: TeacherDisplayRiskLevel,
+  blockedReason: AuditBlockedReason,
+) {
+  const trendLabel = describeTeacherTrend(feedbackSummary.trend);
+  const moodLabel = formatCompactScore(feedbackSummary.avgMood);
+  const paceLabel = formatCompactScore(feedbackSummary.avgPace);
+  const fairnessLabel = formatCompactScore(feedbackSummary.avgFairness);
+
+  if (riskLevel === "CRITICAL") {
+    return [
+      `สัปดาห์ล่าสุดห้องนี้มี ${feedbackSummary.latestResponseCount} คำตอบ และแนวโน้มรวม ${trendLabel}.`,
+      `คะแนนสะท้อนว่าอารมณ์เฉลี่ยอยู่ที่ ${moodLabel}, จังหวะคาบอยู่ที่ ${paceLabel}, และความยุติธรรมอยู่ที่ ${fairnessLabel}.`,
+      "ระบบจึงสรุปว่าห้องนี้ควรได้รับการดูแลใกล้ชิดขึ้น พร้อมเปิดพื้นที่คุยสั้น ๆ และติดตามผลอย่างต่อเนื่อง.",
+    ].join(" ");
+  }
+
+  if (riskLevel === "WARNING") {
+    return [
+      `สัปดาห์ล่าสุดห้องนี้มี ${feedbackSummary.latestResponseCount} คำตอบ และแนวโน้มรวม ${trendLabel}.`,
+      `สัญญาณรวมยังไม่รุนแรงเท่าระดับวิกฤต แต่ค่าที่สะท้อนอารมณ์ ${moodLabel}, จังหวะคาบ ${paceLabel}, และความยุติธรรม ${fairnessLabel} บอกว่าควรติดตามเพิ่ม.`,
+      blockedReason === "frequency_limit_exceeded"
+        ? "รอบนี้ระบบชะลอการแจ้งเตือนซ้ำ แต่ยังบันทึกบริบทล่าสุดไว้ให้ครูใช้ตัดสินใจต่อได้."
+        : "ระบบจึงเสนอให้ครูค่อย ๆ ปรับจังหวะคาบและตรวจดูว่ามีจุดใดที่ทำให้นักเรียนสะดุด.",
+    ].join(" ");
+  }
+
+  return [
+    `สัปดาห์ล่าสุดห้องนี้มี ${feedbackSummary.latestResponseCount} คำตอบ และแนวโน้มรวม ${trendLabel}.`,
+    `ข้อมูลรวมยังอยู่ในเกณฑ์ที่พออ่านได้ และระบบจะเก็บสัญญาณนี้ไว้ให้ครูใช้เปรียบเทียบต่อในรอบถัดไป.`,
+    "หากต้องการรายละเอียดเพิ่ม สามารถเปิดประวัติการตอบสนองหรือมุมมอง workspace ของห้องนี้ต่อได้.",
+  ].join(" ");
+}
+
+export function buildTeacherActionContext(
+  feedbackSummary: StudentFeedbackSummary,
+  riskLevel: TeacherDisplayRiskLevel,
+  blockedReason: AuditBlockedReason,
+  options: {
+    pendingRecommendation?: RecommendationViewModel | null;
+    referenceRecommendation?: RecommendationViewModel | null;
+  } = {},
+): TeacherActionContextSummary {
+  const pendingRecommendation = options.pendingRecommendation ?? null;
+  const referenceRecommendation = options.referenceRecommendation ?? null;
+
+  if (pendingRecommendation) {
+    return {
+      mode: "pending",
+      title: "ฉบับร่างที่รออนุมัติ",
+      summary:
+        pendingRecommendation.reasoningSummary ??
+        "Agentic AI สร้างฉบับร่างไว้แล้ว และกำลังรอให้ครูตรวจสอบก่อนส่งต่อ",
+      draftText:
+        pendingRecommendation.aiMessageDraft ??
+        pendingRecommendation.reasoningSummary ??
+        null,
+      actionContext:
+        pendingRecommendation.reasoningSummary ?? feedbackSummary.summaryLine,
+      actions:
+        pendingRecommendation.actions.length > 0
+          ? pendingRecommendation.actions
+          : buildFallbackTeacherActions(riskLevel, blockedReason),
+      sourceLabel: "Agentic AI draft",
+    };
+  }
+
+  if (riskLevel === "WARNING" || riskLevel === "CRITICAL") {
+    const draftText =
+      referenceRecommendation?.aiMessageDraft ??
+      buildFallbackTeacherDraft(feedbackSummary, riskLevel, blockedReason);
+    const actionContext =
+      referenceRecommendation?.reasoningSummary ??
+      buildFallbackTeacherDraft(feedbackSummary, riskLevel, blockedReason);
+
+    return {
+      mode: "fallback",
+      title: referenceRecommendation
+        ? "ฉบับร่างล่าสุดจาก Agentic AI"
+        : "สรุปจากบริบทล่าสุด",
+      summary:
+        blockedReason === "frequency_limit_exceeded"
+          ? "รอบนี้ระบบชะลอการแจ้งเตือนซ้ำ แต่ยังสรุปบริบทล่าสุดไว้ให้ครูอ่านต่อได้"
+          : feedbackSummary.summaryLine,
+      draftText,
+      actionContext,
+      actions: referenceRecommendation?.actions.length
+        ? referenceRecommendation.actions
+        : buildFallbackTeacherActions(riskLevel, blockedReason),
+      sourceLabel: referenceRecommendation
+        ? referenceRecommendation.status === "approved"
+          ? "ฉบับร่างล่าสุดที่เคยอนุมัติ"
+          : "ฉบับร่างล่าสุดจากรอบก่อน"
+        : "fallback จากบริบทล่าสุด",
+    };
+  }
+
+  return {
+    mode: "empty",
+    title: "ยังไม่มีฉบับร่าง",
+    summary: feedbackSummary.summaryLine,
+    draftText: null,
+    actionContext:
+      blockedReason === "k_anonymity"
+        ? "ระบบยังไม่สร้างฉบับร่างใหม่เพราะข้อมูลรวมยังไม่ถึงเกณฑ์ความเป็นส่วนตัวขั้นต่ำ"
+        : "ระบบกำลังรอดูสัญญาณรวมที่ชัดขึ้นก่อนจะสร้างฉบับร่างใหม่",
+    actions: buildFallbackTeacherActions(riskLevel, blockedReason),
+    sourceLabel: null,
+  };
+}
+
 export function buildRedactedVoiceState(
   climate: ClassClimateSummary[],
 ): RedactedVoiceState {
@@ -927,6 +1104,122 @@ export async function getTeacherMemberActivityByClass(
   }
 
   return activityByStudentId;
+}
+
+type TeacherDailyClimatePulseRow = {
+  student_id: string | null;
+  mood: number | null;
+  pace: number | null;
+  fairness: number | null;
+  created_at: string | null;
+  checkin_date?: string | null;
+};
+
+export async function getTeacherDailyClimateSummary(
+  teacherId: string,
+  classId: string,
+  daysBack = 14,
+  supabase?: TeacherDashboardClient,
+): Promise<DailyClimateSummary[]> {
+  const authClient = supabase ?? (await createClient());
+  const { data: ownedClass, error: ownershipError } = await authClient
+    .from("classes")
+    .select("id")
+    .eq("id", classId)
+    .eq("teacher_id", teacherId)
+    .maybeSingle();
+
+  if (ownershipError) {
+    throw ownershipError;
+  }
+
+  if (!ownedClass) {
+    return [];
+  }
+
+  const serviceClient = getTeacherDashboardServiceClient();
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - Math.max(daysBack - 1, 0));
+  cutoff.setHours(0, 0, 0, 0);
+
+  const { data, error } = await serviceClient
+    .from("student_pulses")
+    .select("student_id, mood, pace, fairness, created_at, checkin_date")
+    .eq("class_id", classId)
+    .gte("created_at", cutoff.toISOString())
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  const grouped = new Map<
+    string,
+    {
+      moods: number[];
+      paces: number[];
+      fairnesses: number[];
+      studentIds: Set<string>;
+      totalResponses: number;
+    }
+  >();
+
+  for (const row of (data ?? []) as TeacherDailyClimatePulseRow[]) {
+    const dateKey =
+      typeof row.checkin_date === "string" && row.checkin_date.length > 0
+        ? row.checkin_date
+        : typeof row.created_at === "string" && row.created_at.length > 0
+          ? row.created_at.slice(0, 10)
+          : null;
+
+    if (!dateKey) {
+      continue;
+    }
+
+    const entry = grouped.get(dateKey) ?? {
+      moods: [],
+      paces: [],
+      fairnesses: [],
+      studentIds: new Set<string>(),
+      totalResponses: 0,
+    };
+
+    if (typeof row.student_id === "string" && row.student_id.length > 0) {
+      entry.studentIds.add(row.student_id);
+    }
+    if (typeof row.mood === "number") {
+      entry.moods.push(row.mood);
+    }
+    if (typeof row.pace === "number") {
+      entry.paces.push(row.pace);
+    }
+    if (typeof row.fairness === "number") {
+      entry.fairnesses.push(row.fairness);
+    }
+    entry.totalResponses += 1;
+
+    grouped.set(dateKey, entry);
+  }
+
+  const average = (values: number[]) =>
+    values.length > 0
+      ? Number((values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(2))
+      : null;
+
+  return [...grouped.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([checkInDate, entry]) => {
+      const hasAggregate = entry.studentIds.size >= 3;
+
+      return {
+        class_id: classId,
+        check_in_date: checkInDate,
+        avg_mood: hasAggregate ? average(entry.moods) : null,
+        avg_pace: hasAggregate ? average(entry.paces) : null,
+        avg_fairness: hasAggregate ? average(entry.fairnesses) : null,
+        total_responses: entry.totalResponses,
+      } satisfies DailyClimateSummary;
+    });
 }
 
 export async function getClimateSummariesByClassIds(

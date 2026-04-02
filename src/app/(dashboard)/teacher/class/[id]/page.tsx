@@ -5,12 +5,14 @@ import ClassDetailClient from "./ClassDetailClient";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   buildRedactedVoiceStateFromRpc,
+  buildTeacherActionContext,
   buildStudentFeedbackSummary,
   deriveTeacherDisplayRiskLevel,
   getClassRedactedVoice,
   getClassMetrics,
   getRiskScoreFromLevel,
   getLatestAuditSignal,
+  mapRecommendationToViewModel,
   mapRecommendationsToViewModels,
 } from "@/lib/teacherDashboard";
 
@@ -55,6 +57,7 @@ export default async function ClassDetailPage({ params }: Props) {
     countResult,
     climateResult,
     pendingRecsResult,
+    latestRecommendationResult,
     historyCountResult,
     metrics,
     auditSignal,
@@ -78,6 +81,14 @@ export default async function ClassDetailPage({ params }: Props) {
       .eq("status", "pending")
       .order("created_at", { ascending: false })
       .limit(10),
+    supabase
+      .from("recommendations")
+      .select(
+        "id, class_id, content, status, dismissal_reason, action_taken_note, teacher_action_note, communicated_to_students, created_at, updated_at, policy_level, ai_message_draft, actions_json, confidence_score, reasoning, inquiry_mode, fallback_used, priority, alert_sent_at",
+      )
+      .eq("class_id", id)
+      .order("created_at", { ascending: false })
+      .limit(1),
     supabase
       .from("recommendations")
       .select("*", { count: "exact", head: true })
@@ -136,6 +147,23 @@ export default async function ClassDetailPage({ params }: Props) {
     climateData,
     metrics,
   );
+  const latestRecommendationRow = Array.isArray(latestRecommendationResult.data)
+    ? latestRecommendationResult.data[0] ?? null
+    : latestRecommendationResult.data ?? null;
+  const latestRecommendation = latestRecommendationRow
+    ? mapRecommendationToViewModel(latestRecommendationRow, climateData, metrics)
+    : null;
+  const actionContext = buildTeacherActionContext(
+    feedbackSummary,
+    derivedRiskLevel,
+    auditSignal?.blockedReason ?? null,
+    {
+      pendingRecommendation: recommendationViewModels[0] ?? null,
+      referenceRecommendation: recommendationViewModels.length > 0
+        ? recommendationViewModels[0]
+        : latestRecommendation,
+    },
+  );
 
   return (
       <ClassDetailClient
@@ -148,6 +176,8 @@ export default async function ClassDetailPage({ params }: Props) {
       studentCount={countResult.count ?? 0}
       climate={climateData}
       recommendations={recommendationViewModels}
+      latestRecommendation={latestRecommendation}
+      actionContext={actionContext}
       historyCount={historyCountResult.count ?? 0}
       metrics={metrics}
       auditSignal={auditSignal}

@@ -57,6 +57,11 @@ type ClimateTrendCardProps = {
     chartHeightClassName?: string;
 };
 
+type DailyPrivacyNoticeState = {
+    dateLabel: string;
+    responseCount: number | null;
+};
+
 function formatThaiDate(dateString: string | null) {
     if (!dateString) return null;
     return new Date(dateString).toLocaleDateString("th-TH", {
@@ -449,14 +454,37 @@ function TeacherResponseCard({
     );
 }
 
+function DailyPrivacyNotice({
+    dateLabel,
+    responseCount,
+}: DailyPrivacyNoticeState) {
+    const countLabel =
+        responseCount === null ? "มีเช็กอินล่าสุดแล้ว" : `มี ${responseCount} คำตอบในวันนั้น`;
+
+    return (
+        <div className="rounded-2xl border border-[color:var(--student-dashboard-border)] bg-[var(--student-dashboard-surface-raised)] p-5 shadow-sm">
+            <div className="inline-flex items-center gap-2 rounded-full bg-[var(--student-dashboard-primary-soft)] px-3 py-1 text-xs font-medium text-[var(--student-dashboard-primary)]">
+                <ShieldCheck aria-hidden="true" className="h-3.5 w-3.5" />
+                มีเช็กอินล่าสุดแล้ว
+            </div>
+            <p className="mt-3 text-sm leading-7 text-[var(--student-dashboard-text)]">
+                วันที่ {dateLabel} {countLabel} แต่ระบบยังไม่แสดงแนวโน้มรายวันของวันนั้น
+                เพราะต้องรอข้อมูลรวมอย่างน้อย 3 คน เพื่อคุ้มครองความเป็นส่วนตัวของนักเรียน
+            </p>
+        </div>
+    );
+}
+
 function DailyCompactCard({
     point,
     helperText,
     statusText,
+    privacyNotice,
 }: {
     point: TrendChartPoint | null;
     helperText: string;
     statusText?: string | null;
+    privacyNotice?: DailyPrivacyNoticeState | null;
 }) {
     const metrics = [
         {
@@ -528,7 +556,11 @@ function DailyCompactCard({
                                 </div>
                             ))}
                         </div>
+
+                        {privacyNotice && <DailyPrivacyNotice {...privacyNotice} />}
                     </div>
+                ) : privacyNotice ? (
+                    <DailyPrivacyNotice {...privacyNotice} />
                 ) : (
                     <div className="rounded-2xl border border-dashed border-[color:var(--student-dashboard-border)] bg-[var(--student-dashboard-surface-raised)] p-6 text-sm text-[var(--student-dashboard-text-muted)]">
                         ยังไม่มีข้อมูลรายวันที่แสดงได้ในตอนนี้
@@ -761,6 +793,18 @@ export default function StudentFeedbackPage() {
         return dailyClimateHistory.filter((row) => row.sourceDate >= currentWeekStart);
     }, [currentWeekStart, dailyClimateHistory]);
 
+    const latestCurrentWeekDailyRow =
+        currentWeekDailyClimateHistory.at(-1) ?? null;
+    const latestCurrentWeekNeedsPrivacyNotice = Boolean(
+        latestCurrentWeekDailyRow && !latestCurrentWeekDailyRow.hasAggregate
+    );
+    const latestCurrentWeekPrivacyNotice = latestCurrentWeekNeedsPrivacyNotice
+        ? {
+              dateLabel: latestCurrentWeekDailyRow?.date ?? "วันที่ล่าสุด",
+              responseCount: latestCurrentWeekDailyRow?.studentCount ?? null,
+          }
+        : null;
+
     const dailyChartData = useMemo(
         () =>
             currentWeekDailyClimateHistory.map((row) => ({
@@ -775,25 +819,34 @@ export default function StudentFeedbackPage() {
 
     const dailyVisiblePoints = useMemo(
         () =>
-            dailyChartData.filter(
-                (row) =>
-                    row.mood !== null ||
-                    row.pace !== null ||
-                    row.fairness !== null
-            ),
-        [dailyChartData]
+            currentWeekDailyClimateHistory.filter((row) => row.hasAggregate).map((row) => ({
+                label: row.date,
+                mood: row.mood,
+                pace: row.pace,
+                fairness: row.fairness,
+                studentCount: row.studentCount,
+            })),
+        [currentWeekDailyClimateHistory]
     );
 
     const dailyVisiblePointCount = dailyVisiblePoints.length;
     const latestDailyPoint = dailyVisiblePoints.at(-1) ?? null;
 
     const dailyStatusText = useMemo(() => {
-        if (dailyTrendLoading || dailyVisiblePointCount === 0) {
+        if (dailyTrendLoading || currentWeekDailyClimateHistory.length === 0) {
             return null;
         }
 
+        if (dailyVisiblePointCount === 0) {
+            return `อาทิตย์นี้มีเช็กอินแล้ว ${currentWeekDailyClimateHistory.length} วัน แต่ยังไม่มีวันที่แสดงค่าเฉลี่ยรายวันได้`;
+        }
+
         return `ตอนนี้มีข้อมูลรายวันที่แสดงได้ ${dailyVisiblePointCount} วันในอาทิตย์นี้`;
-    }, [dailyTrendLoading, dailyVisiblePointCount]);
+    }, [
+        currentWeekDailyClimateHistory.length,
+        dailyTrendLoading,
+        dailyVisiblePointCount,
+    ]);
 
     const weeklyChartData = useMemo(
         () =>
@@ -1077,22 +1130,28 @@ export default function StudentFeedbackPage() {
                         <DailyCompactCard
                             point={latestDailyPoint}
                             statusText={dailyStatusText}
+                            privacyNotice={latestCurrentWeekPrivacyNotice}
                             helperText="แต่ละจุดสะท้อนการเช็กอินของอาทิตย์นี้ เพื่อดูว่าบรรยากาศกำลังเคลื่อนไปทางไหนเมื่อเทียบกับสัปดาห์ก่อน"
                         />
                     ) : (
-                        <ClimateTrendCard
-                            title="แนวโน้มรายวันจากการเช็กอินล่าสุด"
-                            helperText="ดูว่าอารมณ์ของห้องเรียนในอาทิตย์นี้กำลังเคลื่อนไปทางไหน เทียบกับสัปดาห์ก่อน"
-                            loading={dailyTrendLoading}
-                            data={dailyChartData}
-                            insightText={dailyInsightText}
-                            emptyMessage={
-                                dailyTrendError ||
-                                "ยังไม่มีข้อมูลรายวันที่แสดงได้ของอาทิตย์นี้"
-                            }
-                            statusText={dailyStatusText}
-                            chartHeightClassName="h-[240px]"
-                        />
+                        <div className="space-y-4">
+                            {latestCurrentWeekPrivacyNotice && (
+                                <DailyPrivacyNotice {...latestCurrentWeekPrivacyNotice} />
+                            )}
+                            <ClimateTrendCard
+                                title="แนวโน้มรายวันจากการเช็กอินล่าสุด"
+                                helperText="ดูว่าอารมณ์ของห้องเรียนในอาทิตย์นี้กำลังเคลื่อนไปทางไหน เทียบกับสัปดาห์ก่อน"
+                                loading={dailyTrendLoading}
+                                data={dailyChartData}
+                                insightText={dailyInsightText}
+                                emptyMessage={
+                                    dailyTrendError ||
+                                    "ยังไม่มีข้อมูลรายวันที่แสดงได้ของอาทิตย์นี้"
+                                }
+                                statusText={dailyStatusText}
+                                chartHeightClassName="h-[240px]"
+                            />
+                        </div>
                     ))}
             </section>
 
