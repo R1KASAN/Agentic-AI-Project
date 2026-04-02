@@ -5,10 +5,17 @@ Use these credentials when verifying the Vercel preview for the demo environment
 - Teacher: `teacher@demo.com` / `password123`
 - Student: `student1@demo.com` / `password123`
 
+Setup note:
+
+- Apply the latest Supabase migrations first.
+- Provision demo auth accounts with `npm run demo:provision-auth`.
+- Seed the domain demo data with `supabase/seed/presentation-dataset.sql`.
+
 Expected landing pages:
 
-- Teacher password or magic-link login -> `/teacher`
-- Student password or magic-link login -> `/student/classes`
+- Teacher password login -> `/teacher`
+- Student password login -> `/student/classes`
+- Magic link remains a fallback path if password auth is unavailable in a dev-only environment
 
 Verification checklist:
 

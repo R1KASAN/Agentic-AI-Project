@@ -102,13 +102,13 @@
 - โค้ดบรรทัดสั้น ๆ:
 
 ```text
-Run supabase/seed/presentation-dataset.sql after applying migrations to load demo data.
+Apply migrations, provision demo auth, then load supabase/seed/presentation-dataset.sql.
 ```
 
 ### สคริปต์คำบรรยาย
 > สถาปัตยกรรมของระบบถูกแบ่งเป็น 2 โหมดหลัก คือ **Preprocessing Mode** และ **Processing Mode** ครับ  
 > ฝั่ง Preprocessing เริ่มจากข้อมูลที่นักเรียนส่งเข้ามาผ่านหน้า Next.js frontend แล้วส่งต่อไปยัง Supabase เพื่อเก็บข้อมูลและสรุปแบบ aggregate โดยมี privacy guard ควบคุมอยู่  
-> ก่อนใช้เดโมจริง เราจะรันไฟล์ `supabase/seed/presentation-dataset.sql` หลังจาก apply migrations เพื่อโหลดข้อมูลตัวอย่างเข้า Supabase/Postgres ให้พร้อมใช้งานครับ  
+> ก่อนใช้เดโมจริง เราจะ apply migrations ก่อน จากนั้น provision บัญชี demo auth ให้ password login ใช้งานได้จริง แล้วจึงรัน `supabase/seed/presentation-dataset.sql` เพื่อโหลดข้อมูลตัวอย่างเข้า Supabase/Postgres ให้พร้อมใช้งานครับ  
 > ส่วน Processing Mode จะให้ n8n ทำหน้าที่เป็น workflow orchestrator เรียกข้อมูลที่เตรียมไว้แล้วไปวิเคราะห์ และให้ LLM ช่วยสร้าง recommendation draft ก่อนให้ครู approve ทุก action ครับ
 
 ---
@@ -211,4 +211,3 @@ Run supabase/seed/presentation-dataset.sql after applying migrations to load dem
 - ถ้าต้องการสไตล์สคริปต์พูด ให้ใช้บรรทัด `สคริปต์คำบรรยาย` เป็นข้อความพูดจริง
 - ถ้าต้องการสไลด์สั้นลง ให้คงเฉพาะ `สิ่งที่แสดงบนสไลด์`
 - ถ้าต้องการซ้อมพูด ให้เน้นอ่านเฉพาะสคริปต์คำบรรยายทีละสไลด์
-

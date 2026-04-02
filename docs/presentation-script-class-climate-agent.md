@@ -7,7 +7,7 @@
 **Subtitle:** AI-powered Classroom Climate Early Warning System  
 **Tech Stack:** Next.js, React, Tailwind CSS, Supabase, n8n, LangChain / Gemini  
 **Dataset:** `supabase/seed/presentation-dataset.sql`
-**Demo Setup:** apply Supabase migrations first, then seed demo data from `supabase/seed/presentation-dataset.sql`
+**Demo Setup:** apply Supabase migrations, provision demo auth accounts, then seed the canonical demo bundle from `supabase/seed/presentation-dataset.sql`
 
 ---
 
@@ -50,7 +50,12 @@
 - เปิด browser ไปที่ `http://localhost:3000`
 - แสดงสั้น ๆ ว่าก่อนเดโม เรา:
   1. apply migrations ให้ schema ตรงกับโค้ด
-  2. seed ข้อมูลเดโมจาก `supabase/seed/presentation-dataset.sql`
+  2. provision demo auth accounts ผ่าน Supabase Auth
+  3. seed canonical demo data bundle จาก `supabase/seed/presentation-dataset.sql`
+- พูดสั้น ๆ ว่าชุดเดโมนี้เตรียมไว้แล้ว:
+  - `3` ห้องเรียนเดโม
+  - student check-in / climate trend
+  - recommendation สำหรับฝั่งครู
 - Login ด้วยบัญชีนักเรียนเดโม
   - `student1@demo.com`
   - `password123`
@@ -61,7 +66,10 @@
 
 #### สคริปต์คำบรรยาย (ภาษาไทย):
 > ก่อนเริ่มเดโม เราจะ apply migrations ให้โครงสร้างฐานข้อมูลตรงกับเวอร์ชันล่าสุดของระบบก่อนครับ  
-> จากนั้นจึง seed ข้อมูลตัวอย่างจาก `supabase/seed/presentation-dataset.sql` เพื่อให้เห็น flow จริงตั้งแต่ข้อมูลเข้าระบบจนถึงผลลัพธ์บนหน้าจอ  
+> จากนั้นเราจะ provision บัญชีเดโมของครูและนักเรียนผ่าน Supabase Auth เพื่อให้ password login ใช้งานได้จริงในสภาพแวดล้อมเดโม  
+> แล้วจึง seed canonical demo bundle จาก `supabase/seed/presentation-dataset.sql` เพื่อโหลดข้อมูลตัวอย่างเข้า Supabase/Postgres ให้พร้อมสำหรับ student check-in, teacher dashboard, trend และ recommendation  
+> ไฟล์นี้เป็นเพียงชุดเตรียมข้อมูลสำหรับเดโม ไม่ใช่ส่วนของ runtime logic ของระบบครับ  
+> หลังเตรียมข้อมูลเสร็จ เราจะมีห้องเดโมพร้อมใช้งานอยู่แล้ว ทั้งห้องที่ใช้โชว์ happy path ห้องที่ใช้โชว์ warning หรือ pending context และห้องที่ใช้โชว์ empty state แบบ privacy-safe ครับ  
 > ขั้นตอนนี้ช่วยให้เดโมมีสภาพแวดล้อมที่พร้อมใช้งาน และทำให้เราอธิบายการทำงานของระบบได้อย่างต่อเนื่องทั้งฝั่งนักเรียนและฝั่งครูครับ
 
 ### 3.2 Case 1: นักเรียนส่ง check-in สำเร็จ
@@ -78,7 +86,8 @@
 - แสดงหน้า success หรือ confirmation ว่าส่งสำเร็จแล้ว
 
 #### สคริปต์คำบรรยาย (ภาษาไทย):
-> เริ่มจากฝั่งนักเรียนครับ นักเรียนสามารถส่ง check-in เพื่อสะท้อนความรู้สึกของตัวเองได้อย่างรวดเร็ว  
+> เริ่มจากฝั่งนักเรียนครับ เราจะใช้ห้อง `CS101 Introduction to Computing` เป็น happy path หลักของเดโม  
+> นักเรียนสามารถส่ง check-in เพื่อสะท้อนความรู้สึกของตัวเองได้อย่างรวดเร็ว  
 > สิ่งที่ระบบเก็บไม่ใช่ข้อความดิบเพื่อเอาไปเปิดให้คนอื่นดู แต่จะนำไปสรุปต่อในเชิงภาพรวม เพื่อให้ห้องเรียนปรับตัวได้โดยยังเคารพความเป็นส่วนตัวของนักเรียนครับ
 
 ### 3.3 Case 2: นักเรียนดู Student Feedback แบบสรุปภาพรวม
@@ -94,6 +103,7 @@
 
 #### สคริปต์คำบรรยาย (ภาษาไทย):
 > หลังส่ง check-in แล้ว ระบบจะเปลี่ยนข้อมูลดิบให้เป็น feedback ที่อ่านง่ายครับ  
+> ในเดโมนี้ `CS101` จะใช้โชว์ภาพรวมที่อ่านง่าย กราฟแนวโน้ม และการตอบสนองล่าสุดจากครู ซึ่งเป็นตัวอย่างของ flow ที่ทำงานได้ครบตั้งแต่ student input ไปจนถึง feedback summary  
 > นักเรียนจึงเห็นภาพรวมของบรรยากาศห้องตัวเองได้ทันที ว่าสัปดาห์นี้เป็นอย่างไร และครูได้ตอบสนองกลับมาหรือยัง  
 > จุดสำคัญคือหน้าตรงนี้ทำหน้าที่ “สรุป” ไม่ใช่ “เปิดข้อมูลดิบ” ครับ
 
@@ -107,10 +117,15 @@
   - risk badge
   - จำนวน students
   - สถานะ actions ที่ต้องติดตาม
+- ชี้ให้เห็นบทบาทของห้องเดโมแต่ละห้อง:
+  - `CS101 Introduction to Computing` = happy path / approved context
+  - `gg` = warning / pending context
+  - `กินหมูกระทะ` = privacy-safe no-data
 - เลือกห้องเดโม `CS101 Introduction to Computing`
 
 #### สคริปต์คำบรรยาย (ภาษาไทย):
 > ฝั่งครูจะเห็นภาพรวมของทุกห้องในรูปแบบ aggregate ครับ  
+> เราตั้งใจเตรียมห้องเดโมแต่ละห้องให้เล่าคนละสถานการณ์ เพื่อให้ผู้ฟังเห็นทั้งเคสปกติ เคสที่ยังต้องติดตาม และเคสที่ข้อมูลยังไม่พออย่างปลอดภัย  
 > ระบบช่วยจัดลำดับว่าห้องไหนควรจับตาเป็นพิเศษ และห้องไหนมีสัญญาณเสี่ยงที่ควรเปิดดูต่อก่อน โดยครูไม่ต้องไล่ดูข้อมูลรายคนเองทั้งหมดครับ
 
 ### 3.5 Case 4: ครูเปิด Teacher Class Detail และดูฉบับร่าง / Action context
@@ -125,9 +140,11 @@
   - ส่วน `Action context`
 - ถ้ามีคำแนะนำ AI ให้ชี้ว่าเป็น draft ที่ครูตรวจทานได้
 - แสดงส่วน privacy-safe / redacted voice ที่สรุปมาแล้ว
+- ใช้ `CS101 Introduction to Computing` เป็นตัวอย่างหลักของ summary และ approved context
 
 #### สคริปต์คำบรรยาย (ภาษาไทย):
 > เมื่อครูเปิดดูรายละเอียดของห้อง ระบบจะสรุปแนวโน้มสำคัญขึ้นมาให้ทันทีครับ  
+> ใน `CS101` เราจะใช้โชว์ summary หลักของห้อง, บริบทล่าสุด, และตัวอย่างของ recommendation ที่ถูกจัดการแล้ว เพื่อให้เห็นภาพรวมที่ต่อเนื่องจากฝั่งนักเรียน  
 > ถ้า AI มีฉบับร่างอยู่แล้ว ครูจะเห็นเป็น draft ที่ตรวจทานต่อได้  
 > แต่ถ้ายังไม่มี pending draft ใหม่ ระบบก็ยังสามารถแสดง action context จากบริบทล่าสุดของห้องได้ เพื่อไม่ให้หน้าจอว่างและเพื่อให้ครูเข้าใจว่าควรทำอะไรต่อครับ
 
@@ -159,6 +176,7 @@
 
 #### เนื้อหาที่แสดงบนหน้าจอ (Visuals):
 - เลือกห้องที่ข้อมูลยังน้อย หรือช่วงเวลาที่เช็กอินยังไม่ถึงเกณฑ์
+- ใช้ห้อง `กินหมูกระทะ` เป็นตัวอย่างหลักของ no-data / empty state
 - แสดง state ว่า:
   - ยังไม่มีข้อมูลพอสำหรับสรุป
   - หรือมีเช็กอินแล้ว แต่ aggregate ยังไม่ถึงระดับที่ปลอดภัยพอ
@@ -166,19 +184,21 @@
 
 #### สคริปต์คำบรรยาย (ภาษาไทย):
 > ถ้าข้อมูลยังไม่ถึงระดับที่ปลอดภัยพอ ระบบจะไม่สรุปเกินจริงครับ  
+> ห้อง `กินหมูกระทะ` ถูกเตรียมไว้เพื่อให้เราเดโม empty state แบบตั้งใจ ว่าถ้าไม่มีข้อมูลเพียงพอ ระบบจะไม่ฝืนสรุปและจะไม่เปิดข้อมูลที่เสี่ยงต่อการระบุตัวตน  
 > บางกรณีอาจมีเช็กอินแล้ว แต่ยังไม่ถึงจำนวนที่เพียงพอสำหรับแสดง aggregate อย่างปลอดภัย ระบบก็จะบอกอย่างตรงไปตรงมาว่ายังไม่พร้อมแสดงแนวโน้มรายวัน  
 > นี่คือแนวคิด privacy-by-design ที่เราใช้ตลอดทั้งระบบครับ
 
 ### 3.9 Case 8: Frequency Guard / Fallback Draft เมื่อไม่มี pending ใหม่
 
 #### เนื้อหาที่แสดงบนหน้าจอ (Visuals):
-- เลือกห้องที่ risk ยังสูงหรือปานกลาง
+- เลือกห้อง `gg`
 - แสดงว่ารอบล่าสุดถูก frequency guard คุมไว้
 - แต่ `ฉบับร่าง / แนวทางตอบสนอง` และ `Action context` ยังมีข้อความสรุปจากบริบทล่าสุด
 - ชี้ให้เห็นว่าระบบยังไม่ส่งแจ้งเตือนถี่เกิน แต่ครูยังเห็นแนวทางต่อได้
 
 #### สคริปต์คำบรรยาย (ภาษาไทย):
 > อีกเคสหนึ่งคือกรณีที่ระบบประเมินว่าห้องยังมีความเสี่ยง แต่เพิ่งมีการแจ้งเตือนไปไม่นาน  
+> ในเดโมนี้เราจะใช้ห้อง `gg` เพื่อโชว์ warning หรือ pending context ที่ยังต้องติดตามต่อ  
 > ตรงนี้ frequency guard จะช่วยป้องกันการแจ้งซ้ำถี่เกินไป แต่ระบบยังคงแสดงฉบับร่างหรือ action context จากบริบทล่าสุดให้ครูเห็น  
 > แบบนี้ครูจะไม่เจอหน้าว่าง และยังอ่านแนวทางตอบสนองต่อได้โดยไม่ทำให้ระบบ overnotify ครับ
 
@@ -201,13 +221,15 @@
 #### เนื้อหาที่แสดงบนหน้าจอ (Visuals):
 - Slide สรุปลำดับ demo สั้น ๆ:
   1. เตรียม demo dataset และ login
-  2. Student check-in
-  3. Student feedback
-  4. Teacher dashboard
-  5. Teacher class detail / draft / action context
+  2. `CS101` student check-in
+  3. `CS101` student feedback
+  4. Teacher dashboard และภาพรวม 3 ห้อง
+  5. `CS101` class detail / summary / approved context
   6. Approve action
   7. Loop closure
-  8. Privacy-safe / fallback / error cases
+  8. `กินหมูกระทะ` privacy-safe no-data
+  9. `gg` fallback / warning / pending context
+  10. error case
 
 #### สคริปต์คำบรรยาย (ภาษาไทย):
 > สำหรับเดโมจริง เราจะเริ่มจากฝั่งนักเรียน แล้วค่อยข้ามไปฝั่งครู จากนั้นกลับมาดูผลลัพธ์ที่ฝั่งนักเรียนอีกครั้ง  
@@ -223,10 +245,10 @@
 - โค้ดบรรทัดสั้น ๆ สำหรับใส่ใน README หรือแสดงในสไลด์ setup:
 
 ```text
-Run Supabase migrations first, then load demo data from supabase/seed/presentation-dataset.sql.
+Apply Supabase migrations, provision demo auth, then load supabase/seed/presentation-dataset.sql.
 ```
 
-- ถ้าใช้ประกอบคลิป ให้โชว์ว่าไฟล์ seed นี้เป็น input สำหรับเตรียมฐานข้อมูล demo ก่อนเข้าสู่การเดโมจริง
+- ถ้าใช้ประกอบคลิป ให้โชว์ว่าไฟล์ seed นี้เป็น canonical demo bundle สำหรับเตรียมฐานข้อมูล demo ก่อนเข้าสู่การเดโมจริง
 
 ### 4.1 Architecture of the Agentic AI System
 
@@ -375,7 +397,7 @@ flowchart LR
 > เมื่อเตรียมข้อมูลเสร็จแล้ว ระบบหลักที่ใช้งานจริงคือ `climate-agent-main-v2` ซึ่งทำหน้าที่นำ climate signals ไปวิเคราะห์ด้วย LLM สร้าง recommendation draft และส่งให้ครู review แบบ human-in-the-loop ก่อน approve ขั้นสุดท้าย  
 > สำหรับเส้นทางเดโม เราแยก `phase-c-redaction-batch` ออกมาเป็น demo harness เพื่อพิสูจน์ตั้งแต่การดึง batch ข้อมูล การ redaction ด้วย LLM ไปจนถึงการเขียนผลกลับเข้า Supabase โดยไม่กระทบระบบหลัก  
 > ส่วน workflow อย่าง `agentic-ai-recommendation`, `W06 Morning Briefing`, `loop-closure-notification` และ `handle-teacher-approval` จะถือเป็น reference หรือ inactive workflows ที่เก็บไว้เพื่ออธิบายแนวคิด แต่ไม่ใช่ flow หลักของ runtime ปัจจุบันครับ  
-> และก่อนเดโมจริง เราจะ apply migrations ให้ schema ตรงกับโค้ดก่อน แล้วจึง seed ข้อมูลจาก `supabase/seed/presentation-dataset.sql` เพื่อให้สภาพแวดล้อมพร้อมใช้งานครับ
+> และก่อนเดโมจริง เราจะ apply migrations ให้ schema ตรงกับโค้ดก่อน จากนั้น provision บัญชี demo auth ผ่าน Supabase Auth แล้วค่อย seed canonical demo bundle จาก `supabase/seed/presentation-dataset.sql` เพื่อให้สภาพแวดล้อมพร้อมใช้งานครับ
 
 ### 4.2 Development Process Review
 

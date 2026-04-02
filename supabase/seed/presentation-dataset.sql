@@ -3,14 +3,15 @@
 --
 -- Canonical demo bundle for presentation / recording.
 -- This file targets the current schema used by the app:
---   - public.users / auth.users
+--   - public.users
 --   - public.classes / public.class_enrollments
 --   - public.student_pulses (canonical check-in table)
 --   - public.recommendations
 --   - public.teacher_profiles
 --   - public.schools / public.school_days
 --
--- Run after the latest migrations are applied.
+-- Run after the latest migrations are applied and after demo auth users
+-- are provisioned through the Supabase Admin API.
 
 -- ============================================================
 -- 0. School + Teacher Profile
@@ -28,6 +29,58 @@ SET
   name = EXCLUDED.name,
   health_score = EXCLUDED.health_score,
   last_calculated = EXCLUDED.last_calculated;
+
+-- ============================================================
+-- 1. Auth Provisioning Precondition
+-- ============================================================
+
+DO $$
+DECLARE
+  missing_users integer;
+BEGIN
+  SELECT COUNT(*)
+  INTO missing_users
+  FROM (
+    SELECT id
+    FROM (
+      VALUES
+        ('00000000-0000-0000-0000-000000000001'::uuid),
+        ('00000000-0000-0000-0000-000000000002'::uuid),
+        ('00000000-0000-0000-0000-000000000003'::uuid),
+        ('00000000-0000-0000-0000-000000000004'::uuid)
+    ) AS required_users(id)
+    WHERE NOT EXISTS (
+      SELECT 1
+      FROM auth.users
+      WHERE auth.users.id = required_users.id
+    )
+  ) AS missing;
+
+  IF missing_users > 0 THEN
+    RAISE EXCEPTION
+      'Demo auth users are missing. Run "npm run demo:provision-auth" before loading supabase/seed/presentation-dataset.sql';
+  END IF;
+END $$;
+
+-- ============================================================
+-- 2. Public Users
+-- ============================================================
+
+INSERT INTO public.users (id, role, full_name, avatar_url)
+VALUES
+  ('00000000-0000-0000-0000-000000000001', 'teacher', 'Teacher Demo', NULL),
+  ('00000000-0000-0000-0000-000000000002', 'student', 'Student One', NULL),
+  ('00000000-0000-0000-0000-000000000003', 'student', 'Student Two', NULL),
+  ('00000000-0000-0000-0000-000000000004', 'student', 'Student Three', NULL)
+ON CONFLICT (id) DO UPDATE
+SET
+  role = EXCLUDED.role,
+  full_name = EXCLUDED.full_name,
+  avatar_url = EXCLUDED.avatar_url;
+
+-- ============================================================
+-- 3b. Teacher Profile
+-- ============================================================
 
 INSERT INTO public.teacher_profiles (
   user_id,
@@ -76,177 +129,6 @@ SET
   inquiry_mode_triggered_at = EXCLUDED.inquiry_mode_triggered_at,
   dismissal_pattern_consecutive = EXCLUDED.dismissal_pattern_consecutive,
   dismissal_pattern_reason = EXCLUDED.dismissal_pattern_reason;
-
--- ============================================================
--- 1. Auth Users
--- ============================================================
-
-INSERT INTO auth.users (
-  id,
-  aud,
-  role,
-  email,
-  encrypted_password,
-  email_confirmed_at,
-  recovery_sent_at,
-  last_sign_in_at,
-  raw_app_meta_data,
-  raw_user_meta_data,
-  created_at,
-  updated_at
-)
-VALUES
-  (
-    '00000000-0000-0000-0000-000000000001',
-    'authenticated',
-    'authenticated',
-    'teacher@demo.com',
-    crypt('password123', gen_salt('bf')),
-    current_timestamp,
-    current_timestamp,
-    current_timestamp,
-    '{"provider":"email","providers":["email"]}',
-    '{"role":"teacher"}',
-    current_timestamp,
-    current_timestamp
-  ),
-  (
-    '00000000-0000-0000-0000-000000000002',
-    'authenticated',
-    'authenticated',
-    'student1@demo.com',
-    crypt('password123', gen_salt('bf')),
-    current_timestamp,
-    current_timestamp,
-    current_timestamp,
-    '{"provider":"email","providers":["email"]}',
-    '{"role":"student"}',
-    current_timestamp,
-    current_timestamp
-  ),
-  (
-    '00000000-0000-0000-0000-000000000003',
-    'authenticated',
-    'authenticated',
-    'student2@demo.com',
-    crypt('password123', gen_salt('bf')),
-    current_timestamp,
-    current_timestamp,
-    current_timestamp,
-    '{"provider":"email","providers":["email"]}',
-    '{"role":"student"}',
-    current_timestamp,
-    current_timestamp
-  ),
-  (
-    '00000000-0000-0000-0000-000000000004',
-    'authenticated',
-    'authenticated',
-    'student3@demo.com',
-    crypt('password123', gen_salt('bf')),
-    current_timestamp,
-    current_timestamp,
-    current_timestamp,
-    '{"provider":"email","providers":["email"]}',
-    '{"role":"student"}',
-    current_timestamp,
-    current_timestamp
-  ),
-  (
-    '00000000-0000-0000-0000-000000000005',
-    'authenticated',
-    'authenticated',
-    'admin@demo.com',
-    crypt('password123', gen_salt('bf')),
-    current_timestamp,
-    current_timestamp,
-    current_timestamp,
-    '{"provider":"email","providers":["email"]}',
-    '{"role":"admin"}',
-    current_timestamp,
-    current_timestamp
-  )
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO auth.identities (
-  id,
-  user_id,
-  identity_data,
-  provider,
-  provider_id,
-  last_sign_in_at,
-  created_at,
-  updated_at
-)
-VALUES
-  (
-    '11000000-0000-0000-0000-000000000001',
-    '00000000-0000-0000-0000-000000000001',
-    '{"sub":"00000000-0000-0000-0000-000000000001","email":"teacher@demo.com"}',
-    'email',
-    'teacher@demo.com',
-    current_timestamp,
-    current_timestamp,
-    current_timestamp
-  ),
-  (
-    '11000000-0000-0000-0000-000000000002',
-    '00000000-0000-0000-0000-000000000002',
-    '{"sub":"00000000-0000-0000-0000-000000000002","email":"student1@demo.com"}',
-    'email',
-    'student1@demo.com',
-    current_timestamp,
-    current_timestamp,
-    current_timestamp
-  ),
-  (
-    '11000000-0000-0000-0000-000000000003',
-    '00000000-0000-0000-0000-000000000003',
-    '{"sub":"00000000-0000-0000-0000-000000000003","email":"student2@demo.com"}',
-    'email',
-    'student2@demo.com',
-    current_timestamp,
-    current_timestamp,
-    current_timestamp
-  ),
-  (
-    '11000000-0000-0000-0000-000000000004',
-    '00000000-0000-0000-0000-000000000004',
-    '{"sub":"00000000-0000-0000-0000-000000000004","email":"student3@demo.com"}',
-    'email',
-    'student3@demo.com',
-    current_timestamp,
-    current_timestamp,
-    current_timestamp
-  ),
-  (
-    '11000000-0000-0000-0000-000000000005',
-    '00000000-0000-0000-0000-000000000005',
-    '{"sub":"00000000-0000-0000-0000-000000000005","email":"admin@demo.com"}',
-    'email',
-    'admin@demo.com',
-    current_timestamp,
-    current_timestamp,
-    current_timestamp
-  )
-ON CONFLICT (id) DO NOTHING;
-
--- ============================================================
--- 2. Public Users
--- ============================================================
-
-INSERT INTO public.users (id, role, full_name, avatar_url)
-VALUES
-  ('00000000-0000-0000-0000-000000000001', 'teacher', 'Teacher Demo', NULL),
-  ('00000000-0000-0000-0000-000000000002', 'student', 'Student One', NULL),
-  ('00000000-0000-0000-0000-000000000003', 'student', 'Student Two', NULL),
-  ('00000000-0000-0000-0000-000000000004', 'student', 'Student Three', NULL),
-  ('00000000-0000-0000-0000-000000000005', 'admin', 'Admin Demo', NULL)
-ON CONFLICT (id) DO UPDATE
-SET
-  role = EXCLUDED.role,
-  full_name = EXCLUDED.full_name,
-  avatar_url = EXCLUDED.avatar_url;
 
 -- ============================================================
 -- 3. Classes

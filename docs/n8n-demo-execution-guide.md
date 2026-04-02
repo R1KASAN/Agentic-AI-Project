@@ -64,8 +64,9 @@
 
 ```mermaid
 flowchart LR
-    DS["Demo Dataset
-    supabase/seed/presentation-dataset.sql"] --> PRE
+    DS["Demo Setup
+    provision demo auth
+    + presentation-dataset.sql"] --> PRE
 
     subgraph PRE["Preprocessing"]
         PRE1["Student / Teacher UI"] --> PRE2["Next.js Route Handlers"]
@@ -83,7 +84,7 @@ flowchart LR
 
 ภาพรวมที่ควรเล่าในคลิปคือ:
 
-- ข้อมูลตั้งต้นมาจาก `presentation-dataset.sql`
+- ข้อมูลตั้งต้นมาจากการ provision demo auth และโหลด `presentation-dataset.sql`
 - ฝั่ง preprocessing จะจัดข้อมูลให้พร้อมใช้งานและปลอดภัยก่อน
 - workflow ตัวแม่ `phase-c-redaction-batch` จะใช้ข้อมูลนั้นเพื่อทดสอบ redaction pipeline
 - child workflow `Tool: Get Raw Snippet Batch` จะดึง batch จริงจาก Supabase
@@ -99,7 +100,7 @@ flowchart LR
 
 ถ้าต้องเล่าให้คนฟังเข้าใจเร็วที่สุด ให้ใช้ลำดับนี้:
 
-1. Seed ข้อมูลด้วย `supabase/seed/presentation-dataset.sql`
+1. Provision demo auth accounts แล้ว seed ข้อมูลด้วย `supabase/seed/presentation-dataset.sql`
 2. รัน parent workflow `phase-c-redaction-batch`
 3. ให้ child `Tool: Get Raw Snippet Batch` วิ่งจาก `Build Redaction Context`
 4. แสดง case valid ที่ออก `status: ready`
@@ -378,6 +379,7 @@ node สำคัญ:
 
 ## 10) Checklist ตอนรันเดโม
 
+- [ ] provision demo auth accounts ให้ password login ใช้งานได้จริง
 - [ ] โหลด `supabase/seed/presentation-dataset.sql`
 - [ ] ตรวจว่า `CS101 Introduction to Computing` มีข้อมูลพร้อมสำหรับ valid case
 - [ ] เปิด `phase-c-redaction-batch`

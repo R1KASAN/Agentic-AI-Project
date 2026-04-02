@@ -472,7 +472,7 @@ pptx.theme = {
     x: 4.0, y: 5.95, w: 1.8, h: 0,
     line: { color: "6EA6D8", pt: 1.2, dash: "dash" },
   });
-  slide.addText("Run supabase/seed/presentation-dataset.sql after applying migrations to load demo data.", {
+  slide.addText("Apply migrations, provision demo auth, then load supabase/seed/presentation-dataset.sql.", {
     x: 0.95, y: 6.45, w: 11.7, h: 0.2,
     fontFace: "Courier New", fontSize: 9.6, color: "3C5166", margin: 0,
   });

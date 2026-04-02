@@ -10,6 +10,9 @@
 
 ไฟล์นี้รวมข้อมูลเดโมหลักทั้งหมดไว้ในไฟล์เดียว ทั้งห้องเรียนหลัก, ห้อง inquiry/pending, ห้อง no-data, นักเรียนที่ลงทะเบียน, ข้อมูล check-in แบบ canonical, และตาราง school calendar สำหรับเดโม
 
+หมายเหตุ: ไฟล์นี้เป็น **domain dataset** ของเดโม และต้องใช้ร่วมกับการ provision บัญชี demo auth ผ่าน Supabase Admin path ก่อน จึงจะ login ด้วย `password123` ได้จริง
+ถ้าสภาพแวดล้อมไม่มี `psql` หรือ DB password สำหรับรัน SQL ตรง ๆ สามารถใช้ helper script `npm run demo:seed-presentation` เพื่อโหลด domain dataset ชุดเดียวกันผ่าน service role ได้เช่นกัน
+
 ### Core seed files
 
 - [supabase/seed.sql](/Users/ark1/Public/Climate%20Agent/supabase/seed.sql)
@@ -31,7 +34,6 @@
 | Student | `student1@demo.com` | `password123` | Student check-in and feedback demo |
 | Student | `student2@demo.com` | `password123` | Supporting student account for k-anonymity |
 | Student | `student3@demo.com` | `password123` | Supporting student account for k-anonymity |
-| Admin | `admin@demo.com` | `password123` | Optional admin context for testing |
 
 ### Demo Classes in the Single-File Bundle
 
@@ -55,7 +57,8 @@
 
 If you want the simplest dataset that still supports the full clip flow, use:
 
-1. `supabase/seed/presentation-dataset.sql`
+1. provision demo auth accounts ด้วย `npm run demo:provision-auth`
+2. `supabase/seed/presentation-dataset.sql`
 
 If you want to keep using the modular seed files instead, the split bundle is still available below.
 
@@ -70,10 +73,12 @@ If you want to keep using the modular seed files instead, the split bundle is st
 
 ## Suggested Order When Loading Data
 
-1. If using the single-file bundle, load `supabase/seed/presentation-dataset.sql` only.
-2. If using modular seeds, load the base seed first.
-3. Load the school days seed if the demo needs calendar context.
-4. Load either the pending recommendation seed or the inquiry-mode seed depending on the story you want to tell.
+1. Apply the latest Supabase migrations.
+2. Provision demo auth accounts ด้วย `npm run demo:provision-auth`
+3. If using the single-file bundle, load `supabase/seed/presentation-dataset.sql` only.
+4. If using modular seeds, load the base seed first.
+5. Load the school days seed if the demo needs calendar context.
+6. Load either the pending recommendation seed or the inquiry-mode seed depending on the story you want to tell.
 
 ## Short Version for Submission
 
@@ -86,4 +91,4 @@ If the requirement is “source code + dataset”, the dataset can be explained 
 - `supabase/seed/cs101-pending-demo-recommendation.sql`
 - `supabase/seed/cs101-inquiry-mode-demo-recommendation.sql`
 
-These files together cover the teacher login, student check-in, feedback loop, class climate overview, and the approval/inquiry-mode demo paths.
+These files together cover the teacher login, student check-in, feedback loop, class climate overview, and the approval/inquiry-mode demo paths, with demo auth accounts provisioned separately through Supabase Auth.
