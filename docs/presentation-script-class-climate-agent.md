@@ -267,18 +267,18 @@ Apply Supabase migrations, provision demo auth, then load supabase/seed/presenta
 
 ```mermaid
 flowchart LR
-    A["Student / Teacher UI\n- check-in\n- feedback\n- teacher actions"] --> B["Next.js Route Handlers\n/api/student/check-in\n/api/student/feedback\n/api/n8n/webhook"]
+    A["Student / Teacher UI<br/>- check-in<br/>- feedback<br/>- teacher actions"] --> B["Next.js Route Handlers<br/>/api/student/check-in<br/>/api/student/feedback<br/>/api/n8n/webhook"]
     B --> C["Supabase Auth"]
-    C --> D["Supabase PostgreSQL\nclasses\nclass_enrollments\nstudent_pulses\nrecommendations\nnotifications"]
-    D --> E["Privacy Guard + Aggregation RPCs\nk >= 3"]
-    E --> F["Prepared Climate Signals\nsummaries • trends • metrics"]
-    F --> G["climate-agent-main-v2\nDaily Climate Check Trigger"]
-    G --> H["Tool Sub-workflows\nget climate summary\nget teacher metrics\nget past recommendations"]
-    H --> I["LLM Analysis + Fallback Policy Engine\nrecommendation draft"]
-    I --> J["Teacher Decision Workspace\napprove / dismiss / restore"]
+    C --> D["Supabase PostgreSQL<br/>classes<br/>class_enrollments<br/>student_pulses<br/>recommendations<br/>notifications"]
+    D --> E["Privacy Guard + Aggregation RPCs<br/>k >= 3"]
+    E --> F["Prepared Climate Signals<br/>summaries • trends • metrics"]
+    F --> G["climate-agent-main-v2<br/>Daily Climate Check Trigger"]
+    G --> H["Tool Sub-workflows<br/>get climate summary<br/>get teacher metrics<br/>get past recommendations"]
+    H --> I["LLM Analysis + Fallback Policy Engine<br/>recommendation draft"]
+    I --> J["Teacher Decision Workspace<br/>approve / dismiss / restore"]
     J --> D
     J --> K["Student Feedback Loop Closure"]
-    J --> L["/api/n8n/webhook\ncache revalidation"]
+    J --> L["/api/n8n/webhook<br/>cache revalidation"]
 
     D -. demo seed .-> S["supabase/seed/presentation-dataset.sql"]
     G -. validation only .-> M["climate-agent-main-v2-manual-test"]
@@ -291,79 +291,38 @@ flowchart LR
 ```mermaid
 flowchart LR
     subgraph PRE["Preprocessing Mode"]
-        A["Student / Teacher UI
-        - Check-in
-        - Feedback
-        - Approve / Dismiss
-        - Restore draft"] --> B["Next.js Route Handlers
-        - /api/student/check-in
-        - /api/student/feedback
-        - /api/n8n/webhook"]
+        A["Student / Teacher UI<br/>- Check-in<br/>- Feedback<br/>- Approve / Dismiss<br/>- Restore draft"] --> B["Next.js Route Handlers<br/>- /api/student/check-in<br/>- /api/student/feedback<br/>- /api/n8n/webhook"]
 
         B --> C["Supabase Auth"]
 
-        C --> DB["Supabase PostgreSQL
-        Tables:
-        classes
-        class_enrollments
-        student_pulses
-        recommendations
-        notifications"]
+        C --> DB["Supabase PostgreSQL<br/>Tables:<br/>classes<br/>class_enrollments<br/>student_pulses<br/>recommendations<br/>notifications"]
 
-        DB --> F["Privacy Guard + Aggregation Layer
-        - k-anonymity (k >= 3)
-        - summary / trend RPCs
-        - redact raw student data"]
+        DB --> F["Privacy Guard + Aggregation Layer<br/>- k-anonymity (k >= 3)<br/>- summary / trend RPCs<br/>- redact raw student data"]
 
-        F --> G["Prepared Climate Signals
-        - class climate summary
-        - trend comparison
-        - adoption metrics
-        - redacted voice summary
-        - approval history"]
+        F --> G["Prepared Climate Signals<br/>- class climate summary<br/>- trend comparison<br/>- adoption metrics<br/>- redacted voice summary<br/>- approval history"]
     end
 
     subgraph PROC["Processing Mode"]
-        G --> MAIN["climate-agent-main-v2
-        Daily Climate Check Trigger"]
+        G --> MAIN["climate-agent-main-v2<br/>Daily Climate Check Trigger"]
 
-        MAIN --> T1["Tool Sub-workflows
-        - get climate summary
-        - get teacher metrics
-        - get past recommendations
-        - get aggregated climate data"]
+        MAIN --> T1["Tool Sub-workflows<br/>- get climate summary<br/>- get teacher metrics<br/>- get past recommendations<br/>- get aggregated climate data"]
 
-        T1 --> LLM["LLM Analysis + Fallback Policy Engine
-        privacy-safe recommendation draft"]
+        T1 --> LLM["LLM Analysis + Fallback Policy Engine<br/>privacy-safe recommendation draft"]
 
-        LLM --> R["Decision Payload
-        - policy level
-        - confidence
-        - teacherActionPlan
-        - studentMessageDraft"]
+        LLM --> R["Decision Payload<br/>- policy level<br/>- confidence<br/>- teacherActionPlan<br/>- studentMessageDraft"]
 
-        R --> S["Supabase Recommendations
-        status / action_status / approval fields"]
+        R --> S["Supabase Recommendations<br/>status / action_status / approval fields"]
 
-        S --> U["Teacher Review / Approval
-        Human-in-the-loop
-        approve / dismiss / restore"]
+        S --> U["Teacher Review / Approval<br/>Human-in-the-loop<br/>approve / dismiss / restore"]
 
-        U --> APP["Teacher Dashboard / Class Detail
-        - risk overview
-        - action workspace
-        - history / restore
-        - updated classroom summary"]
+        U --> APP["Teacher Dashboard / Class Detail<br/>- risk overview<br/>- action workspace<br/>- history / restore<br/>- updated classroom summary"]
 
-        U --> WEBHOOK["/api/n8n/webhook
-        cache revalidation"]
+        U --> WEBHOOK["/api/n8n/webhook<br/>cache revalidation"]
 
-        U --> STUDENT["Student Feedback
-        loop closure"]
+        U --> STUDENT["Student Feedback<br/>loop closure"]
     end
 
-    DS["Demo Dataset Seed
-    supabase/seed/presentation-dataset.sql"] -. seed only .-> DB
+    DS["Demo Dataset Seed<br/>supabase/seed/presentation-dataset.sql"] -. seed only .-> DB
     DEMO["climate-agent-main-v2-manual-test"] -. validation only .-> MAIN
 
     REF["Reference / inactive workflows in repo

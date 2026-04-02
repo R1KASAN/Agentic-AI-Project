@@ -179,18 +179,18 @@
 
 ```mermaid
 flowchart LR
-    A["Student / Teacher UI\n- check-in\n- feedback\n- teacher actions"] --> B["Next.js Route Handlers\n/api/student/check-in\n/api/student/feedback\n/api/n8n/webhook"]
+    A["Student / Teacher UI<br/>- check-in<br/>- feedback<br/>- teacher actions"] --> B["Next.js Route Handlers<br/>/api/student/check-in<br/>/api/student/feedback<br/>/api/n8n/webhook"]
     B --> C["Supabase Auth"]
-    C --> D["Supabase PostgreSQL\nclasses\nclass_enrollments\nstudent_pulses\nrecommendations\nnotifications"]
-    D --> E["Privacy Guard + Aggregation RPCs\nk >= 3"]
-    E --> F["Prepared Climate Signals\nsummaries • trends • metrics"]
-    F --> G["climate-agent-main-v2\nDaily Climate Check Trigger"]
-    G --> H["Tool Sub-workflows\nget climate summary\nget teacher metrics\nget past recommendations"]
-    H --> I["LLM Analysis + Fallback Policy Engine\nrecommendation draft"]
-    I --> J["Teacher Decision Workspace\napprove / dismiss / restore"]
+    C --> D["Supabase PostgreSQL<br/>classes<br/>class_enrollments<br/>student_pulses<br/>recommendations<br/>notifications"]
+    D --> E["Privacy Guard + Aggregation RPCs<br/>k >= 3"]
+    E --> F["Prepared Climate Signals<br/>summaries • trends • metrics"]
+    F --> G["climate-agent-main-v2<br/>Daily Climate Check Trigger"]
+    G --> H["Tool Sub-workflows<br/>get climate summary<br/>get teacher metrics<br/>get past recommendations"]
+    H --> I["LLM Analysis + Fallback Policy Engine<br/>recommendation draft"]
+    I --> J["Teacher Decision Workspace<br/>approve / dismiss / restore"]
     J --> D
     J --> K["Student Feedback Loop Closure"]
-    J --> L["/api/n8n/webhook\ncache revalidation"]
+    J --> L["/api/n8n/webhook<br/>cache revalidation"]
 
     D -. demo seed .-> S["supabase/seed/presentation-dataset.sql"]
     G -. validation only .-> M["climate-agent-main-v2-manual-test"]
