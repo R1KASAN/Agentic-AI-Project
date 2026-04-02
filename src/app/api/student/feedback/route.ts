@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
     ClassClimateSummary,
     DailyClimateSummary,
@@ -11,19 +12,119 @@ import type {
 
 type RecentActionRow = {
     id: string;
-    action_taken_note: string | null;
     teacher_action_note: string | null;
+    closure_share_note: string | null;
     updated_at: string;
     teacher_approval_status: "pending" | "approved" | "dismissed" | null;
     status: string | null;
+    action_status:
+        | "pending"
+        | "approved"
+        | "implemented"
+        | "feedback_logged"
+        | "dismissed"
+        | "not_actioned"
+        | null;
 };
+
+const RECENT_ACTION_SELECT_FULL =
+    "id, teacher_action_note, closure_share_note, updated_at, teacher_approval_status, status, action_status";
+const RECENT_ACTION_SELECT_LEGACY =
+    "id, teacher_action_note, updated_at, teacher_approval_status, status";
+
+function isMissingRecommendationColumnError(error: unknown) {
+    if (!error || typeof error !== "object") {
+        return false;
+    }
+
+    const candidate = error as {
+        code?: string;
+        message?: string;
+        details?: string;
+    };
+
+    return (
+        candidate.code === "42703" ||
+        candidate.code === "PGRST204" ||
+        candidate.message?.includes("schema cache") === true ||
+        candidate.message?.includes("Could not find the '") === true ||
+        candidate.message?.includes("column recommendations.") === true ||
+        candidate.details?.includes("column recommendations.") === true
+    );
+}
+
+async function getRecentTeacherAction(
+    serviceSupabase: SupabaseClient,
+    classId: string
+) {
+    const fullAttempt = await serviceSupabase
+        .from("recommendations")
+        .select(RECENT_ACTION_SELECT_FULL)
+        .eq("class_id", classId)
+        .eq("status", "approved")
+        .eq("teacher_approval_status", "approved")
+        .eq("communicated_to_students", true)
+        .or("teacher_action_note.not.is.null,closure_share_note.not.is.null")
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+    if (!fullAttempt.error) {
+        return {
+            data: fullAttempt.data
+                ? ({
+                      ...fullAttempt.data,
+                      closure_share_note: fullAttempt.data.closure_share_note ?? null,
+                      action_status: fullAttempt.data.action_status ?? null,
+                  } satisfies RecentActionRow)
+                : null,
+            error: null,
+        };
+    }
+
+    if (!isMissingRecommendationColumnError(fullAttempt.error)) {
+        return { data: null, error: fullAttempt.error };
+    }
+
+    const legacyAttempt = await serviceSupabase
+        .from("recommendations")
+        .select(RECENT_ACTION_SELECT_LEGACY)
+        .eq("class_id", classId)
+        .eq("status", "approved")
+        .eq("teacher_approval_status", "approved")
+        .eq("communicated_to_students", true)
+        .not("teacher_action_note", "is", null)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+    if (legacyAttempt.error) {
+        return { data: null, error: legacyAttempt.error };
+    }
+
+    return {
+        data: legacyAttempt.data
+            ? ({
+                  ...legacyAttempt.data,
+                  closure_share_note: null,
+                  action_status: null,
+              } satisfies RecentActionRow)
+            : null,
+        error: null,
+    };
+
+}
 
 function toRecentActionStatusLabel(
     teacherApprovalStatus: RecentActionRow["teacher_approval_status"],
     status: RecentActionRow["status"]
 ) {
+    if (status === "implemented" || status === "feedback_logged") {
+        return "ครูลองปรับแล้วและจะติดตามต่อ";
+    }
+
     if (teacherApprovalStatus === "approved") {
-        return "ครูได้ดำเนินการแล้ว";
+        return "ครูกำลังปรับตามฟีดแบ็ก";
     }
 
     if (teacherApprovalStatus === "dismissed") {
@@ -245,7 +346,6 @@ export async function GET(request: Request) {
             { data: latestCheckIn, error: latestCheckInError },
             { data: climateSummary, error: rpcError },
             { data: dailySummary, error: dailyRpcError },
-            { data: recentAction, error: recentActionError },
         ] = await Promise.all([
             serviceSupabase
                 .from("classes")
@@ -268,18 +368,11 @@ export async function GET(request: Request) {
                 p_class_id: classId,
                 p_days: 14,
             }),
-            serviceSupabase
-                .from("recommendations")
-                .select(
-                    "id, action_taken_note, teacher_action_note, updated_at, teacher_approval_status, status"
-                )
-                .eq("class_id", classId)
-                .eq("communicated_to_students", true)
-                .or("teacher_action_note.not.is.null,action_taken_note.not.is.null")
-                .order("updated_at", { ascending: false })
-                .limit(1)
-                .maybeSingle(),
         ]);
+        const recentActionResult = await getRecentTeacherAction(
+            serviceSupabase,
+            classId
+        );
 
         if (classError) {
             console.error("Feedback class metadata lookup error:", classError);
@@ -309,18 +402,18 @@ export async function GET(request: Request) {
             );
         }
 
-        if (recentActionError) {
-            console.error("Feedback recent action lookup error:", recentActionError);
+        if (recentActionResult?.error) {
+            console.error("Feedback recent action lookup error:", recentActionResult.error);
             return NextResponse.json(
                 { error: "ไม่สามารถโหลดการตอบสนองล่าสุดจากครูได้" },
                 { status: 500 }
             );
         }
 
-        const recentActionRow = recentAction as RecentActionRow | null;
+        const recentActionRow = recentActionResult?.data ?? null;
         const recentActionNote =
+            recentActionRow?.closure_share_note?.trim() ||
             recentActionRow?.teacher_action_note?.trim() ||
-            recentActionRow?.action_taken_note?.trim() ||
             null;
 
         const climateRows: StudentFeedbackClimateRow[] = (
@@ -370,8 +463,9 @@ export async function GET(request: Request) {
                           logged_at: recentActionRow.updated_at,
                           status_label: toRecentActionStatusLabel(
                               recentActionRow.teacher_approval_status,
-                              recentActionRow.status
+                              recentActionRow.action_status ?? recentActionRow.status
                           ),
+                          action_status: recentActionRow.action_status,
                       }
                     : null,
         };

@@ -1,6 +1,9 @@
 # N8N WORKFLOW SYSTEM DOCUMENTATION - Climate Agent
 **Version**: 1.0.0 | **Internal Reference**: Agentic-AI-Project
 
+> คู่มือ execution แบบละเอียดและอัปเดตล่าสุดสำหรับใช้พรีเซนต์อยู่ที่ [docs/n8n-demo-execution-guide.md](/Users/ark1/Public/Climate%20Agent/docs/n8n-demo-execution-guide.md)
+> เอกสารหน้านี้ยังคงเป็นภาพรวมระบบ n8n เดิม แต่ถ้าจะอธิบายเดโมรอบล่าสุด แนะนำให้อ่านคู่มือตัวใหม่เป็นหลัก
+
 ---
 
 ## 1. OVERVIEW (ภาพรวมระบบ)
@@ -116,6 +119,14 @@
 2.  **googlePalmApi**: Google Gemini API Key ที่หาได้จาก Google AI Studio
 3.  **lineNotifyOAuth2Api**: Personal Access Token จาก LINE Notify (My Page)
 4.  **postgres**: การเชื่อมต่อ Direct Connection กับ Supabase DB สำหรับการ Execute Query
+
+### Credential Binding Policy
+- Workflow JSON ใน repo จะอ้างชื่อ credential กลาง `Supabase account` เท่านั้น และจะไม่ commit credential id ปลอมแบบ `supabase-api-cred-id`
+- Credential id ของ n8n เป็นค่าเฉพาะแต่ละ environment จึงต้อง rebind ใหม่หลัง import เสมอ
+- ค่าที่ต้องมีใน credential `supabaseApi` คือ:
+  - `SUPABASE_URL`
+  - Supabase service-role key
+- หลัง import workflow ให้ตรวจทุก node ที่ใช้ `supabaseApi` ว่าเลือก `Supabase account` แล้วก่อนกดทดสอบหรือ activate
 
 ---
 

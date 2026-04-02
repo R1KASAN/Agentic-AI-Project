@@ -5,6 +5,7 @@
 -- ============================================================
 -- 1. Custom Types
 -- ============================================================
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE TYPE public.user_role AS ENUM ('student', 'teacher', 'admin');
 CREATE TYPE public.recommendation_status AS ENUM ('pending', 'approved', 'dismissed');
 
@@ -33,7 +34,8 @@ CREATE TABLE public.classes (
   description   TEXT,
   risk_score    REAL NOT NULL DEFAULT 0.0 CHECK (risk_score >= 0.0 AND risk_score <= 1.0),
   pilot_status  BOOLEAN NOT NULL DEFAULT false,
-  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 ALTER TABLE public.classes ENABLE ROW LEVEL SECURITY;

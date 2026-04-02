@@ -6,7 +6,7 @@ This note captures the dev verification path for Phase C after moving the redact
 
 ## Teacher-Auth Verification Path
 
-Use a dev-only Supabase admin-generated magic link for the teacher who owns the sample classes:
+Preferred path: use the seeded demo credential after provisioning demo auth accounts through Supabase Admin:
 
 - Teacher email: `teacher@demo.com`
 - Teacher user id: `00000000-0000-0000-0000-000000000001`
@@ -15,17 +15,23 @@ Use a dev-only Supabase admin-generated magic link for the teacher who owns the 
   - `ed977559-a16e-468f-8628-137a5b2d9d9e`
   - `994e8327-f00f-4117-af75-5a838d5c48d9`
 
-Verification method:
+Primary verification method:
+
+1. Sign in with `teacher@demo.com / password123`.
+2. Confirm redirect to `/teacher`.
+3. Open the teacher page you want to verify.
+
+Fallback verification method:
 
 1. Generate a magic link with Supabase admin API for `teacher@demo.com`.
 2. Open the returned `action_link` in a browser.
 3. The login page now detects `#access_token` / `#refresh_token`, calls `supabase.auth.setSession(...)`, and establishes a teacher session.
 4. After the session is set, navigate to the teacher page you want to verify.
 
-Why this path exists:
+Why the fallback still exists:
 
-- Old password seed credentials were not reliable in the live dev Supabase project.
 - Service-role RPC calls are intentionally rejected by `get_class_redacted_voice(...)`, so teacher-auth verification must use a real teacher session.
+- The magic-link path remains useful as a dev-only recovery option if password auth is temporarily unavailable.
 
 ## Successful Live Executions
 

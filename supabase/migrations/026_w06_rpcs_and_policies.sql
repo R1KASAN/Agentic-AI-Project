@@ -136,6 +136,52 @@ COMMENT ON FUNCTION public.get_class_climate_summary(UUID, VARCHAR) IS
 -- Teacher can see + manage only their own recommendations
 -- ============================================================
 
+-- Ensure the recommendations columns used by W06 and the presentation seed exist
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'recommendations'
+      AND column_name = 'teacher_id'
+  ) THEN
+    ALTER TABLE public.recommendations
+      ADD COLUMN teacher_id UUID REFERENCES public.users(id);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'recommendations'
+      AND column_name = 'teacher_approval_status'
+  ) THEN
+    ALTER TABLE public.recommendations
+      ADD COLUMN teacher_approval_status TEXT CHECK (
+        teacher_approval_status IN ('pending', 'approved', 'dismissed')
+      );
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'recommendations'
+      AND column_name = 'teacher_acted_at'
+  ) THEN
+    ALTER TABLE public.recommendations
+      ADD COLUMN teacher_acted_at TIMESTAMPTZ;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'recommendations'
+      AND column_name = 'teacher_action_note'
+  ) THEN
+    ALTER TABLE public.recommendations
+      ADD COLUMN teacher_action_note TEXT;
+  END IF;
+END $$;
+
 -- Ensure recommendations table has RLS enabled
 ALTER TABLE public.recommendations ENABLE ROW LEVEL SECURITY;
 
@@ -161,6 +207,9 @@ CREATE POLICY recommendations_teacher_approve ON public.recommendations
 
 COMMENT ON TABLE public.recommendations IS 
   'W06 Morning Briefing recommendations + teacher response tracking. Tracks LLM output + teacher approval/implementation for Loop4/Loop5 closure. One row per recommendation sent.';
+
+CREATE INDEX IF NOT EXISTS idx_recommendations_teacher_status
+  ON public.recommendations(teacher_id, teacher_approval_status);
 
 -- ============================================================
 -- PART 4: PERFORMANCE INDEXES (Composite queries)

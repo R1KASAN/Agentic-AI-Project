@@ -9,6 +9,13 @@
 1. `Source code + Dataset (ถ้ามี)`
 2. `Clip นำเสนอระบบ` ในรูปแบบลิงก์ Google Drive
 
+### สรุปไฟล์ส่งงานแบบสั้น
+
+- Source code: repository โปรเจกต์ทั้งหมด
+- Dataset: ใช้ seed data ของเดโมเป็นชุดข้อมูลแนบ
+  - แนะนำ: [supabase/seed/presentation-dataset.sql](/Users/ark1/Public/Climate%20Agent/supabase/seed/presentation-dataset.sql)
+- Clip link: วางลิงก์ Google Drive สำหรับไฟล์วิดีโอเดโม
+
 ### ไฟล์ที่แนะนำให้ส่งในส่วน Source Code + Dataset
 
 - Source code: ทั้งโปรเจกต์นี้
@@ -346,3 +353,11 @@ flowchart LR
 - ถ้าจะส่ง source code พร้อม dataset ควรแนบเอกสารสั้น ๆ อธิบายว่า dataset มาจาก seed data หรือข้อมูลจำลอง
 - ถ้าคลิปมีการ login หรือใช้ข้อมูลผู้ใช้ ควรใช้บัญชีเดโมเท่านั้น
 - ถ้าระหว่างเดโมมีบาง feature ที่ยังไม่พร้อม production ให้พูดตรง ๆ ว่าเป็น prototype หรือ dev workflow
+
+## 9. เช็กลิสต์ก่อนส่งจริง
+
+- มีไฟล์ source code ครบ
+- มี dataset หรือ seed file แนบครบถ้ามี
+- มีลิงก์ Google Drive ของคลิปเดโม
+- สไลด์เรียงตามลำดับ 1 ถึง 7 ตาม requirement
+- สไลด์สุดท้ายมีชื่อสมาชิก ภาพหมู่ โลโก้ มศว และชื่อที่ปรึกษา

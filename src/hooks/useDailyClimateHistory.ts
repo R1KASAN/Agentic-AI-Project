@@ -11,6 +11,7 @@ export type DailyPoint = {
     pace: number | null;
     fairness: number | null;
     studentCount: number | null;
+    hasAggregate: boolean;
 };
 
 function formatDayLabel(date: Date): string {
@@ -61,6 +62,10 @@ export function useDailyClimateHistory(classId: string | null, daysBack: number 
                             row.total_responses === null || row.total_responses === undefined
                                 ? null
                                 : Number(row.total_responses),
+                        hasAggregate:
+                            row.avg_mood !== null ||
+                            row.avg_pace !== null ||
+                            row.avg_fairness !== null,
                     }));
 
                 setData(dailyData);
@@ -75,5 +80,8 @@ export function useDailyClimateHistory(classId: string | null, daysBack: number 
         fetchDailyData();
     }, [classId, daysBack]);
 
-    return { data, isLoading, error };
+    const latestRow = data.at(-1) ?? null;
+    const hasRawActivity = data.length > 0;
+
+    return { data, isLoading, error, latestRow, hasRawActivity };
 }

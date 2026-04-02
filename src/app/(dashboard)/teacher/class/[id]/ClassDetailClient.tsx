@@ -3,6 +3,10 @@
 import {
   approveRecommendation,
   dismissRecommendation,
+  markRecommendationImplemented,
+  markRecommendationNotActioned,
+  restoreRecommendationAsDraft,
+  saveRecommendationFeedback,
 } from "@/lib/actions/teacher";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,6 +39,7 @@ import type {
   RedactedVoiceState,
   StudentFeedbackSummary,
 } from "@/types";
+import type { TeacherActionContextSummary } from "@/lib/teacherDashboard";
 
 interface ClassDetailClientProps {
   classId: string;
@@ -46,11 +51,17 @@ interface ClassDetailClientProps {
   studentCount: number;
   climate: ClassClimateSummary[];
   recommendations: RecommendationViewModel[];
+  latestRecommendation: RecommendationViewModel | null;
+  actionContext: TeacherActionContextSummary;
   historyCount: number;
   metrics: ClassMetrics;
   auditSignal: AuditSignal | null;
   feedbackSummary: StudentFeedbackSummary;
   redactedVoice: RedactedVoiceState;
+  featureFlags: {
+    enableDecisionWorkspace: boolean;
+    enableStructuredRecommendationPayload: boolean;
+  };
 }
 
 export default function ClassDetailClient({
@@ -63,13 +74,31 @@ export default function ClassDetailClient({
   studentCount,
   climate,
   recommendations,
+  latestRecommendation,
+  actionContext,
   historyCount,
   metrics,
   auditSignal,
   feedbackSummary,
   redactedVoice,
+  featureFlags,
 }: ClassDetailClientProps) {
   const router = useRouter();
+
+  function getApproveFailureMessage(reasonCode?: string) {
+    switch (reasonCode) {
+      case "db_state_not_changed":
+        return "ระบบตอบกลับไม่ตรงกับที่คาดไว้ หลังอนุมัติแล้วสถานะยังไม่เปลี่ยนเป็นข้อความที่แชร์ได้จริง";
+      case "schema_mismatch":
+        return "โครงสร้างฐานข้อมูลของ recommendation ยังไม่ตรงกับ flow ปัจจุบัน จึงยังบันทึกการอนุมัติรอบนี้ไม่ได้";
+      case "forbidden_or_rls":
+        return "ระบบไม่สามารถอัปเดต recommendation นี้ได้ อาจติดสิทธิ์การเข้าถึงหรือ session ของครู";
+      case "db_update_failed":
+        return "ระบบบันทึกการอนุมัติไม่สำเร็จ จึงยังไม่ส่งข้อความต่อให้นักเรียน";
+      default:
+        return "ไม่สามารถอนุมัติฉบับร่างนี้ได้";
+    }
+  }
 
   // Type guard to prevent runtime crashes if Supabase RPC returns malformed data
   if (!Array.isArray(climate)) {
@@ -83,7 +112,7 @@ export default function ClassDetailClient({
 
   const latestWeek = climate.find((c) => c.avg_mood !== null);
   const pendingRecommendations = recommendations.filter(
-    (recommendation) => recommendation.status === "pending",
+    (recommendation) => recommendation.isActionableDraft,
   );
   const blockedByFrequency =
     pendingRecommendations.length === 0 &&
@@ -92,18 +121,37 @@ export default function ClassDetailClient({
     pendingRecommendations.length === 0 &&
     auditSignal?.blockedReason === "k_anonymity";
 
-  async function handleApprove(id: string, note: string, editedDraft: string) {
-    const result = await approveRecommendation(id, note, editedDraft);
+  const latestRecommendationLabel =
+    latestRecommendation && latestRecommendation.createdAt
+      ? new Date(latestRecommendation.createdAt).toLocaleDateString("th-TH", {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        })
+      : null;
+
+  async function handleApprove(
+    id: string,
+    note: string,
+    editedDraft: string,
+    shareWithStudents: boolean,
+  ) {
+    const result = await approveRecommendation(
+      id,
+      note,
+      editedDraft,
+      shareWithStudents,
+    );
     if (!result.success) {
-      toast.error(result.error ?? "ไม่สามารถอนุมัติฉบับร่างนี้ได้");
+      toast.error(result.error ?? getApproveFailureMessage(result.reasonCode));
       return;
     }
     if (result.webhookFailed) {
       toast.warning(
-        "บันทึกการอนุมัติแล้ว แต่การส่งต่อไปยัง workflow ยังไม่สมบูรณ์",
+        "บันทึกการอนุมัติและแชร์ให้นักเรียนแล้ว แต่การส่งต่อไปยัง workflow ยังไม่สมบูรณ์",
       );
     } else {
-      toast.success("อนุมัติฉบับร่างแล้ว");
+      toast.success("อนุมัติฉบับร่างและแชร์ให้นักเรียนแล้ว");
     }
     router.refresh();
   }
@@ -115,6 +163,54 @@ export default function ClassDetailClient({
       return;
     }
     toast.success("ข้ามฉบับร่างนี้แล้ว");
+    router.refresh();
+  }
+
+  async function handleImplemented(
+    id: string,
+    closureShareNote: string,
+    shareWithStudents: boolean,
+  ) {
+    const result = await markRecommendationImplemented(
+      id,
+      closureShareNote,
+      shareWithStudents,
+    );
+    if (!result.success) {
+      toast.error(result.error ?? "ไม่สามารถบันทึกว่าลองใช้แล้วได้");
+      return;
+    }
+    toast.success("บันทึกว่าคุณครูลองใช้แล้ว");
+    router.refresh();
+  }
+
+  async function handleFeedback(id: string, feedback: string) {
+    const result = await saveRecommendationFeedback(id, feedback);
+    if (!result.success) {
+      toast.error(result.error ?? "ไม่สามารถบันทึก feedback ได้");
+      return;
+    }
+    toast.success("บันทึก feedback ของคุณครูแล้ว");
+    router.refresh();
+  }
+
+  async function handleNotActioned(id: string, reason: string) {
+    const result = await markRecommendationNotActioned(id, reason);
+    if (!result.success) {
+      toast.error(result.error ?? "ไม่สามารถบันทึกว่ายังไม่ใช้คำแนะนำนี้ได้");
+      return;
+    }
+    toast.success("บันทึกว่ายังไม่ใช้คำแนะนำนี้แล้ว");
+    router.refresh();
+  }
+
+  async function handleRestore(id: string) {
+    const result = await restoreRecommendationAsDraft(id);
+    if (!result.success) {
+      toast.error(result.error ?? "ไม่สามารถสร้าง draft ใหม่จากข้อความเดิมได้");
+      return;
+    }
+    toast.success("สร้างฉบับร่างใหม่จากข้อความเดิมแล้ว");
     router.refresh();
   }
 
@@ -382,10 +478,14 @@ export default function ClassDetailClient({
             data-display="true"
             className="flex items-center gap-2 text-2xl font-semibold text-[var(--student-dashboard-text)]"
           >
-            ฉบับร่าง / แนวทางตอบสนอง
+            {pendingRecommendations.length > 0
+              ? "ข้อเสนอแนะที่ครูตรวจได้"
+              : actionContext.mode === "fallback"
+                ? "สรุปบริบทล่าสุด"
+                : "ข้อเสนอแนะที่ครูตรวจได้"}
             {pendingRecommendations.length > 0 && (
               <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-200">
-                {pendingRecommendations.length} รออนุมัติ
+                {pendingRecommendations.length} ฉบับร่างรอตรวจ
               </span>
             )}
           </h2>
@@ -402,29 +502,107 @@ export default function ClassDetailClient({
           </Link>
         </div>
         {pendingRecommendations.length === 0 ? (
-          <Card className="student-surface overflow-hidden rounded-[28px] border border-dashed border-sky-200/60">
-            <CardContent className="space-y-2 py-6 text-sm text-[var(--student-dashboard-text-muted)]">
-              <p className="font-medium text-[var(--student-dashboard-text)]">
-                {blockedByFrequency
-                  ? "ระบบยังไม่สร้างข้อความใหม่ เพื่อไม่ให้ถี่เกินไป"
-                  : blockedByKAnonymity
-                    ? "ระบบยังไม่แสดงฉบับร่างใหม่ เพราะข้อมูลรวมยังไม่ถึงเกณฑ์ความเป็นส่วนตัวขั้นต่ำ"
-                    : "ยังไม่มีฉบับร่างที่รอตรวจในตอนนี้"}
-              </p>
-              <p>
-                {blockedByFrequency
-                  ? "ระบบชะลอการสร้างฉบับร่างใหม่ชั่วคราวตาม frequency guard ของห้องนี้ คุณยังสามารถเปิดประวัติข้อความที่ผ่านมาเพื่อดูสิ่งที่เคยอนุมัติหรือข้ามไปแล้วได้"
-                  : blockedByKAnonymity
-                    ? "ระบบกำลังรอให้มีสัญญาณรวมที่ปลอดภัยพอก่อน เพื่อปกป้องความเป็นส่วนตัวของนักเรียนและคงมาตรฐาน k-anonymity ของห้องนี้"
-                    : "ห้องนี้ยังอาจไม่มี recommendation ใหม่เพราะข้อมูลยังไม่พอหรือ workflow ยังไม่พบสัญญาณที่ควรสร้างฉบับร่างในรอบนี้"}
-              </p>
-            </CardContent>
-          </Card>
+          actionContext.mode !== "empty" ? (
+            <Card className="student-surface overflow-hidden rounded-[28px] border border-[color:var(--student-dashboard-border)]">
+              <CardContent className="space-y-4 py-6">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge
+                    variant="secondary"
+                    className="rounded-full bg-[rgba(147,197,253,0.14)] text-[var(--teacher-dashboard-primary)]"
+                  >
+                    {actionContext.title}
+                  </Badge>
+                  {actionContext.sourceLabel && (
+                    <Badge
+                      variant="outline"
+                      className="rounded-full border-[color:var(--student-dashboard-border)] text-[var(--student-dashboard-text-muted)]"
+                    >
+                      {actionContext.sourceLabel}
+                    </Badge>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-[var(--student-dashboard-text)]">
+                    {actionContext.summary}
+                  </p>
+                  <p className="text-sm leading-6 text-[var(--student-dashboard-text-muted)]">
+                    {actionContext.actionContext}
+                  </p>
+                  {latestRecommendationLabel && latestRecommendation && (
+                    <p className="text-xs text-[var(--student-dashboard-text-muted)]">
+                      อ้างอิงข้อความล่าสุดเมื่อ {latestRecommendationLabel}
+                    </p>
+                  )}
+                </div>
+                {actionContext.draftText && (
+                  <div className="rounded-[24px] border border-dashed border-sky-200/60 bg-[var(--student-dashboard-surface-raised)] px-4 py-3">
+                    <p className="text-xs font-medium uppercase tracking-[0.12em] text-[var(--student-dashboard-text-muted)]">
+                      {actionContext.mode === "fallback"
+                        ? "สรุปบริบทล่าสุด"
+                        : "ข้อความตั้งต้นล่าสุด"}
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-[var(--student-dashboard-text)]">
+                      {actionContext.draftText}
+                    </p>
+                  </div>
+                )}
+                {actionContext.actions.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {actionContext.actions.map((action) => (
+                      <span
+                        key={action}
+                        className="rounded-full bg-[rgba(147,197,253,0.12)] px-3 py-1 text-xs text-[var(--teacher-dashboard-primary)]"
+                      >
+                        {action}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {blockedByFrequency && (
+                  <p className="text-xs leading-5 text-[var(--student-dashboard-text-muted)]">
+                    ระบบชะลอการแจ้งเตือนซ้ำไว้เพื่อกันข้อความถี่เกิน แต่ยังเก็บสรุปบริบทล่าสุดให้ใช้ตัดสินใจต่อได้
+                  </p>
+                )}
+                {blockedByKAnonymity && (
+                  <p className="text-xs leading-5 text-[var(--student-dashboard-text-muted)]">
+                    ระบบยังไม่เปิดฉบับร่างใหม่จนกว่าสัญญาณรวมจะถึงเกณฑ์ความเป็นส่วนตัวขั้นต่ำ
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="student-surface overflow-hidden rounded-[28px] border border-dashed border-sky-200/60">
+              <CardContent className="space-y-2 py-6 text-sm text-[var(--student-dashboard-text-muted)]">
+                <p className="font-medium text-[var(--student-dashboard-text)]">
+                  {blockedByFrequency
+                    ? "ระบบยังไม่สร้างข้อความใหม่ เพื่อไม่ให้ถี่เกินไป"
+                    : blockedByKAnonymity
+                      ? "ระบบยังไม่แสดงฉบับร่างใหม่ เพราะข้อมูลรวมยังไม่ถึงเกณฑ์ความเป็นส่วนตัวขั้นต่ำ"
+                      : "ยังไม่มีฉบับร่างที่รอตรวจในตอนนี้"}
+                </p>
+                <p>
+                  {blockedByFrequency
+                    ? "ระบบชะลอการสร้างฉบับร่างใหม่ชั่วคราวตาม frequency guard ของห้องนี้ คุณยังสามารถเปิดประวัติข้อความที่ผ่านมาเพื่อดูสิ่งที่เคยอนุมัติหรือข้ามไปแล้วได้"
+                    : blockedByKAnonymity
+                      ? "ระบบกำลังรอให้มีสัญญาณรวมที่ปลอดภัยพอก่อน เพื่อปกป้องความเป็นส่วนตัวของนักเรียนและคงมาตรฐาน k-anonymity ของห้องนี้"
+                      : "ห้องนี้ยังอาจไม่มี recommendation ใหม่เพราะข้อมูลยังไม่พอหรือ workflow ยังไม่พบสัญญาณที่ควรสร้างฉบับร่างในรอบนี้"}
+                </p>
+              </CardContent>
+            </Card>
+          )
         ) : (
           <RecommendationList
             recommendations={pendingRecommendations}
             onApprove={handleApprove}
             onDismiss={handleDismiss}
+            onImplemented={handleImplemented}
+            onFeedback={handleFeedback}
+            onNotActioned={handleNotActioned}
+            onRestore={handleRestore}
+            enableDecisionWorkspace={featureFlags.enableDecisionWorkspace}
+            enableStructuredRecommendationPayload={
+              featureFlags.enableStructuredRecommendationPayload
+            }
             emptyStateTitle="ยังไม่มีฉบับร่างที่รออนุมัติ"
             emptyStateBody="ฉบับร่างใหม่จะปรากฏที่นี่เมื่อห้องมีสัญญาณเพียงพอและผ่าน safety checks"
           />

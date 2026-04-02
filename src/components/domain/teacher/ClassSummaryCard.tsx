@@ -10,6 +10,45 @@ interface ClassSummaryCardProps {
     data: ClassSummaryResponse;
 }
 
+function getFollowUpStatusCopy(
+    pendingRecommendations: number,
+    blockedReason: ClassSummaryResponse["blocked_reason"],
+    riskLevel: ClassSummaryResponse["risk_level"],
+) {
+    if (pendingRecommendations > 0) {
+        return {
+            tone: "warning" as const,
+            label: `${pendingRecommendations} ฉบับร่างรอตรวจ`,
+        };
+    }
+
+    if (blockedReason === "frequency_limit_exceeded") {
+        return {
+            tone: "info" as const,
+            label: "เพิ่งติดตามไปแล้ว",
+        };
+    }
+
+    if (blockedReason === "k_anonymity") {
+        return {
+            tone: "info" as const,
+            label: "ยังรอข้อมูลรวมที่ปลอดภัย",
+        };
+    }
+
+    if (riskLevel === "WARNING" || riskLevel === "CRITICAL") {
+        return {
+            tone: "info" as const,
+            label: "ยังไม่มีฉบับร่างล่าสุดจากระบบ",
+        };
+    }
+
+    return {
+        tone: "info" as const,
+        label: "ไม่มีรายการรอตรวจ",
+    };
+}
+
 export function ClassSummaryCard({ data }: ClassSummaryCardProps) {
     const {
         class_id,
@@ -23,6 +62,11 @@ export function ClassSummaryCard({ data }: ClassSummaryCardProps) {
         total_decided,
         dismissal_rate,
     } = data;
+    const followUpStatus = getFollowUpStatusCopy(
+        pending_recommendations,
+        blocked_reason,
+        risk_level,
+    );
 
     // Map risk string back to a numeric score to reuse existing RiskIndicator component
     // If NO_DATA, we can hide the indicator or set it to 0
@@ -85,21 +129,22 @@ export function ClassSummaryCard({ data }: ClassSummaryCardProps) {
                             <span>คนในห้อง</span>
                         </div>
 
-                        {pending_recommendations > 0 ? (
-                            <div className="flex items-center gap-2 rounded-full bg-[rgba(253,230,138,0.12)] px-3 py-1.5 text-[var(--teacher-dashboard-warning)]">
+                        <div
+                            className={
+                                followUpStatus.tone === "warning"
+                                    ? "flex items-center gap-2 rounded-full bg-[rgba(253,230,138,0.12)] px-3 py-1.5 text-[var(--teacher-dashboard-warning)]"
+                                    : "flex items-center gap-2 rounded-full bg-[rgba(147,197,253,0.12)] px-3 py-1.5 text-[var(--teacher-dashboard-primary)]"
+                            }
+                        >
+                            {followUpStatus.tone === "warning" ? (
                                 <Bell className="h-4 w-4 animate-pulse" />
-                                <span className="font-semibold">{pending_recommendations} รายการรอตรวจ</span>
-                            </div>
-                        ) : (
-                            <div className="flex items-center gap-2 rounded-full bg-[rgba(147,197,253,0.12)] px-3 py-1.5 text-[var(--teacher-dashboard-primary)]">
+                            ) : (
                                 <Activity className="h-4 w-4" />
-                                <span>
-                                  {blocked_reason === "k_anonymity"
-                                    ? "กำลังรอสัญญาณรวม"
-                                    : "ติดตามครบแล้ว"}
-                                </span>
-                            </div>
-                        )}
+                            )}
+                            <span className={followUpStatus.tone === "warning" ? "font-semibold" : undefined}>
+                                {followUpStatus.label}
+                            </span>
+                        </div>
                     </div>
 
                     <p className="border-t border-[color:var(--teacher-dashboard-border)] pt-4 text-xs teacher-text-muted">

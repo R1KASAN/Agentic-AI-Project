@@ -6,11 +6,13 @@ export async function approveRecommendationAction(input: {
   classId: string;
   recommendationId: string;
   note?: string;
+  shareWithStudents?: boolean;
 }) {
   try {
     const result = await approveRecommendation({
       id: input.recommendationId,
       note: input.note ?? '',
+      shareWithStudents: input.shareWithStudents ?? true,
     });
 
     return {

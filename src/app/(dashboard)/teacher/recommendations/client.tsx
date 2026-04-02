@@ -58,7 +58,7 @@ function RecommendationCard({
   const isActionable = localStatus === 'pending';
   const requireNote = item.inquiry_mode;
   const cannotApprove = requireNote && note.trim().length === 0;
-  const willShareToStudents = note.trim().length > 0;
+  const willShareToStudents = !item.inquiry_mode && note.trim().length > 0;
 
   const handleApprove = () => {
     console.log('[UI] handleApprove clicked', { 
@@ -75,6 +75,7 @@ function RecommendationCard({
           classId: item.class_id,
           recommendationId: item.id,
           note: note.trim(),
+          shareWithStudents: !item.inquiry_mode,
         });
 
         console.log('[UI] approve result', res);
@@ -211,14 +212,20 @@ function RecommendationCard({
               <textarea
                 data-testid="note-input"
                 className="w-full text-sm p-3 rounded-md border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-50 resize-none"
-                placeholder="ข้อความถึงนักเรียน (ถ้ามี)..."
+                placeholder={
+                  item.inquiry_mode
+                    ? "บริบทภายในสำหรับระบบและครู..."
+                    : "ข้อความถึงนักเรียน (ถ้ามี)..."
+                }
                 rows={2}
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 disabled={isPending}
               />
               <p className="text-xs leading-5 text-slate-500">
-                ถ้าใส่ข้อความนี้ นักเรียนจะเห็นในหน้า feedback ของห้อง หากไม่ใส่ ระบบจะอนุมัติภายใน แต่ยังไม่แสดงให้นักเรียนเห็น
+                {item.inquiry_mode
+                  ? "ข้อความนี้ใช้เป็นบริบทภายในให้ระบบและจะไม่แสดงให้นักเรียนเห็น"
+                  : "ถ้าใส่ข้อความนี้ นักเรียนจะเห็นในหน้า feedback ของห้อง หากไม่ใส่ ระบบจะอนุมัติภายใน แต่ยังไม่แสดงให้นักเรียนเห็น"}
               </p>
             </div>
           )}
@@ -278,7 +285,9 @@ function RecommendationCard({
                   ? "กำลังบันทึก..."
                   : willShareToStudents
                     ? "อนุมัติและแชร์ถึงนักเรียน"
-                    : "อนุมัติภายใน"}
+                    : item.inquiry_mode
+                      ? "บันทึกบริบทภายใน"
+                      : "อนุมัติภายใน"}
               </button>
             )}
           </div>
@@ -292,10 +301,12 @@ function RecommendationCard({
             {localStatus === 'approved'
               ? willShareToStudents
                 ? 'บันทึกและแชร์ให้นักเรียนแล้ว'
-                : 'บันทึกการอนุมัติภายในแล้ว'
+                : item.inquiry_mode
+                  ? 'บันทึกบริบทภายในให้ระบบแล้ว'
+                  : 'บันทึกการอนุมัติภายในแล้ว'
               : 'ปฏิเสธคำแนะนำแล้ว'}
           </span>
-          {localStatus === 'approved' && note && (
+          {localStatus === 'approved' && note && willShareToStudents && (
             <span className="text-xs text-slate-400 truncate max-w-[240px]">ข้อความที่แชร์: {note}</span>
           )}
         </div>

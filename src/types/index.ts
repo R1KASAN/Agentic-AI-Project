@@ -15,6 +15,30 @@ export type PolicyLevel = "ROUTINE" | "WARNING" | "CRITICAL";
 export type PriorityLevel = "NORMAL" | "HIGH" | "URGENT";
 
 export type RecommendationStatus = "pending" | "approved" | "dismissed" | "sent";
+export type RecommendationActionStatus =
+  | "pending"
+  | "approved"
+  | "implemented"
+  | "feedback_logged"
+  | "dismissed"
+  | "not_actioned";
+export type StructuredRecommendationMode = "action" | "inquiry";
+export type StructuredRecommendationSource = "llm" | "fallback";
+
+// Spec 2: dual-output recommendation payload written by climate-agent-main-v2.
+export interface StructuredRecommendationPayloadV1 {
+  version: 1;
+  mode: StructuredRecommendationMode;
+  source: StructuredRecommendationSource;
+  teacherSummary: string;
+  situationHypothesis: string;
+  recommendedTeacherMove: string;
+  studentMessageDraft: string | null;
+  teacherActionPlan: string[];
+  watchSignals: string[];
+  whyThisHelps: string;
+  postClassReflectionPrompt: string | null;
+}
 
 export interface ClassInfo {
   id: string;
@@ -58,6 +82,7 @@ export interface Recommendation {
   dismissal_reason: string | null;
   action_taken_note: string | null;
   teacher_action_note?: string | null;
+  teacher_approval_status?: "pending" | "approved" | "dismissed" | null;
   communicated_to_students: boolean;
   created_at: string;
   updated_at: string;
@@ -71,6 +96,17 @@ export interface Recommendation {
   fallback_used?: boolean;
   priority?: PriorityLevel;
   alert_sent_at?: string | null;
+  // Spec 2/6: structured payload powers the decision workspace while legacy fields remain readable.
+  structured_payload?: StructuredRecommendationPayloadV1 | null;
+  action_status?: RecommendationActionStatus | null;
+  teacher_approved_at?: string | null;
+  teacher_implemented_at?: string | null;
+  teacher_feedback?: string | null;
+  feedback_sentiment?: "positive" | "neutral" | "negative" | null;
+  feedback_confidence?: number | null;
+  closure_share_note?: string | null;
+  not_actioned_at?: string | null;
+  restored_from_recommendation_id?: string | null;
 }
 
 export interface ActionLog {
@@ -113,6 +149,7 @@ export interface StudentFeedbackRecentAction {
   note: string;
   logged_at: string;
   status_label: string;
+  action_status: RecommendationActionStatus | null;
 }
 
 export type StudentFeedbackComparisonLabel =
@@ -203,6 +240,9 @@ export interface RecommendationViewModel {
   id: string;
   classId: string;
   status: RecommendationStatus;
+  actionStatus: RecommendationActionStatus;
+  historyDisplayStatus: RecommendationActionStatus | null;
+  isActionableDraft: boolean;
   createdAt: string;
   policyLevel: PolicyLevel | null;
   priority: PriorityLevel | null;
@@ -216,6 +256,18 @@ export interface RecommendationViewModel {
   rationaleTag: RecommendationRationaleTag;
   dismissalReason: string | null;
   teacherActionNote: string | null;
+  structuredPayload: StructuredRecommendationPayloadV1 | null;
+  teacherApprovedAt: string | null;
+  teacherImplementedAt: string | null;
+  teacherFeedback: string | null;
+  feedbackSentiment: "positive" | "neutral" | "negative" | null;
+  closureShareNote: string | null;
+  restoredFromRecommendationId: string | null;
+  studentFacingDraft: string | null;
+  teacherPlan: string[];
+  watchSignals: string[];
+  whyThisHelps: string | null;
+  postClassReflectionPrompt: string | null;
 }
 
 export type AuditEventType =

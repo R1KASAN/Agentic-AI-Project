@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "demo:provision-auth": "node scripts/provision-demo-auth.mjs",
+    "demo:seed-presentation": "node scripts/seed-presentation-domain.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
