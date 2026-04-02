@@ -179,14 +179,21 @@
 
 ```mermaid
 flowchart LR
-    A["Student Check-in"] --> B["Next.js API"]
-    B --> C["Supabase / PostgreSQL"]
-    C --> D["Aggregate + Privacy Guard (k >= 3)"]
-    D --> E["n8n Agentic Workflow"]
-    E --> F["LLM Analysis + Recommendation Draft"]
-    F --> G["Teacher Review / Approval"]
-    G --> H["Teacher Dashboard"]
-    G --> I["Student Feedback Loop Closure"]
+    A["Student / Teacher UI\n- check-in\n- feedback\n- teacher actions"] --> B["Next.js Route Handlers\n/api/student/check-in\n/api/student/feedback\n/api/n8n/webhook"]
+    B --> C["Supabase Auth"]
+    C --> D["Supabase PostgreSQL\nclasses\nclass_enrollments\nstudent_pulses\nrecommendations\nnotifications"]
+    D --> E["Privacy Guard + Aggregation RPCs\nk >= 3"]
+    E --> F["Prepared Climate Signals\nsummaries • trends • metrics"]
+    F --> G["climate-agent-main-v2\nDaily Climate Check Trigger"]
+    G --> H["Tool Sub-workflows\nget climate summary\nget teacher metrics\nget past recommendations"]
+    H --> I["LLM Analysis + Fallback Policy Engine\nrecommendation draft"]
+    I --> J["Teacher Decision Workspace\napprove / dismiss / restore"]
+    J --> D
+    J --> K["Student Feedback Loop Closure"]
+    J --> L["/api/n8n/webhook\ncache revalidation"]
+
+    D -. demo seed .-> S["supabase/seed/presentation-dataset.sql"]
+    G -. validation only .-> M["climate-agent-main-v2-manual-test"]
 ```
 
 ### คำอธิบายที่แนะนำ

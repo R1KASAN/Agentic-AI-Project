@@ -259,7 +259,7 @@ Apply Supabase migrations, provision demo auth, then load supabase/seed/presenta
 - เน้น 2 โหมด:
   - Preprocessing Mode
   - Processing Mode
-- แยกเส้นทาง `live core` ออกจาก `demo harness`
+- แยกเส้นทาง `live core` ออกจาก `validation / demo seed`
 - ใส่ callout เล็ก ๆ ว่า `presentation-dataset.sql → Supabase/Postgres seed`
 - ถ้าจะอธิบาย workflow เก่า ให้ระบุเป็น `reference / inactive` ไม่ใช่ flow หลัก
 
@@ -267,26 +267,21 @@ Apply Supabase migrations, provision demo auth, then load supabase/seed/presenta
 
 ```mermaid
 flowchart LR
-    A["Student / Teacher UI"] --> B["Next.js Route Handlers"]
+    A["Student / Teacher UI\n- check-in\n- feedback\n- teacher actions"] --> B["Next.js Route Handlers\n/api/student/check-in\n/api/student/feedback\n/api/n8n/webhook"]
     B --> C["Supabase Auth"]
-    C --> D["Supabase PostgreSQL"]
-    D --> E["Privacy Guard / Aggregation"]
-    E --> F["Prepared Climate Signals"]
-    F --> G["climate-agent-main-v2"]
-    G --> H["LLM + Tool Workflows"]
-    H --> I["Teacher Review / Approval"]
-    I --> J["Teacher Dashboard / Class Detail"]
-    I --> K["/api/n8n/webhook\ncache revalidation"]
+    C --> D["Supabase PostgreSQL\nclasses\nclass_enrollments\nstudent_pulses\nrecommendations\nnotifications"]
+    D --> E["Privacy Guard + Aggregation RPCs\nk >= 3"]
+    E --> F["Prepared Climate Signals\nsummaries • trends • metrics"]
+    F --> G["climate-agent-main-v2\nDaily Climate Check Trigger"]
+    G --> H["Tool Sub-workflows\nget climate summary\nget teacher metrics\nget past recommendations"]
+    H --> I["LLM Analysis + Fallback Policy Engine\nrecommendation draft"]
+    I --> J["Teacher Decision Workspace\napprove / dismiss / restore"]
+    J --> D
+    J --> K["Student Feedback Loop Closure"]
+    J --> L["/api/n8n/webhook\ncache revalidation"]
 
     D -. demo seed .-> S["supabase/seed/presentation-dataset.sql"]
-    D -. demo harness .-> M["phase-c-redaction-batch"]
-    M --> N["Tool: Get Raw Snippet Batch"]
-    N --> O["LLM Redaction Chain / Ollama"]
-    O --> P["Tool: Write Redacted Snippets"]
-    P --> D
-
-    R["Reference / inactive workflows\nagentic-ai-recommendation,\nW06, loop-closure-notification,\nhandle-teacher-approval"]:::muted
-    G -. reference only .-> R
+    G -. validation only .-> M["climate-agent-main-v2-manual-test"]
 
     classDef muted fill:#1f2937,stroke:#6b7280,color:#9ca3af,stroke-dasharray:4 4;
 ```
@@ -295,24 +290,19 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    DS["Demo Dataset Seed
-    supabase/seed/presentation-dataset.sql"] -. seed only .-> DB
-
     subgraph PRE["Preprocessing Mode"]
-        A["Student / Teacher Input
+        A["Student / Teacher UI
         - Check-in
         - Feedback
-        - Approve / Dismiss"] --> B["Next.js Frontend
-        Student / Teacher Dashboard"]
-
-        B --> C["Next.js Route Handlers
+        - Approve / Dismiss
+        - Restore draft"] --> B["Next.js Route Handlers
         - /api/student/check-in
         - /api/student/feedback
         - /api/n8n/webhook"]
 
-        C --> D["Supabase Auth"]
+        B --> C["Supabase Auth"]
 
-        D --> DB["Supabase PostgreSQL
+        C --> DB["Supabase PostgreSQL
         Tables:
         classes
         class_enrollments
@@ -322,14 +312,15 @@ flowchart LR
 
         DB --> F["Privacy Guard + Aggregation Layer
         - k-anonymity (k >= 3)
-        - RPC / summary functions
+        - summary / trend RPCs
         - redact raw student data"]
 
         F --> G["Prepared Climate Signals
         - class climate summary
         - trend comparison
         - adoption metrics
-        - redacted voice summary"]
+        - redacted voice summary
+        - approval history"]
     end
 
     subgraph PROC["Processing Mode"]
@@ -338,41 +329,42 @@ flowchart LR
 
         MAIN --> T1["Tool Sub-workflows
         - get climate summary
-        - get trend comparison
-        - count enrolled students
+        - get teacher metrics
         - get past recommendations
-        - get teacher action rate"]
+        - get aggregated climate data"]
 
-        T1 --> LLM["LLM Analysis
-        LangChain Agent + Gemini"]
+        T1 --> LLM["LLM Analysis + Fallback Policy Engine
+        privacy-safe recommendation draft"]
 
-        LLM --> R["Recommendation Draft
-        + risk score
-        + confidence
-        + rationale"]
+        LLM --> R["Decision Payload
+        - policy level
+        - confidence
+        - teacherActionPlan
+        - studentMessageDraft"]
 
         R --> S["Supabase Recommendations
-        บันทึก draft recommendation"]
+        status / action_status / approval fields"]
 
         S --> U["Teacher Review / Approval
-        Human-in-the-loop"]
+        Human-in-the-loop
+        approve / dismiss / restore"]
 
         U --> APP["Teacher Dashboard / Class Detail
         - risk overview
         - action workspace
+        - history / restore
         - updated classroom summary"]
 
         U --> WEBHOOK["/api/n8n/webhook
         cache revalidation"]
+
+        U --> STUDENT["Student Feedback
+        loop closure"]
     end
 
-    subgraph DEMO["Demo Harness"]
-        DB -. demo-only .-> DEMO_WF["phase-c-redaction-batch"]
-        DEMO_WF --> RAW["Tool: Get Raw Snippet Batch"]
-        RAW --> REDACT["LLM Redaction Chain / Ollama"]
-        REDACT --> WRITE["Tool: Write Redacted Snippets"]
-        WRITE --> DB
-    end
+    DS["Demo Dataset Seed
+    supabase/seed/presentation-dataset.sql"] -. seed only .-> DB
+    DEMO["climate-agent-main-v2-manual-test"] -. validation only .-> MAIN
 
     REF["Reference / inactive workflows in repo
     - agentic-ai-recommendation
@@ -389,14 +381,14 @@ flowchart LR
 #### สคริปต์คำบรรยาย (ภาษาไทย) - เวอร์ชันสั้น:
 > ถ้าดูแบบสั้น ๆ สถาปัตยกรรมของระบบเริ่มจากหน้า UI ของนักเรียนและครู แล้วส่งผ่าน Next.js ไปยัง Supabase ครับ  
 > จากนั้นข้อมูลจะถูกสรุปผ่าน privacy guard ก่อนเข้าสู่ `climate-agent-main-v2` เพื่อให้ LLM วิเคราะห์และสร้าง recommendation draft โดยมีครูเป็นผู้ approve ในขั้นสุดท้าย  
-> สำหรับการเดโมเส้นทางข้อมูล เราใช้ `phase-c-redaction-batch` เป็น demo harness แยกจากระบบหลัก เพื่อพิสูจน์การดึงข้อมูล การ redaction และการเขียนผลกลับเข้า Supabase แบบปลอดภัยครับ
+> ชุดข้อมูลเดโมจะมาจาก `supabase/seed/presentation-dataset.sql` ส่วน workflow `climate-agent-main-v2-manual-test` ใช้สำหรับ validation เท่านั้น ไม่ใช่ runtime หลักของระบบครับ
 
 #### สคริปต์คำบรรยาย (ภาษาไทย):
 > สถาปัตยกรรมของระบบแบ่งเป็น 2 ส่วนหลัก คือ **Preprocessing Mode** และ **Processing Mode** ครับ  
 > ในฝั่ง Preprocessing ระบบจะรับข้อมูลจากนักเรียนหรือครูผ่านหน้า Next.js frontend แล้วส่งต่อไปยัง Next.js route handlers จากนั้นจึงยืนยันสิทธิ์ผ่าน Supabase Auth และเก็บข้อมูลลงใน Supabase PostgreSQL  
 > ก่อนนำข้อมูลไปใช้งานต่อ ระบบจะผ่านชั้น privacy guard และ aggregation layer เพื่อสรุปเฉพาะข้อมูลแบบ aggregate ที่ปลอดภัยต่อการวิเคราะห์  
 > เมื่อเตรียมข้อมูลเสร็จแล้ว ระบบหลักที่ใช้งานจริงคือ `climate-agent-main-v2` ซึ่งทำหน้าที่นำ climate signals ไปวิเคราะห์ด้วย LLM สร้าง recommendation draft และส่งให้ครู review แบบ human-in-the-loop ก่อน approve ขั้นสุดท้าย  
-> สำหรับเส้นทางเดโม เราแยก `phase-c-redaction-batch` ออกมาเป็น demo harness เพื่อพิสูจน์ตั้งแต่การดึง batch ข้อมูล การ redaction ด้วย LLM ไปจนถึงการเขียนผลกลับเข้า Supabase โดยไม่กระทบระบบหลัก  
+> สำหรับการเดโม เราใช้ `supabase/seed/presentation-dataset.sql` เป็นชุดข้อมูลตั้งต้น และหากต้องการตรวจ flow แบบทดสอบ เราจะอ้างอิง `climate-agent-main-v2-manual-test` ในฐานะ validation workflow แยกจาก runtime หลักครับ  
 > ส่วน workflow อย่าง `agentic-ai-recommendation`, `W06 Morning Briefing`, `loop-closure-notification` และ `handle-teacher-approval` จะถือเป็น reference หรือ inactive workflows ที่เก็บไว้เพื่ออธิบายแนวคิด แต่ไม่ใช่ flow หลักของ runtime ปัจจุบันครับ  
 > และก่อนเดโมจริง เราจะ apply migrations ให้ schema ตรงกับโค้ดก่อน จากนั้น provision บัญชี demo auth ผ่าน Supabase Auth แล้วค่อย seed canonical demo bundle จาก `supabase/seed/presentation-dataset.sql` เพื่อให้สภาพแวดล้อมพร้อมใช้งานครับ
 
