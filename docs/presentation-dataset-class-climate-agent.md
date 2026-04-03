@@ -9,6 +9,7 @@
 - [supabase/seed/presentation-dataset.sql](/Users/ark1/Public/Climate%20Agent/supabase/seed/presentation-dataset.sql)
 
 ไฟล์นี้รวมข้อมูลเดโมหลักทั้งหมดไว้ในไฟล์เดียว ทั้งห้องเรียนหลัก, ห้อง inquiry/pending, ห้อง no-data, นักเรียนที่ลงทะเบียน, ข้อมูล check-in แบบ canonical, และตาราง school calendar สำหรับเดโม
+รวมถึง recommendation rows ที่ตรงกับ schema ปัจจุบันของ decision workspace เช่น `structured_payload`, `action_status`, loop closure, history และ restore-ready cases
 
 หมายเหตุ: ไฟล์นี้เป็น **domain dataset** ของเดโม และต้องใช้ร่วมกับการ provision บัญชี demo auth ผ่าน Supabase Admin path ก่อน จึงจะ login ด้วย `password123` ได้จริง
 ถ้าสภาพแวดล้อมไม่มี `psql` หรือ DB password สำหรับรัน SQL ตรง ๆ สามารถใช้ helper script `npm run demo:seed-presentation` เพื่อโหลด domain dataset ชุดเดียวกันผ่าน service role ได้เช่นกัน
@@ -39,8 +40,8 @@
 
 | Class name | Description | Scenario |
 |---|---|---|
-| `CS101 Introduction to Computing` | Main demo class for the approval workflow and positive climate trend. | Approved recommendation + healthy 2-week pulse history |
-| `gg` | Demo room for inquiry mode and a pending recommendation. | Pending inquiry-mode recommendation + cautious pulse history |
+| `CS101 Introduction to Computing` | Main demo class for the approval workflow and positive climate trend. | Student loop closure + approved teacher response + history/restore-ready rows |
+| `gg` | Demo room for inquiry mode and a pending recommendation. | Pending `WARNING` inquiry-mode draft with structured payload |
 | `กินหมูกระทะ` | No-data demo room used to show privacy-safe empty states. | No check-ins yet |
 
 ### Presentation Scenarios Supported
@@ -60,13 +61,15 @@ If you want the simplest dataset that still supports the full clip flow, use:
 1. provision demo auth accounts ด้วย `npm run demo:provision-auth`
 2. `supabase/seed/presentation-dataset.sql`
 
+Bundle นี้พอสำหรับเดโม flow ปัจจุบันทั้งหมดในไฟล์เดียว ทั้ง student feedback, teacher pending draft, approved loop closure, history page และ restore draft
+
 If you want to keep using the modular seed files instead, the split bundle is still available below.
 
 ## Notes for Presenter
 
 - The base dataset is intentionally privacy-safe and small enough for a live demo.
-- `CS101 Introduction to Computing` is the main class used in the clip guide and runbooks.
-- `gg` is the inquiry-mode / pending recommendation example.
+- `CS101 Introduction to Computing` is the main class used in the clip guide and runbooks for approval, loop closure, history, and restore.
+- `gg` is the inquiry-mode / pending recommendation example with structured payload enabled.
 - `กินหมูกระทะ` is the privacy-safe no-data example.
 - The optional recommendation seed files are demo-scoped and are meant to be added only when you want to show approval or inquiry-mode behavior.
 - `school-days-seed.sql` supports the morning briefing / calendar logic and is useful when you want to explain scheduling and non-school-day handling.
