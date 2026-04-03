@@ -73,7 +73,7 @@ const classes = [
     school_id: schoolId,
     name: "gg",
     description: "Demo room for inquiry mode and a pending recommendation.",
-    invite_code: "7A9D2E11",
+    invite_code: "RM9HDHDP",
     risk_score: 0,
     pilot_status: true,
   },
@@ -83,7 +83,7 @@ const classes = [
     school_id: schoolId,
     name: "กินหมูกระทะ",
     description: "No-data demo room used to show privacy-safe empty states.",
-    invite_code: "88F2C0D9",
+    invite_code: "08FD21EB",
     risk_score: 0,
     pilot_status: true,
   },
@@ -143,7 +143,45 @@ const recommendations = [
     fallback_used: false,
     teacher_approval_status: "approved",
     teacher_acted_at: "2026-03-24T09:00:00Z",
-    teacher_action_note: "รับทราบและปรับจังหวะตามคำแนะนำ",
+    teacher_action_note:
+      "ขอบคุณสำหรับฟีดแบ็กของห้อง คาบถัดไปเราจะเริ่มด้วยการเช็กอินสั้น ๆ และสรุปเป้าหมายของคาบให้ชัดขึ้นอีกนิด เพื่อให้ทุกคนตามทันมากขึ้น",
+    structured_payload: {
+      version: 1,
+      mode: "action",
+      source: "llm",
+      teacherSummary:
+        "ภาพรวมของ CS101 ค่อนข้างนิ่งและนักเรียนตอบรับสม่ำเสมอ จึงเหมาะกับการคงจังหวะคาบที่ชัดและอุ่นใจ",
+      situationHypothesis:
+        "นักเรียนส่วนใหญ่ตามเนื้อหาได้ดีขึ้นเมื่อครูเปิดคาบอย่างชัดเจนและเว้นพื้นที่ให้ถาม",
+      recommendedTeacherMove:
+        "เริ่มคาบด้วยการเช็กอินสั้น ๆ แล้วสรุปเป้าหมายของคาบให้ชัดก่อนเริ่มเนื้อหา",
+      studentMessageDraft:
+        "ขอบคุณสำหรับฟีดแบ็กของห้อง คาบถัดไปเราจะเริ่มด้วยการเช็กอินสั้น ๆ และสรุปเป้าหมายของคาบให้ชัดขึ้นอีกนิด เพื่อให้ทุกคนตามทันมากขึ้น",
+      teacherActionPlan: [
+        "เริ่มคาบด้วยการเช็กอินสั้น ๆ",
+        "สรุปเป้าหมายของคาบให้ชัดก่อนเริ่มเนื้อหา",
+        "เปิดช่วงให้ถามคำถามก่อนเดินต่อ",
+      ],
+      watchSignals: [
+        "นักเรียนถามคำถามได้เร็วขึ้นหรือไม่",
+        "ช่วงต้นคาบผ่อนลงและนิ่งขึ้นหรือไม่",
+        "ยังมีจุดไหนที่นักเรียนบอกว่าตามไม่ทันอีกหรือไม่",
+      ],
+      whyThisHelps:
+        "การเริ่มคาบอย่างชัดเจนและให้พื้นที่ถามตั้งแต่ต้นช่วยคงบรรยากาศที่นิ่งและลดแรงตึงสะสมระหว่างคาบ",
+      postClassReflectionPrompt:
+        "หลังใช้วิธีนี้แล้ว นักเรียนตอบสนองอย่างไร และจุดไหนของคาบที่ยังควรปรับต่อ",
+    },
+    action_status: "approved",
+    teacher_approved_at: "2026-03-24T09:00:00Z",
+    teacher_implemented_at: null,
+    teacher_feedback: null,
+    feedback_sentiment: null,
+    feedback_confidence: null,
+    closure_share_note:
+      "ขอบคุณสำหรับฟีดแบ็กของห้อง คาบถัดไปเราจะเริ่มด้วยการเช็กอินสั้น ๆ และสรุปเป้าหมายของคาบให้ชัดขึ้นอีกนิด เพื่อให้ทุกคนตามทันมากขึ้น",
+    not_actioned_at: null,
+    restored_from_recommendation_id: null,
   },
   {
     id: "50000000-0000-0000-0000-000000000002",
@@ -166,6 +204,175 @@ const recommendations = [
     teacher_approval_status: "pending",
     teacher_acted_at: null,
     teacher_action_note: null,
+    structured_payload: {
+      version: 1,
+      mode: "inquiry",
+      source: "fallback",
+      teacherSummary:
+        "สัญญาณรวมของห้อง gg เริ่มอ่อนลง แต่ยังควรเติมบริบทจากครูอีกเล็กน้อยก่อนสรุปข้อความถึงนักเรียน",
+      situationHypothesis:
+        "ข้อมูลรวมบอกว่าห้องมีแรงตึงบางช่วงของคาบ แต่ยังไม่ชัดว่าควรเริ่มแก้ตรงจังหวะไหนก่อน",
+      recommendedTeacherMove:
+        "เติมบริบทสั้น ๆ ว่าช่วงไหนของคาบที่นักเรียนเริ่มเงียบหรือตามไม่ทัน",
+      studentMessageDraft: null,
+      teacherActionPlan: [
+        "เติมบริบทสั้น ๆ ว่าปัญหาน่าจะเกิดช่วงไหนของคาบ",
+        "บอกระบบว่าคุณครูอยากให้ช่วยต่อเรื่องใด",
+        "ค่อยตัดสินใจอีกครั้งหลังได้บริบทเพิ่ม",
+      ],
+      watchSignals: [
+        "ช่วงที่เด็กเริ่มเงียบพร้อมกัน",
+        "กิจกรรมที่ทำให้เด็กถามน้อยลง",
+        "จังหวะที่ครูรู้สึกว่าห้องเริ่มหลุดจากการมีส่วนร่วม",
+      ],
+      whyThisHelps:
+        "การเติมบริบทจากครูก่อนจะช่วยให้ข้อเสนอรอบถัดไปตรงกับสถานการณ์จริงของห้องมากขึ้น",
+      postClassReflectionPrompt: null,
+    },
+    action_status: "pending",
+    teacher_approved_at: null,
+    teacher_implemented_at: null,
+    teacher_feedback: null,
+    feedback_sentiment: null,
+    feedback_confidence: null,
+    closure_share_note: null,
+    not_actioned_at: null,
+    restored_from_recommendation_id: null,
+  },
+  {
+    id: "50000000-0000-0000-0000-000000000003",
+    class_id: "10000000-0000-0000-0000-000000000001",
+    teacher_id: teacherId,
+    content:
+      "ห้องนี้น่าจะได้ผลดีถ้าเริ่มคาบด้วยการเช็กความเข้าใจสั้น ๆ ก่อนเดินโจทย์หลัก",
+    status: "approved",
+    dismissal_reason: null,
+    action_taken_note:
+      "ครูลองเริ่มคาบด้วยคำถามสั้น ๆ ก่อนเข้าสู่โจทย์หลัก และเห็นว่านักเรียนกล้าถามมากขึ้น",
+    communicated_to_students: false,
+    created_at: "2026-03-22T09:00:00Z",
+    updated_at: "2026-03-23T10:30:00Z",
+    policy_level: "WARNING",
+    ai_message_draft:
+      "คาบถัดไปเราจะเริ่มด้วยการเช็กความเข้าใจสั้น ๆ ก่อน เพื่อให้ทุกคนบอกได้ว่าตรงไหนยังติดอยู่ แล้วค่อยเดินโจทย์หลักต่อ",
+    actions_json: [
+      "เริ่มคาบด้วยการเช็กความเข้าใจสั้น ๆ",
+      "ถามจุดที่ยังติดก่อนเดินโจทย์หลัก",
+      "สังเกตว่านักเรียนกล้าถามมากขึ้นหรือไม่",
+    ],
+    confidence_score: 0.84,
+    reasoning:
+      "การเปิดพื้นที่ให้บอกจุดที่ยังติดก่อนเริ่มโจทย์หลักช่วยลดความเกร็งและทำให้ครูเห็นจุดสะดุดได้เร็วขึ้น",
+    inquiry_mode: false,
+    fallback_used: false,
+    teacher_approval_status: "approved",
+    teacher_acted_at: "2026-03-23T10:30:00Z",
+    teacher_action_note:
+      "ครูลองเริ่มคาบด้วยคำถามสั้น ๆ ก่อนเข้าสู่โจทย์หลัก และเห็นว่านักเรียนกล้าถามมากขึ้น",
+    structured_payload: {
+      version: 1,
+      mode: "action",
+      source: "fallback",
+      teacherSummary:
+        "ห้องนี้น่าจะได้ผลดีถ้าเริ่มคาบด้วยการเช็กความเข้าใจสั้น ๆ ก่อนเดินโจทย์หลัก",
+      situationHypothesis:
+        "นักเรียนบางส่วนยังต้องการพื้นที่ตั้งหลักก่อนเข้าสู่โจทย์หลัก จึงอาจเงียบหรือไม่กล้าถามตั้งแต่ต้นคาบ",
+      recommendedTeacherMove:
+        "เปิดช่วงเช็กความเข้าใจสั้น ๆ ก่อน แล้วค่อยเข้าสู่โจทย์หลัก",
+      studentMessageDraft:
+        "คาบถัดไปเราจะเริ่มด้วยการเช็กความเข้าใจสั้น ๆ ก่อน เพื่อให้ทุกคนบอกได้ว่าตรงไหนยังติดอยู่ แล้วค่อยเดินโจทย์หลักต่อ",
+      teacherActionPlan: [
+        "เริ่มคาบด้วยการเช็กความเข้าใจสั้น ๆ",
+        "ถามจุดที่ยังติดก่อนเดินโจทย์หลัก",
+        "สังเกตว่านักเรียนกล้าถามมากขึ้นหรือไม่",
+      ],
+      watchSignals: [
+        "เด็กเริ่มตอบคำถามได้เร็วขึ้นหรือไม่",
+        "ช่วงต้นคาบยังเงียบเหมือนเดิมหรือไม่",
+        "คำถามซ้ำเรื่องโจทย์หลักลดลงหรือไม่",
+      ],
+      whyThisHelps:
+        "การเริ่มจากจุดที่เด็กยังติดจะช่วยลดแรงกดดันและทำให้การมีส่วนร่วมกลับมาได้ง่ายขึ้น",
+      postClassReflectionPrompt:
+        "หลังลองใช้วิธีนี้แล้ว นักเรียนตอบสนองอย่างไร และช่วงไหนของคาบที่ยังควรปรับต่อ",
+    },
+    action_status: "feedback_logged",
+    teacher_approved_at: "2026-03-22T09:15:00Z",
+    teacher_implemented_at: "2026-03-23T09:40:00Z",
+    teacher_feedback:
+      "ลองใช้แล้ว เด็กตอบคำถามเร็วขึ้นและช่วงต้นคาบดูผ่อนลงกว่าก่อนหน้า",
+    feedback_sentiment: "positive",
+    feedback_confidence: 0.78,
+    closure_share_note: null,
+    not_actioned_at: null,
+    restored_from_recommendation_id: null,
+  },
+  {
+    id: "50000000-0000-0000-0000-000000000004",
+    class_id: "10000000-0000-0000-0000-000000000001",
+    teacher_id: teacherId,
+    content:
+      "ระบบเสนอให้เริ่มคาบด้วยการทบทวนศัพท์สำคัญสั้น ๆ เพื่อช่วยให้ห้องตั้งหลักได้ง่ายขึ้น",
+    status: "approved",
+    dismissal_reason: null,
+    action_taken_note:
+      "คาบนั้นเวลาไม่พอจึงยังไม่ได้ลองใช้ แต่เก็บข้อความนี้ไว้เป็นตัวเลือกสำหรับคาบถัดไป",
+    communicated_to_students: false,
+    created_at: "2026-03-21T09:00:00Z",
+    updated_at: "2026-03-21T09:20:00Z",
+    policy_level: "ROUTINE",
+    ai_message_draft:
+      "คาบถัดไปเราจะลองเริ่มด้วยการทบทวนศัพท์สำคัญสั้น ๆ ก่อน เพื่อช่วยให้ทุกคนตั้งหลักกับเนื้อหาได้ง่ายขึ้น",
+    actions_json: [
+      "ทบทวนศัพท์สำคัญก่อนเริ่มคาบ",
+      "เช็กว่ามีคำไหนที่ยังไม่ชัด",
+      "ค่อยเดินเข้าสู่เนื้อหาหลัก",
+    ],
+    confidence_score: 0.73,
+    reasoning:
+      "การทบทวนศัพท์สำคัญก่อนเริ่มคาบช่วยลดแรงเสียดทานเล็ก ๆ ที่ทำให้เด็กหลุดตั้งแต่ช่วงต้น",
+    inquiry_mode: false,
+    fallback_used: true,
+    teacher_approval_status: "approved",
+    teacher_acted_at: "2026-03-21T09:20:00Z",
+    teacher_action_note: null,
+    structured_payload: {
+      version: 1,
+      mode: "action",
+      source: "llm",
+      teacherSummary:
+        "ระบบเสนอให้เริ่มคาบด้วยการทบทวนศัพท์สำคัญสั้น ๆ เพื่อช่วยให้ห้องตั้งหลักได้ง่ายขึ้น",
+      situationHypothesis:
+        "นักเรียนบางส่วนอาจยังเสียพลังไปกับการตีความศัพท์หรือคีย์เวิร์ดตั้งแต่ต้นคาบ",
+      recommendedTeacherMove:
+        "ทบทวนศัพท์สำคัญสั้น ๆ ก่อนเริ่มเนื้อหาหลัก",
+      studentMessageDraft:
+        "คาบถัดไปเราจะลองเริ่มด้วยการทบทวนศัพท์สำคัญสั้น ๆ ก่อน เพื่อช่วยให้ทุกคนตั้งหลักกับเนื้อหาได้ง่ายขึ้น",
+      teacherActionPlan: [
+        "ทบทวนศัพท์สำคัญก่อนเริ่มคาบ",
+        "เช็กว่ามีคำไหนที่ยังไม่ชัด",
+        "ค่อยเดินเข้าสู่เนื้อหาหลัก",
+      ],
+      watchSignals: [
+        "นักเรียนตามช่วงต้นคาบได้เร็วขึ้นหรือไม่",
+        "คำถามเรื่องคำศัพท์ลดลงหรือไม่",
+        "ห้องนิ่งขึ้นก่อนเข้าสู่โจทย์หลักหรือไม่",
+      ],
+      whyThisHelps:
+        "การลดแรงสะดุดเล็ก ๆ ตั้งแต่ต้นคาบช่วยให้ห้องตั้งหลักได้ไวขึ้นและไม่เสียพลังไปกับความไม่ชัดเจน",
+      postClassReflectionPrompt:
+        "ถ้าลองใช้ในคาบถัดไป เด็กตอบสนองอย่างไร และยังมีจุดไหนควรปรับอีก",
+    },
+    action_status: "not_actioned",
+    teacher_approved_at: "2026-03-21T09:05:00Z",
+    teacher_implemented_at: null,
+    teacher_feedback: null,
+    feedback_sentiment: null,
+    feedback_confidence: null,
+    closure_share_note: null,
+    not_actioned_at: "2026-03-21T09:20:00Z",
+    restored_from_recommendation_id:
+      "50000000-0000-0000-0000-000000000003",
   },
 ];
 

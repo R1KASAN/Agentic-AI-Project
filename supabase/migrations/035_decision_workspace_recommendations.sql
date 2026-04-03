@@ -64,10 +64,10 @@ end $$;
 
 update public.recommendations
 set action_status = case
-  when coalesce(status, '') = 'dismissed'
+  when coalesce(status::text, '') = 'dismissed'
     or coalesce(teacher_approval_status, '') = 'dismissed'
     then 'dismissed'
-  when coalesce(status, '') = 'approved'
+  when coalesce(status::text, '') = 'approved'
     or coalesce(teacher_approval_status, '') = 'approved'
     then 'approved'
   else 'pending'
