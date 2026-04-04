@@ -29,12 +29,12 @@
 
 | Workflow | ไฟล์ | Trigger | บทบาท | ใช้ในเดโม |
 |---|---|---|---|---|
-| `climate-agent-main-v2` | `n8n/workflows/climate-agent-main-v2.json` | Schedule (`Daily Climate Check Trigger`) | แกนวิเคราะห์ climate แบบ privacy-safe, สร้าง recommendation, enforce confidence/frequency guard, log audit | ใช้พูดอธิบาย “ระบบหลัก” |
+| `climate-agent-main-v2` | `n8n/workflows/climate-agent-main-v2.json` | Schedule + batch climate snapshot | แกนวิเคราะห์ climate แบบ privacy-safe, สร้าง recommendation, enforce confidence/frequency guard, log audit | ใช้พูดอธิบาย “ระบบหลัก” |
 ### B. Demo harness workflows
 
 | Workflow | ไฟล์ | บทบาท |
 |---|---|---|
-| `phase-c-redaction-batch` | `n8n/workflows/phase-c-redaction-batch.json` | workflow ตัวแม่ที่ใช้เดโม redaction pipeline แบบ end-to-end |
+| `phase-c-redaction-batch` | `n8n/workflows/phase-c-redaction-batch.json` | demo harness สำหรับ redaction pipeline แบบ end-to-end |
 
 ### C. Tool / sub-workflows ที่ใช้งานจริง
 
@@ -64,9 +64,7 @@
 
 ```mermaid
 flowchart LR
-    DS["Demo Setup
-    provision demo auth
-    + presentation-dataset.sql"] --> PRE
+    DS["Demo Setup<br/>apply migrations<br/>run demo:provision-auth<br/>load presentation-dataset.sql"] --> PRE
 
     subgraph PRE["Preprocessing"]
         PRE1["Student / Teacher UI"] --> PRE2["Next.js Route Handlers"]
@@ -75,21 +73,23 @@ flowchart LR
         PRE4 --> PRE5["Privacy Guard / Aggregation"]
     end
 
-    PRE5 --> DEMO["phase-c-redaction-batch"]
-    DEMO --> CHILD["Tool: Get Raw Snippet Batch"]
-    CHILD --> LLM["Redaction LLM Chain / Ollama"]
-    LLM --> WRITE["Tool: Write Redacted Snippets"]
-    WRITE --> MAIN["climate-agent-main-v2"]
+    PRE5 --> MAIN["climate-agent-main-v2"]
+    MAIN --> CHILD["Tool Sub-workflows<br/>Get Climate Snapshot Batch<br/>Get Teacher Metrics<br/>Get Past Recommendations"]
+    CHILD --> LLM["LLM Analysis + Fallback Policy Engine"]
+    LLM --> WRITE["Teacher Decision Workspace<br/>approve / dismiss / restore"]
+    WRITE --> DB["Supabase PostgreSQL"]
+    MAIN -. demo harness .-> DEMO["phase-c-redaction-batch"]
+    MAIN -. validation only .-> TEST["climate-agent-main-v2-manual-test"]
 ```
 
 ภาพรวมที่ควรเล่าในคลิปคือ:
 
 - ข้อมูลตั้งต้นมาจากการ provision demo auth และโหลด `presentation-dataset.sql`
 - ฝั่ง preprocessing จะจัดข้อมูลให้พร้อมใช้งานและปลอดภัยก่อน
-- workflow ตัวแม่ `phase-c-redaction-batch` จะใช้ข้อมูลนั้นเพื่อทดสอบ redaction pipeline
-- child workflow `Tool: Get Raw Snippet Batch` จะดึง batch จริงจาก Supabase
-- LLM จะช่วย redaction / สรุป
-- งานฝั่ง recommendation หลักจะอยู่ที่ `climate-agent-main-v2`
+- workflow หลักที่ใช้งานจริงจะอยู่ที่ `climate-agent-main-v2`
+- `phase-c-redaction-batch` ใช้เป็น demo harness สำหรับอธิบายเส้นทาง redaction แบบ end-to-end
+- child workflow กลุ่ม tool จะดึงสัญญาณ aggregate, metrics, และ history จาก Supabase
+- LLM จะช่วยวิเคราะห์และสร้าง recommendation draft
 - ถ้าจะเล่าแนวคิด approval / loop closure ให้ยก `handle-teacher-approval` และ `loop-closure-notification` เป็น reference workflow ที่มีอยู่ใน repo แต่ยังไม่ publish ใน UI ปัจจุบัน และไม่ต้องวางไว้ใน flow หลักของระบบ active
 
 ---
@@ -162,7 +162,7 @@ flowchart LR
 
 ## 5) อธิบาย execution 686 แบบ node-by-node
 
-workflow ตัวแม่ `phase-c-redaction-batch` มี node สำคัญดังนี้:
+demo harness `phase-c-redaction-batch` มี node สำคัญดังนี้:
 
 ### 5.1 `When clicking 'Execute workflow'`
 - เป็น manual trigger สำหรับเดโม
@@ -276,13 +276,15 @@ child workflow `Tool: Get Raw Snippet Batch` คือจุดที่คว�
 
 ## 7) การเชื่อมไปยัง workflow หลักของระบบ
 
-แม้ `phase-c-redaction-batch` จะเป็น workflow เดโมหลัก แต่ workflow หลักที่อธิบายผลิตภัณฑ์จริงคือ `climate-agent-main-v2`
+`climate-agent-main-v2` คือ workflow หลักที่อธิบายผลิตภัณฑ์จริง ส่วน `phase-c-redaction-batch` เป็น demo harness สำหรับอธิบาย redaction pipeline เท่านั้น
 
 ### 7.1 `climate-agent-main-v2`
 
 node สำคัญที่ควรเล่า:
 
-- `Daily Climate Check Trigger`
+- `Get Active Classes`
+- `Prepare Climate Snapshot Batch`
+- `Fetch Climate Snapshot Batch`
 - `Get Aggregated Climate Data`
 - `Validate n >= 3`
 - `Tool: Get Teacher Metrics`
@@ -308,15 +310,16 @@ node สำคัญที่ควรเล่า:
 
 workflow นี้คือ “สมองหลัก” ของระบบ:
 
-1. ดึง climate data แบบ aggregate
-2. เช็กว่า k-anonymity ผ่านหรือไม่
-3. ดึง teacher metrics และ recommendation เดิม
-4. สร้าง prompt ให้ LLM
-5. ตรวจ confidence
-6. เลือก policy ตามระดับความเสี่ยง
-7. เขียน draft recommendation
-8. ส่งแจ้งเตือนเฉพาะเมื่อถึงเงื่อนไข
-9. บันทึก audit
+1. ดึงรายชื่อห้อง active ก่อน
+2. สร้าง daily climate snapshot แบบ batch แล้ว normalize เป็น one-item-per-class
+3. เช็กว่า k-anonymity ผ่านหรือไม่
+4. ดึง teacher metrics และ recommendation เดิม
+5. สร้าง prompt ให้ LLM
+6. ตรวจ confidence
+7. เลือก policy ตามระดับความเสี่ยง
+8. เขียน draft recommendation
+9. ส่งแจ้งเตือนเฉพาะเมื่อถึงเงื่อนไข
+10. บันทึก audit
 
 มองแบบ `input -> reasoning -> output` จะเป็นแบบนี้:
 
@@ -350,9 +353,10 @@ structuredPayload.version = 1
 
 ### 7.3 ประโยคที่ควรใช้พูดตอนพรีเซนต์
 
-> ส่วน workflow หลักของระบบจะเริ่มจากข้อมูลแบบ aggregate ก่อนเสมอครับ  
-> จากนั้น n8n จะดึง context ที่จำเป็น เช่น teacher metrics, recommendation history, closure history และ redacted voice summary แล้วค่อยให้ LLM วิเคราะห์  
-> ในเชิง reasoning ระบบจะบังคับให้ LLM ตอบก่อนว่า ห้องกำลังมีปัญหาอะไร, ครูควรเริ่มทำอะไร, และควรสื่อสารกับนักเรียนอย่างไร จากนั้นค่อยสร้าง `studentMessageDraft` และ `teacherActionPlan`  
+> ส่วน workflow หลักของระบบจะเริ่มจากข้อมูลแบบ aggregate ก่อนเสมอครับ
+> ในเวอร์ชันปัจจุบัน workflow จะเริ่มจาก `Get Active Classes` แล้วเรียก daily climate snapshot แบบ batch ก่อน จากนั้นค่อย normalize เป็น `Get Aggregated Climate Data` ที่มี one-item-per-class เพื่อให้ downstream ใช้ shape เดิมต่อได้
+> จากนั้น n8n จะดึง context ที่จำเป็น เช่น teacher metrics และ recommendation history แล้วค่อยให้ LLM วิเคราะห์
+> ในเชิง reasoning ระบบจะบังคับให้ LLM ตอบก่อนว่า ห้องกำลังมีปัญหาอะไร, ครูควรเริ่มทำอะไร, และควรสื่อสารกับนักเรียนอย่างไร จากนั้นค่อยสร้าง `studentMessageDraft` และ `teacherActionPlan`
 > ผลลัพธ์จะไม่ถูกส่งออกไปแบบทันที แต่จะผ่าน confidence check, parser validation, frequency guard และ audit log ก่อน ถ้าคุณภาพยังไม่พอระบบจะตกกลับไปใช้ fallback planner เพื่อให้ยังได้ draft ที่ใช้งานได้จริงและปลอดภัยครับ
 
 ---
@@ -400,7 +404,7 @@ node สำคัญ:
 ถ้าต้องพูดสั้น ๆ ต่อหน้ากล้อง ให้ใช้ sequence นี้:
 
 > เราเริ่มจากการ seed ข้อมูลเดโมเข้า Supabase ก่อนครับ  
-> จากนั้นใช้ workflow ตัวแม่ `phase-c-redaction-batch` เพื่อไล่ห้องเรียนแล้วส่งต่อไปยัง `Tool: Get Raw Snippet Batch`  
+> จากนั้นใช้ `phase-c-redaction-batch` เป็น demo harness เพื่อไล่เส้นทาง redaction แล้วส่งต่อไปยัง `Tool: Get Raw Snippet Batch`
 > ถ้าห้องนั้นมีข้อมูลปลอดภัยพอ ระบบจะคืน `status: ready` แล้วส่งต่อไปยัง LLM เพื่อ redaction และบันทึกผลลงระบบ  
 > ถ้าข้อมูลยังไม่พอ ระบบจะไม่ overclaim และจะคืนสถานะ invalid หรือ no safe batch อย่างชัดเจน  
 > หลังจากนั้น workflow หลัก `climate-agent-main-v2` จะนำข้อมูล aggregate ไปวิเคราะห์ สร้าง recommendation draft และคุมด้วย confidence / frequency guard ก่อนให้ครู approve  
@@ -418,7 +422,7 @@ node สำคัญ:
 - [ ] ยืนยัน child execution valid ให้ได้ `status: ready`
 - [ ] ยืนยัน child execution invalid ให้ได้ `status: invalid_class_id`
 - [ ] เปิด `climate-agent-main-v2`
-- [ ] ตรวจว่า `Get Aggregated Climate Data` ใช้ `Supabase account`
+- [ ] ตรวจว่า entry flow ใช้ `Get Active Classes -> Prepare Climate Snapshot Batch -> Fetch Climate Snapshot Batch -> Get Aggregated Climate Data`
 - [ ] ตรวจว่ามี audit log เขียนครบ
 - [ ] ถ้าจะอธิบาย approval / loop closure ให้ชี้ว่า workflow เหล่านี้เป็น reference ใน repo แต่ยังไม่ active ใน UI ปัจจุบัน
 
@@ -428,4 +432,4 @@ node สำคัญ:
 
 ถ้าต้องสรุประบบ n8n ของโปรเจกต์นี้ในประโยคเดียว:
 
-> ข้อมูลนักเรียนถูก seed และ aggregate อย่างปลอดภัยก่อน จากนั้น n8n จะใช้ workflow ตัวแม่และ child workflows เพื่อคัดกรอง, redaction, วิเคราะห์, สร้าง recommendation, ให้ครู approve, แล้วปิด loop กลับไปหานักเรียนอย่างเป็นระบบครับ
+> ข้อมูลนักเรียนถูก seed และ aggregate อย่างปลอดภัยก่อน จากนั้น n8n จะใช้ `climate-agent-main-v2` เป็น workflow หลัก ร่วมกับ tool sub-workflows เพื่อคัดกรอง, วิเคราะห์, สร้าง recommendation, ให้ครู approve, แล้วปิด loop กลับไปหานักเรียนอย่างเป็นระบบครับ

@@ -181,26 +181,30 @@
 flowchart LR
     A["Student / Teacher UI<br/>- check-in<br/>- feedback<br/>- teacher actions"] --> B["Next.js Route Handlers<br/>/api/student/check-in<br/>/api/student/feedback<br/>/api/n8n/webhook"]
     B --> C["Supabase Auth"]
-    C --> D["Supabase PostgreSQL<br/>classes<br/>class_enrollments<br/>student_pulses<br/>recommendations<br/>notifications"]
+    C --> D["Supabase PostgreSQL<br/>classes<br/>class_enrollments<br/>student_pulses<br/>recommendations<br/>notifications<br/>n8n_audit_log"]
     D --> E["Privacy Guard + Aggregation RPCs<br/>k >= 3"]
-    E --> F["Prepared Climate Signals<br/>summaries • trends • metrics"]
-    F --> G["climate-agent-main-v2<br/>Daily Climate Check Trigger"]
-    G --> H["Tool Sub-workflows<br/>get climate summary<br/>get teacher metrics<br/>get past recommendations"]
-    H --> I["LLM Analysis + Fallback Policy Engine<br/>recommendation draft"]
-    I --> J["Teacher Decision Workspace<br/>approve / dismiss / restore"]
-    J --> D
-    J --> K["Student Feedback Loop Closure"]
-    J --> L["/api/n8n/webhook<br/>cache revalidation"]
+    E --> F["Prepared Climate Signals<br/>daily snapshot<br/>teacher metrics<br/>recommendation history"]
+    F --> G["climate-agent-main-v2<br/>Live core workflow"]
+    G --> H["Tool Sub-workflows<br/>Get Climate Snapshot Batch<br/>Get Teacher Metrics<br/>Get Past Recommendations"]
+    H --> I["LLM Analysis + Fallback Policy Engine<br/>Ollama recommendation draft"]
+    I --> J["Policy Routing + Frequency Guard<br/>ROUTINE / WARNING / CRITICAL"]
+    J --> K["Teacher Decision Workspace<br/>approve / dismiss / restore"]
+    K --> AP["Handle Teacher Approval<br/>approval webhook + audit log"]
+    AP --> D
+    K --> L["Student Feedback Loop Closure"]
+    K --> M["/api/n8n/webhook<br/>cache revalidation"]
 
     D -. demo seed .-> S["supabase/seed/presentation-dataset.sql"]
-    G -. validation only .-> M["climate-agent-main-v2-manual-test"]
+    R["phase-c-redaction-batch<br/>Demo harness"] -. redaction demo only .-> G
+    G -. validation only .-> N["climate-agent-main-v2-manual-test"]
 ```
 
 ### คำอธิบายที่แนะนำ
 
 > สถาปัตยกรรมของระบบเริ่มจากนักเรียนส่ง check-in ผ่านหน้าเว็บ จากนั้นข้อมูลจะถูกจัดเก็บใน Supabase และผ่านชั้น aggregation เพื่อคุ้มครองความเป็นส่วนตัว  
-> หลังจากนั้น n8n จะทำหน้าที่ orchestration workflow และเรียก AI เพื่อช่วยสร้างคำแนะนำสำหรับครู  
-> อย่างไรก็ตาม ระบบนี้เป็น human-in-the-loop ครูต้อง approve ก่อนทุกครั้ง จึงจะเกิด action ที่ถูกแสดงในระบบ
+> หลังจากนั้น n8n จะทำหน้าที่ orchestration workflow โดย workflow หลักที่ใช้งานจริงคือ `climate-agent-main-v2` ส่วน `Handle Teacher Approval` เป็น workflow support ที่ active อยู่จริงสำหรับ approval loop และ `phase-c-redaction-batch` ใช้เป็น demo harness สำหรับอธิบายเส้นทาง redaction แบบ end-to-end
+> ถ้าจะให้เห็นภาพรวม n8n ทั้งระบบ ให้แบ่งเป็น 5 กลุ่มคือ live core, workflow support, tool sub-workflows, demo / validation, และ archived / reference ครับ
+> อย่างไรก็ตาม ระบบนี้เป็น human-in-the-loop ครูต้อง approve ก่อนทุกครั้ง จึงจะเกิด action ที่ถูกแสดงในระบบ และ workflow เก่าใน repo ควรพูดในฐานะ reference หรือ archived history เท่านั้น
 
 ## 4.2 Development Process Review
 
@@ -226,10 +230,18 @@ flowchart LR
 - Workflow / AI:
   - n8n
   - LangChain Agent pattern
-  - Gemini or configured LLM
+  - Ollama or configured LLM
 - Testing:
   - Vitest
   - Playwright
+
+### หน้าจอที่ควรเปิดให้เห็น
+
+- หน้า login ของครูและนักเรียน
+- หน้า teacher dashboard และ class detail
+- หน้า student check-in และ student feedback
+- หน้า `climate-agent-main-v2` ใน n8n
+- หน้า Supabase table หรือ RPC trace แบบสั้น ๆ
 
 ### ไฟล์และจุดอ้างอิงที่ช่วยอธิบาย
 
@@ -243,6 +255,8 @@ flowchart LR
 ### ตัวอย่างบทพูด
 
 > ในส่วน development process เราใช้ Next.js เป็นแกนหลักของระบบ web application ใช้ Supabase เป็นฐานข้อมูลและ authentication และใช้ n8n เป็น workflow orchestrator สำหรับเชื่อมต่อ logic ฝั่ง AI  
+> ระหว่างเล่าให้เปิดหน้า login, teacher dashboard / class detail, student check-in / feedback, และ workflow `climate-agent-main-v2` สลับกัน เพื่อให้เห็นภาพว่า frontend, data layer, และ orchestration ทำงานร่วมกันอย่างไร
+> ถ้าจะพูดให้ตรงระบบล่าสุด ให้เน้น `climate-agent-main-v2` เป็น live core, `Handle Teacher Approval` เป็น workflow support, และ `phase-c-redaction-batch` เป็น demo harness ส่วน workflow เก่าพูดแค่เป็น reference หรือ archived history ก็พอครับ
 > สำหรับการพัฒนาและตรวจสอบระบบ เรายังใช้ unit test และ end-to-end test เพื่อช่วยให้ระบบมีความน่าเชื่อถือมากขึ้น
 
 ## ลำดับ 5) Future Work Development
@@ -268,7 +282,7 @@ flowchart LR
 1. Next.js Documentation. [https://nextjs.org/docs](https://nextjs.org/docs)
 2. Supabase Documentation. [https://supabase.com/docs](https://supabase.com/docs)
 3. n8n Documentation. [https://docs.n8n.io](https://docs.n8n.io)
-4. Google AI for Developers / Gemini API. [https://ai.google.dev](https://ai.google.dev)
+4. Ollama. [https://ollama.com](https://ollama.com)
 5. Playwright Documentation. [https://playwright.dev](https://playwright.dev)
 
 ## ลำดับ 7) สมาชิกและข้อมูลปิดท้าย

@@ -103,19 +103,31 @@
 
 ### สิ่งที่แสดงบนสไลด์
 - Mermaid block diagram หรือกล่องลูกศร
+- ภาพรวม workflow ทั้งระบบ:
+  - live core
+  - workflow support
+  - tool sub-workflows
+  - demo / validation
+  - archived / reference
 - โหมด `Preprocessing Mode`
 - โหมด `Processing Mode`
+- badge สั้น ๆ:
+  - `Live core: climate-agent-main-v2`
+  - `Demo harness: phase-c-redaction-batch`
+  - `Reference only: older workflows in repo`
 - โค้ดบรรทัดสั้น ๆ:
 
 ```text
-Apply migrations, provision demo auth, then load supabase/seed/presentation-dataset.sql.
+Apply latest Supabase migrations, run npm run demo:provision-auth, then load supabase/seed/presentation-dataset.sql.
 ```
 
 ### สคริปต์คำบรรยาย
 > สถาปัตยกรรมของระบบถูกแบ่งเป็น 2 โหมดหลัก คือ **Preprocessing Mode** และ **Processing Mode** ครับ  
 > ฝั่ง Preprocessing เริ่มจากข้อมูลที่นักเรียนส่งเข้ามาผ่านหน้า Next.js frontend แล้วส่งต่อไปยัง Supabase เพื่อเก็บข้อมูลและสรุปแบบ aggregate โดยมี privacy guard ควบคุมอยู่  
-> ก่อนใช้เดโมจริง เราจะ apply migrations ก่อน จากนั้น provision บัญชี demo auth ให้ password login ใช้งานได้จริง แล้วจึงรัน `supabase/seed/presentation-dataset.sql` เพื่อโหลดข้อมูลตัวอย่างเข้า Supabase/Postgres ให้พร้อมใช้งานครับ  
-> ส่วน Processing Mode จะให้ n8n ทำหน้าที่เป็น workflow orchestrator เรียกข้อมูลที่เตรียมไว้แล้วไปวิเคราะห์ และให้ LLM ช่วยสร้าง recommendation draft ก่อนให้ครู approve ทุก action ครับ
+> ก่อนใช้เดโมจริง เราจะ apply migrations ล่าสุดก่อน จากนั้นรัน `npm run demo:provision-auth` แล้วจึง load `supabase/seed/presentation-dataset.sql` เพื่อโหลดข้อมูลตัวอย่างเข้า Supabase/Postgres ให้พร้อมใช้งานครับ
+> ส่วน Processing Mode จะให้ n8n ทำหน้าที่เป็น workflow orchestrator โดย workflow หลักที่ใช้งานจริงตอนนี้คือ `climate-agent-main-v2` ซึ่งจะดึง aggregated climate data, ตรวจ k-anonymity, เรียก metrics และ recommendation history เพื่อสร้าง context ให้ Ollama วิเคราะห์ จากนั้นจึง route ตาม policy level, เช็ก frequency guard และบันทึก draft recommendation กับ audit log กลับเข้าสู่ระบบครับ
+> ในระบบล่าสุดยังมี workflow support ที่ active อยู่จริงคือ `Handle Teacher Approval` สำหรับรับ approval event จากฝั่งครูและบันทึก audit trail เพิ่มเติม ส่วน `phase-c-redaction-batch` จะใช้เป็น demo harness สำหรับอธิบาย redaction pipeline แบบ end-to-end ครับ
+> workflow เก่าใน repo จะพูดเพียงว่าเป็น reference หรือ archived history เท่านั้นครับ
 
 ---
 
@@ -130,10 +142,27 @@ Apply migrations, provision demo auth, then load supabase/seed/presentation-data
 - AI analysis
 - Testing
 
+### หน้าจอที่ควรเปิดประกอบ
+- หน้า login ของครูและนักเรียน
+- หน้า teacher dashboard / class detail
+- หน้า student check-in / feedback
+- หน้า `climate-agent-main-v2` ใน n8n
+- หน้า Supabase table หรือ RPC trace แบบสั้น ๆ
+
+### ลำดับการโชว์
+1. เปิด login ของครูและนักเรียน
+2. เปิด student check-in
+3. เปิด teacher dashboard / class detail
+4. เปิด `climate-agent-main-v2` ใน n8n
+5. เปิด student feedback
+6. ปิดด้วย Supabase table หรือ RPC trace
+
 ### สคริปต์คำบรรยาย
 > ในการพัฒนาโปรเจกต์นี้ เราเริ่มจากการออกแบบ UX/UI ของแต่ละหน้าก่อน แล้วจึงวางฐานข้อมูลและระบบ authentication บน Supabase ให้รองรับ flow ของจริงครับ  
 > ฝั่ง frontend เราใช้ Next.js และ React เป็นแกนหลัก ร่วมกับ Tailwind CSS และ shadcn/ui เพื่อทำให้หน้าจอดูสะอาด ตอบสนองเร็ว และคุม visual language ให้เหมือนกันทั้งฝั่งครูและนักเรียน  
-> ฝั่ง automation เราใช้ n8n เป็น workflow orchestration และฝั่ง AI เราใช้แนวคิด agentic workflow ร่วมกับ LLM ผ่าน LangChain และ Gemini เพื่อสร้าง recommendation draft  
+> ฝั่ง automation เราใช้ n8n เป็น workflow orchestration และฝั่ง AI เราใช้แนวคิด agentic workflow ร่วมกับ Ollama ผ่าน LangChain เพื่อสร้าง recommendation draft
+> สำหรับระบบล่าสุด เราจะอธิบาย n8n โดยยึด `climate-agent-main-v2` เป็น live core, `Handle Teacher Approval` เป็น workflow support, และ `phase-c-redaction-batch` เป็น demo harness เพื่อไม่ให้ผู้ฟังสับสนกับ workflow เก่าที่เก็บไว้ใน repo ครับ
+> ระหว่างพูดให้เปิดตามลำดับ login, student check-in, teacher dashboard / class detail, `climate-agent-main-v2`, student feedback, และ Supabase trace เพื่อให้ผู้ฟังเห็นทั้ง frontend, data layer, orchestration, approval loop, และ loop closure ในภาพเดียวครับ
 > สุดท้ายเราทดสอบทั้งระดับ unit test และ browser flow ด้วย Vitest และ Playwright เพื่อให้แน่ใจว่าระบบพร้อมนำไปเดโมได้จริงครับ
 
 ---
@@ -175,11 +204,11 @@ Apply migrations, provision demo auth, then load supabase/seed/presentation-data
 1. Next.js Documentation — https://nextjs.org/docs
 2. Supabase Documentation — https://supabase.com/docs
 3. n8n Documentation — https://docs.n8n.io
-4. Google AI for Developers / Gemini API — https://ai.google.dev
+4. Ollama — https://ollama.com
 5. Playwright Documentation — https://playwright.dev
 
 ### สคริปต์คำบรรยาย
-> ส่วนการอ้างอิง เราใช้เอกสารทางการของเครื่องมือหลักที่ใช้ในโปรเจกต์ ทั้ง Next.js, Supabase, n8n และ Gemini รวมถึงเครื่องมือทดสอบอย่าง Playwright เพื่อให้การพัฒนาและการตรวจสอบมีความน่าเชื่อถือครับ
+> ส่วนการอ้างอิง เราใช้เอกสารทางการของเครื่องมือหลักที่ใช้ในโปรเจกต์ ทั้ง Next.js, Supabase, n8n และ Ollama รวมถึงเครื่องมือทดสอบอย่าง Playwright เพื่อให้การพัฒนาและการตรวจสอบมีความน่าเชื่อถือครับ
 
 ---
 

@@ -25,17 +25,52 @@
       }
     },
     {
-      "id": "e7b0e14a-f32f-488b-b1e7-2cd7a1a0f8d0",
-      "name": "Get Aggregated Climate Data",
+      "id": "85729b9b-9341-4d52-aadb-f4c8ea0c4021",
+      "name": "Get Active Classes",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
         200,
-        0
+        -240
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/classes?select=id,name,teacher_id&pilot_status=eq.true&archived_at=is.null&order=name.asc",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "id": "2ed996ec-42f9-48ec-b509-e127e3170548",
+      "name": "Prepare Climate Snapshot Batch",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        -240
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const classRows = $input.all().map((item) => item.json || {}).filter((row) => row.id);\nconst snapshotDate = $now.minus({ days: 1 }).toFormat('yyyy-MM-dd');\nreturn [{\n  json: {\n    class_ids: classRows.map((row) => row.id),\n    class_rows: classRows,\n    snapshot_date: snapshotDate,\n  },\n}];"
+      }
+    },
+    {
+      "id": "e7b0e14a-f32f-488b-b1e7-2cd7a1a0f8d0",
+      "name": "Fetch Climate Snapshot Batch",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        600,
+        -240
       ],
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.SUPABASE_URL }}/rest/v1/rpc/get_aggregated_climate_data",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/rpc/get_class_climate_snapshot_batch",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -51,7 +86,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"p_date\": \"{{ $now.minus({ days: 1 }).toFormat('yyyy-MM-dd') }}\",\n  \"p_min_n\": 3\n}",
+        "jsonBody": "={\n  \"p_class_ids\": {{ JSON.stringify($json.class_ids || []) }},\n  \"p_date\": \"{{ $json.snapshot_date }}\",\n  \"p_min_n\": 3\n}",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "supabaseApi"
       },
@@ -59,6 +94,19 @@
         "supabaseApi": {
           "name": "Supabase account"
         }
+      }
+    },
+    {
+      "id": "8d9d0714-7f0b-455d-a21a-f66487379131",
+      "name": "Get Aggregated Climate Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        -240
+      ],
+      "parameters": {
+        "jsCode": "const prepared = $('Prepare Climate Snapshot Batch').first().json || {};\nconst classRows = Array.isArray(prepared.class_rows) ? prepared.class_rows : [];\nconst classMap = new Map(classRows.map((row) => [row.id, row]));\nconst snapshot = $json || {};\nconst classMeta = classMap.get(snapshot.class_id) || {};\nconst totalResponses = Number(snapshot.total_responses || 0);\nconst isSafe = snapshot.k_anonymity_safe === true || snapshot.avg_mood_score != null;\nreturn {\n  json: {\n    class_id: snapshot.class_id || classMeta.id || null,\n    class_name: classMeta.name || null,\n    teacher_id: classMeta.teacher_id || null,\n    avg_mood_score: snapshot.avg_mood_score ?? null,\n    avg_pace_score: snapshot.avg_pace_score ?? null,\n    avg_fairness_score: snapshot.avg_fairness_score ?? null,\n    total_responses: totalResponses,\n    k_anonymity_safe: isSafe,\n    blocked_reason: snapshot.blocked_reason || (isSafe ? null : totalResponses > 0 ? 'k_anonymity' : 'no_responses'),\n    snapshot_date: snapshot.snapshot_date || prepared.snapshot_date || null,\n  },\n};"
       }
     },
     {
@@ -76,11 +124,12 @@
           "conditions": [
             {
               "id": "valid-n",
-              "leftValue": "={{ $json.total_responses }}",
-              "rightValue": 3,
+              "leftValue": "={{ Number($json.total_responses || 0) >= 3 && ($json.k_anonymity_safe === true || $json.avg_mood_score !== null) }}",
+              "rightValue": true,
               "operator": {
-                "type": "number",
-                "operation": "gte"
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
               }
             }
           ],
@@ -98,7 +147,7 @@
         -200
       ],
       "parameters": {
-        "jsCode": "return { json: { blocked_reason: \"k_anonymity\", decision_path_json: { route: \"blocked_by_k_anonymity\", blocked_reason: \"k_anonymity\" } } };"
+        "jsCode": "const item = $json || {};\nconst blockedReason = item.blocked_reason || 'k_anonymity';\nreturn {\n  json: {\n    ...item,\n    blocked_reason: blockedReason,\n    decision_path_json: {\n      route: 'blocked_by_k_anonymity',\n      blocked_reason: blockedReason,\n      snapshot_date: item.snapshot_date || null,\n    },\n  },\n};"
       }
     },
     {
@@ -150,11 +199,11 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1200,
+        1400,
         -208
       ],
       "parameters": {
-        "jsCode": "const item = $json || {};\nconst metrics = item.teacher_metrics || {};\nconst summary = item.past_summary || {};\nconst comparison = item.trend_comparison || item.trend || {};\nconst closureHistory = item.closure_history || {};\nconst redactedVoice = item.redacted_voice_summary || item.redacted_voice || '';\nconst blockedReason = item.blocked_reason || item.skip_reason || 'none';\nconst avgMood = Number(item.avg_mood_score ?? metrics.avg_mood_score ?? 3.5);\nconst avgPace = Number(item.avg_pace_score ?? item.avg_pace ?? 3);\nconst avgFairness = Number(item.avg_fairness_score ?? item.avg_fairness ?? 3);\nconst totalResponses = Number(item.total_responses ?? 0);\nconst dismissalRate = Number(metrics.dismissal_rate ?? summary.dismissal_rate ?? 0);\nconst consecutiveDismissals = Number(metrics.dismissal_pattern_consecutive ?? 0);\nconst inquiryModeSuggested = metrics.inquiry_mode_suggested === true || metrics.teacher_flag_inquiry_mode === true || metrics.is_inquiry_mode === true;\nconst trendLine = typeof comparison === 'object' ? JSON.stringify(comparison).slice(0, 240) : String(comparison || 'none');\nconst prompt = [\n  'You are the classroom context interpreter for a privacy-safe class climate system.',\n  'Use only aggregate, redacted, and audit-safe context. Never mention individual students or invent student-level facts.',\n  'You must answer these three questions before drafting anything:',\n  '1. ตอนนี้ห้องกำลังมีปัญหาอะไร',\n  '2. ครูควรทำอะไรเป็นขั้นแรก',\n  '3. ควรสื่อสารกับนักเรียนอย่างไรให้ช่วยสถานการณ์ได้จริง',\n  '',\n  'บริบทของห้อง (privacy-safe):',\n  `- class_id: ${item.class_id || 'unknown'}`,\n  `- class_name: ${item.class_name || item.room_name || 'unknown'}`,\n  `- avg_mood: ${Number.isFinite(avgMood) ? avgMood.toFixed(2) : 'null'} / 5`,\n  `- avg_pace: ${Number.isFinite(avgPace) ? avgPace.toFixed(2) : 'null'} / 5`,\n  `- avg_fairness: ${Number.isFinite(avgFairness) ? avgFairness.toFixed(2) : 'null'} / 5`,\n  `- total_responses: ${totalResponses}`,\n  `- trend_comparison: ${trendLine}`,\n  `- redacted_voice_summary: ${String(redactedVoice || 'none').slice(0, 240)}`,\n  `- blocked_reason: ${blockedReason}`,\n  `- latest_approved_summary: ${summary.summary_text || summary.reasoning || 'none'}`,\n  `- teacher_response_pattern: approve=${Number(metrics.accepted_count ?? 0)}, dismiss=${Number(metrics.dismissed_count ?? 0)}, dismissal_rate=${dismissalRate.toFixed(2)}`,\n  `- inquiry_mode_suggested: ${inquiryModeSuggested}`,\n  `- closure_history: ${JSON.stringify(closureHistory).slice(0, 240)}`,\n  '',\n  'กติกาการร่าง recommendation:',\n  '- ภาษาทุกส่วนต้องเป็นภาษาไทยล้วน อ่านง่าย กระชับ เป็นธรรมชาติ เหมือนครูพูดจริง',\n  '- ห้ามใช้คำเชิงระบบ เช่น policy, confidence, fallback, signal, route',\n  '- studentMessageDraft ต้องเป็นข้อความที่ครูส่งถึงนักเรียนได้จริงหลังปรับแก้',\n  '- teacherActionPlan ต้องเป็นรายการสั้น 2-3 ข้อที่ครูทำได้ทันที',\n  '- watchSignals ต้องเป็นสิ่งที่ครูควรสังเกตในคาบถัดไป 2-3 ข้อ',\n  '- whyThisHelps ต้องอธิบายว่าทำไมข้อเสนอนี้จึงช่วยสถานการณ์ได้',\n  '- ถ้าข้อมูลยังควรเก็บบริบทเพิ่ม ให้ mode เป็น inquiry และ studentMessageDraft เป็น null',\n  '',\n  'Scoring rubric ที่ต้องคิดก่อนตอบ:',\n  '- specificity',\n  '- teacher usability',\n  '- student clarity',\n  '- actionability',\n  '- privacy safety',\n  '',\n  'ถ้าคุณทำ rubric เหล่านี้ได้ไม่ดีพอ ให้ลด confidence_score ต่ำกว่า 0.65 เพื่อให้ workflow ใช้ fallback planner แทน',\n  '',\n  'ตอบกลับเป็น JSON เท่านั้น โดยต้องมี fields เหล่านี้ครบ:',\n  '{',\n  '  \"policy_level\": \"ROUTINE|WARNING|CRITICAL\",',\n  '  \"confidence_score\": 0.0,',\n  '  \"recommendation_content\": \"ข้อความสรุปสั้นสำหรับครู\",',\n  '  \"reasoning\": \"คำอธิบายสั้นว่าทำไมข้อเสนอนี้จึงเหมาะตอนนี้\",',\n  '  \"actions_json\": [\"แผนสั้นข้อ 1\"],',\n  '  \"inquiry_mode\": false,',\n  '  \"fallback_used\": false,',\n  '  \"structuredPayload\": {',\n  '    \"version\": 1,',\n  '    \"mode\": \"action|inquiry\",',\n  '    \"source\": \"llm\",',\n  '    \"teacherSummary\": \"...\",',\n  '    \"situationHypothesis\": \"...\",',\n  '    \"recommendedTeacherMove\": \"...\",',\n  '    \"studentMessageDraft\": \"... or null\",',\n  '    \"teacherActionPlan\": [\"...\"],',\n  '    \"watchSignals\": [\"...\"],',\n  '    \"whyThisHelps\": \"...\",',\n  '    \"postClassReflectionPrompt\": \"... or null\"',\n  '  }',\n  '}',\n].join('\\n');\nreturn {\n  json: {\n    ...item,\n    llm_prompt: prompt,\n    llm_provider: 'ollama',\n    llm_model: 'qwen2.5:3b',\n  },\n};"
+        "jsCode": "const item = $json || {};\nconst metrics = item.teacher_metrics || {};\nconst summary = item.past_summary || {};\nconst comparison = item.trend_comparison || item.trend || {};\nconst closureHistory = item.closure_history || {};\nconst redactedVoice = String(item.redacted_voice_summary || item.redacted_voice || '').trim();\nconst blockedReason = item.blocked_reason || item.skip_reason || 'none';\nconst avgMood = Number(item.avg_mood_score ?? metrics.avg_mood_score ?? 3.5);\nconst avgPace = Number(item.avg_pace_score ?? item.avg_pace ?? 3);\nconst avgFairness = Number(item.avg_fairness_score ?? item.avg_fairness ?? 3);\nconst totalResponses = Number(item.total_responses ?? 0);\nconst dismissalRate = Number(metrics.dismissal_rate ?? summary.dismissal_rate ?? 0);\nconst consecutiveDismissals = Number(metrics.dismissal_pattern_consecutive ?? 0);\nconst inquiryModeSuggested =\n  metrics.inquiry_mode_suggested === true ||\n  metrics.teacher_flag_inquiry_mode === true ||\n  metrics.is_inquiry_mode === true;\n\nconst compactContext = {\n  class_id: item.class_id || 'unknown',\n  class_name: item.class_name || item.room_name || 'unknown',\n  avg_mood: Number.isFinite(avgMood) ? Number(avgMood.toFixed(2)) : null,\n  avg_pace: Number.isFinite(avgPace) ? Number(avgPace.toFixed(2)) : null,\n  avg_fairness: Number.isFinite(avgFairness) ? Number(avgFairness.toFixed(2)) : null,\n  total_responses: totalResponses,\n  blocked_reason: blockedReason,\n  preview_policy: item.fast_path_preview_policy || 'unknown',\n  dismissal_rate: Number.isFinite(dismissalRate) ? Number(dismissalRate.toFixed(2)) : 0,\n  consecutive_dismissals: consecutiveDismissals,\n  inquiry_mode_suggested: inquiryModeSuggested,\n  latest_approved_summary: String(summary.summary_text || summary.reasoning || 'none').slice(0, 120),\n  trend: (typeof comparison === 'object' ? JSON.stringify(comparison) : String(comparison || 'none')).slice(0, 120),\n  redacted_voice: redactedVoice.slice(0, 120) || 'none',\n  closure_history: JSON.stringify(closureHistory).slice(0, 120),\n};\n\nconst prompt = [\n  'คุณคือผู้ช่วยวิเคราะห์ climate ห้องเรียนแบบ privacy-safe',\n  'ใช้เฉพาะข้อมูล aggregate และข้อมูลที่ผ่านการ redaction แล้ว ห้ามกล่าวถึงนักเรียนรายบุคคล',\n  `บริบท: ${JSON.stringify(compactContext)}`,\n  'งานของคุณ:',\n  '- สรุปสถานการณ์ให้ครูแบบกระชับและตรงประเด็น',\n  '- ถ้าควรเก็บบริบทเพิ่ม ให้ structuredPayload.mode เป็น inquiry และ studentMessageDraft เป็น null',\n  '- ถ้าไม่มั่นใจพอ ให้ confidence_score ต่ำกว่า 0.65',\n  'ตอบ JSON เท่านั้น:',\n  '{\"policy_level\":\"ROUTINE|WARNING|CRITICAL\",\"confidence_score\":0.0,\"recommendation_content\":\"ข้อความสรุปสั้นสำหรับครู\",\"reasoning\":\"คำอธิบายสั้นว่าทำไมข้อเสนอนี้จึงเหมาะตอนนี้\",\"actions_json\":[\"แผนสั้นข้อ 1\"],\"inquiry_mode\":false,\"fallback_used\":false,\"structuredPayload\":{\"version\":1,\"mode\":\"action|inquiry\",\"source\":\"llm\",\"teacherSummary\":\"...\",\"situationHypothesis\":\"...\",\"recommendedTeacherMove\":\"...\",\"studentMessageDraft\":\"... or null\",\"teacherActionPlan\":[\"...\"],\"watchSignals\":[\"...\"],\"whyThisHelps\":\"...\",\"postClassReflectionPrompt\":\"... or null\"}}',\n].join('\\n');\n\nreturn {\n  json: {\n    ...item,\n    llm_prompt: prompt,\n    llm_provider: 'ollama',\n    llm_model: 'qwen2.5:3b',\n  },\n};"
       }
     },
     {
@@ -164,7 +213,7 @@
       "typeVersion": 1.9,
       "onError": "continueRegularOutput",
       "position": [
-        1200,
+        1400,
         0
       ],
       "parameters": {
@@ -172,7 +221,7 @@
         "text": "={{ $json.llm_prompt }}",
         "batching": {
           "batchSize": 1,
-          "delayBetweenBatches": 0
+          "delayBetweenBatches": 250
         }
       }
     },
@@ -182,7 +231,7 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
       "typeVersion": 1,
       "position": [
-        1200,
+        1400,
         200
       ],
       "parameters": {
@@ -190,10 +239,10 @@
         "options": {
           "temperature": 0.2,
           "topP": 0.9,
-          "numPredict": 420,
-          "numCtx": 4096,
+          "numPredict": 220,
+          "numCtx": 2048,
           "repeatPenalty": 1.1,
-          "keepAlive": "10m"
+          "keepAlive": "30m"
         }
       },
       "credentials": {
@@ -209,7 +258,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1400,
+        1600,
         0
       ],
       "parameters": {
@@ -222,11 +271,11 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1400,
-        0
+        1600,
+        180
       ],
       "parameters": {
-        "jsCode": "const metrics = $json.teacher_metrics || {};\nconst summary = $json.past_summary || {};\nconst avgMood = Number($json.avg_mood_score ?? metrics.avg_mood_score ?? 3.5);\nconst avgPace = Number($json.avg_pace_score ?? $json.avg_pace ?? 3);\nconst avgFairness = Number($json.avg_fairness_score ?? $json.avg_fairness ?? 3);\nconst dismissalRate = Number(metrics.dismissal_rate ?? summary.dismissal_rate ?? 0);\nconst consecutiveDismissals = Number(metrics.dismissal_pattern_consecutive ?? 0);\nconst teacherFlagInquiryMode = metrics.teacher_flag_inquiry_mode === true || metrics.is_inquiry_mode === true;\nconst recentNoAction = Number(metrics.dismissed_count ?? 0) >= 2 || dismissalRate > 0.6;\nlet policyLevel = 'ROUTINE';\nif (avgMood <= 2.0) policyLevel = 'CRITICAL'; else if (avgMood <= 3.0) policyLevel = 'WARNING';\nconst inquiryMode = teacherFlagInquiryMode || (dismissalRate > 0.6 && consecutiveDismissals >= 2 && ['WARNING', 'CRITICAL'].includes(policyLevel));\nlet teacherSummary = 'ภาพรวมของห้องยังอยู่ในเกณฑ์ที่พอไปได้ และควรรักษาจังหวะที่ช่วยให้เด็กมีส่วนร่วมต่อเนื่อง';\nlet situationHypothesis = 'ห้องยังไม่เห็นสัญญาณที่ต้องแก้เฉพาะจุดแบบเร่งด่วน';\nlet recommendedTeacherMove = 'ชวนสะท้อนสิ่งที่ทำได้ดีสั้น ๆ ก่อนเริ่มกิจกรรมถัดไป';\nlet studentMessageDraft = 'ขอบคุณสำหรับฟีดแบ็กของห้อง วันนี้เราจะคงจังหวะคาบที่ช่วยให้ทุกคนตามทัน และถ้ามีจุดไหนยังติดสามารถบอกได้เลย';\nlet teacherActionPlan = ['ชวนห้องสะท้อนสิ่งที่ทำได้ดีสั้น ๆ', 'รักษาจังหวะคาบที่ช่วยให้ห้องมีส่วนร่วม'];\nlet watchSignals = ['ห้องยังมีส่วนร่วมสม่ำเสมอหรือไม่', 'นักเรียนเริ่มถามมากขึ้นหรือไม่'];\nlet whyThisHelps = 'การรักษาจังหวะที่ห้องรับได้ดีจะช่วยคงบรรยากาศให้เสถียรต่อเนื่อง';\nlet postClassReflectionPrompt = 'หลังคาบนี้ เด็กตอบสนองอย่างไร และมีจุดไหนที่ควรปรับต่อ';\nif (inquiryMode) { teacherSummary = 'สัญญาณรวมของห้องเริ่มอ่อนลง แต่ยังควรเก็บบริบทจากครูเพิ่มก่อนตัดสินใจส่งข้อความถึงนักเรียน'; situationHypothesis = 'ข้อมูลรวมบอกว่าห้องมีแรงตึงบางช่วง แต่ยังไม่พอจะชี้ว่าควรแก้ตรงไหนก่อน'; recommendedTeacherMove = 'เติมบริบทสั้น ๆ ว่าปัญหาน่าจะเกิดช่วงไหนของคาบ'; studentMessageDraft = null; teacherActionPlan = ['เติมบริบทสั้น ๆ ว่าปัญหาน่าจะเกิดช่วงไหนของคาบ', 'บอกระบบว่าคุณครูอยากให้ช่วยต่อเรื่องใด', 'ค่อยตัดสินใจอีกครั้งหลังได้บริบทเพิ่ม']; watchSignals = ['ช่วงที่เด็กเริ่มเงียบพร้อมกัน', 'กิจกรรมที่ทำให้เด็กถามน้อยลง', 'จังหวะที่ครูรู้สึกว่าห้องเริ่มหลุดจากการมีส่วนร่วม']; whyThisHelps = 'การเติมบริบทจากครูก่อนจะช่วยให้ข้อเสนอรอบถัดไปตรงกับสถานการณ์จริงของห้องมากขึ้น'; postClassReflectionPrompt = null; }\nelse if (avgMood <= 2 && avgPace <= 2.5) { teacherSummary = 'บรรยากาศของห้องอ่อนลงชัด และมีแนวโน้มว่าช่วงต้นคาบอาจหนักหรือเร็วเกินไป'; situationHypothesis = 'นักเรียนบางส่วนอาจยังตั้งหลักกับเนื้อหาไม่ทัน จึงเงียบลงและมีส่วนร่วมน้อยลง'; recommendedTeacherMove = 'เริ่มคาบถัดไปด้วยการเช็กอินสั้น ๆ แล้วผ่อนจังหวะช่วงแรกของคาบ'; studentMessageDraft = 'จากฟีดแบ็กของห้อง วันนี้เราจะเริ่มคาบด้วยช่วงเช็กอินสั้น ๆ และค่อย ๆ ปรับจังหวะให้ทุกคนตามทันมากขึ้น ถ้ายังมีจุดไหนติดอยู่สามารถบอกได้เลย'; teacherActionPlan = ['เปิดช่วงคุยสั้น ๆ 3-5 นาที ก่อนเริ่มเนื้อหาใหม่', 'เช็กว่านักเรียนติดตรงไหนหรือกังวลเรื่องใดมากที่สุด', 'ลดความหนาแน่นของช่วงต้นคาบลงเล็กน้อย']; watchSignals = ['นักเรียนเริ่มตอบหรือถามมากขึ้นหลังเช็กอิน', 'บรรยากาศช่วงต้นคาบผ่อนลงหรือไม่', 'คำถามเดิมยังกลับมาซ้ำในคาบถัดไปหรือไม่']; whyThisHelps = 'ถ้าปัญหาเกิดจากความตึงในช่วงต้นคาบ การเปิดพื้นที่พูดและผ่อนจังหวะก่อนจะช่วยลดแรงกดดันและทำให้เด็กกลับมามีส่วนร่วมง่ายขึ้น'; }\nelse if (avgMood <= 2.5 && avgFairness <= 2.7) { teacherSummary = 'ห้องนี้มีทั้งสัญญาณความรู้สึกต่ำและความรู้สึกว่าโอกาสหรือความชัดเจนอาจยังไม่เท่ากัน'; situationHypothesis = 'นักเรียนบางส่วนอาจไม่มั่นใจว่าตัวเองตามทันหรือมีพื้นที่ถามได้มากพอ'; recommendedTeacherMove = 'เปิดพื้นที่คุยสั้น ๆ และสื่อสาร expectation ให้ชัดขึ้นก่อนเริ่มกิจกรรมหลัก'; studentMessageDraft = 'จากฟีดแบ็กของห้อง คาบถัดไปเราจะเริ่มด้วยการเช็กว่ามีจุดไหนยังไม่ชัด และจะอธิบายความคาดหวังของคาบให้ชัดขึ้น เพื่อให้ทุกคนตามได้มากขึ้น'; teacherActionPlan = ['เปิดพื้นที่ให้ถามแบบสั้น ๆ ก่อนเริ่มโจทย์หลัก', 'ย้ำ expectation และเกณฑ์ของกิจกรรมให้ชัด', 'เช็กว่ามีนักเรียนกลุ่มไหนยังรู้สึกตามไม่ทัน']; watchSignals = ['เด็กกล้าถามมากขึ้นหรือไม่', 'คำถามซ้ำเรื่องเกณฑ์ลดลงหรือไม่', 'บรรยากาศห้องผ่อนลงหลังสื่อสาร expectation ชัดขึ้นหรือไม่']; whyThisHelps = 'เมื่อเด็กเห็นภาพคาดหวังชัดและรู้ว่าถามได้ง่ายขึ้น ความตึงจากความไม่แน่ใจจะลดลง'; }\nelse if (avgPace <= 2.5) { teacherSummary = 'สัญญาณหลักของห้องอยู่ที่จังหวะคาบที่เริ่มฝืดหรือหนักเกินไปในบางช่วง'; situationHypothesis = 'เด็กอาจยังรับช่วงต้นคาบไม่ทัน ทำให้การมีส่วนร่วมค่อย ๆ ลดลง'; recommendedTeacherMove = 'ชะลอช่วงต้นคาบลงเล็กน้อยและเพิ่ม checkpoint สั้น ๆ'; studentMessageDraft = 'คาบถัดไปเราจะค่อย ๆ ปรับจังหวะช่วงต้นคาบให้ชัดและช้าลงขึ้นนิดหนึ่ง และจะมีจุดเช็กความเข้าใจสั้น ๆ ระหว่างทาง'; teacherActionPlan = ['ชะลอช่วงต้นคาบลงเล็กน้อย', 'เพิ่ม checkpoint สั้น ๆ ระหว่างคาบ', 'เช็กจุดที่เด็กยังติดขัดก่อนเดินต่อ']; watchSignals = ['เด็กตอบ checkpoint ได้ดีขึ้นหรือไม่', 'ช่วงต้นคาบยังเงียบเหมือนเดิมหรือไม่', 'ห้องกลับมามีส่วนร่วมเร็วขึ้นหรือไม่']; whyThisHelps = 'การเพิ่ม checkpoint และลดความเร็วช่วงต้นคาบช่วยให้ครูเห็นจุดสะดุดเร็วขึ้นและลดแรงกดดันที่สะสม'; }\nelse if (policyLevel === 'WARNING' && recentNoAction) { teacherSummary = 'สัญญาณของห้องควรติดตามต่อ แต่ยังไม่ควรเร่งเพิ่มภาระการตอบสนองของครูมากเกินไป'; situationHypothesis = 'ห้องมีแรงตึงระดับกลางต่อเนื่องและอาจต้องใช้การแทรกแซงที่เบาแต่สม่ำเสมอ'; recommendedTeacherMove = 'เลือกการแทรกแซงสั้น ๆ เพียงหนึ่งอย่างที่ทำได้จริงในคาบถัดไป'; studentMessageDraft = 'จากฟีดแบ็กของห้อง คาบถัดไปเราจะเริ่มด้วยช่วงเช็กความเข้าใจสั้น ๆ ก่อน เพื่อให้ทุกคนบอกได้ว่าตรงไหนยังติดอยู่'; teacherActionPlan = ['เลือก 1 การเปลี่ยนแปลงสั้น ๆ ที่ทำได้จริงในคาบถัดไป', 'เช็กความเข้าใจก่อนเดินเนื้อหาหลัก', 'ดูผลตอบรับอีกครั้งหลังจบคาบ']; watchSignals = ['การแทรกแซงสั้น ๆ ช่วยให้ห้องผ่อนลงหรือไม่', 'เด็กตอบสนองดีขึ้นหลังมีช่วงเช็กความเข้าใจหรือไม่']; whyThisHelps = 'การเริ่มจากสิ่งเล็กแต่ต่อเนื่องมักได้ผลดีกว่าเพิ่มภาระหลายอย่างพร้อมกันในห้องที่ยังตึงระดับกลาง'; }\nconst recommendationContent = teacherSummary;\nreturn { json: { ...$json, policy_level: policyLevel, confidence_score: inquiryMode ? 0.78 : 0.75, recommendation_content: recommendationContent, ai_message_draft: studentMessageDraft || recommendationContent, reasoning: whyThisHelps, actions_json: teacherActionPlan, inquiry_mode: inquiryMode, fallback_used: true, structuredPayload: { version: 1, mode: inquiryMode ? 'inquiry' : 'action', source: 'fallback', teacherSummary, situationHypothesis, recommendedTeacherMove, studentMessageDraft, teacherActionPlan, watchSignals, whyThisHelps, postClassReflectionPrompt }, decision_path: { generated_by: 'rules', route: 'fallback_after_ollama', policy_level: policyLevel, inquiry_mode: inquiryMode, fallback_reason: $json.ai_fallback_reason || 'rules_planner' } } };"
+        "jsCode": "const metrics = $json.teacher_metrics || {};\nconst summary = $json.past_summary || {};\nconst avgMood = Number($json.avg_mood_score ?? metrics.avg_mood_score ?? 3.5);\nconst avgPace = Number($json.avg_pace_score ?? $json.avg_pace ?? 3);\nconst avgFairness = Number($json.avg_fairness_score ?? $json.avg_fairness ?? 3);\nconst dismissalRate = Number(metrics.dismissal_rate ?? summary.dismissal_rate ?? 0);\nconst consecutiveDismissals = Number(metrics.dismissal_pattern_consecutive ?? 0);\nconst teacherFlagInquiryMode = metrics.teacher_flag_inquiry_mode === true || metrics.is_inquiry_mode === true;\nconst recentNoAction = Number(metrics.dismissed_count ?? 0) >= 2 || dismissalRate > 0.6;\nconst aiAttempted = $json.ai_attempted === true;\nconst aiFallbackReason = $json.ai_fallback_reason || null;\nconst fastPathReason = $json.fast_path_reason || null;\n\nlet policyLevel = 'ROUTINE';\nif (avgMood <= 2.0) policyLevel = 'CRITICAL';\nelse if (avgMood <= 3.0) policyLevel = 'WARNING';\n\nconst inquiryMode =\n  teacherFlagInquiryMode ||\n  (dismissalRate > 0.6 && consecutiveDismissals >= 2 && ['WARNING', 'CRITICAL'].includes(policyLevel));\n\nlet teacherSummary = 'ภาพรวมของห้องยังอยู่ในเกณฑ์ที่พอไปได้ และควรรักษาจังหวะที่ช่วยให้เด็กมีส่วนร่วมต่อเนื่อง';\nlet situationHypothesis = 'ห้องยังไม่เห็นสัญญาณที่ต้องแก้เฉพาะจุดแบบเร่งด่วน';\nlet recommendedTeacherMove = 'ชวนสะท้อนสิ่งที่ทำได้ดีสั้น ๆ ก่อนเริ่มกิจกรรมถัดไป';\nlet studentMessageDraft = 'ขอบคุณสำหรับฟีดแบ็กของห้อง วันนี้เราจะคงจังหวะคาบที่ช่วยให้ทุกคนตามทัน และถ้ามีจุดไหนยังติดสามารถบอกได้เลย';\nlet teacherActionPlan = ['ชวนห้องสะท้อนสิ่งที่ทำได้ดีสั้น ๆ', 'รักษาจังหวะคาบที่ช่วยให้ห้องมีส่วนร่วม'];\nlet watchSignals = ['ห้องยังมีส่วนร่วมสม่ำเสมอหรือไม่', 'นักเรียนเริ่มถามมากขึ้นหรือไม่'];\nlet whyThisHelps = 'การรักษาจังหวะที่ห้องรับได้ดีจะช่วยคงบรรยากาศให้เสถียรต่อเนื่อง';\nlet postClassReflectionPrompt = 'หลังคาบนี้ เด็กตอบสนองอย่างไร และมีจุดไหนที่ควรปรับต่อ';\n\nif (inquiryMode) {\n  teacherSummary = 'สัญญาณรวมของห้องเริ่มอ่อนลง แต่ยังควรเก็บบริบทจากครูเพิ่มก่อนตัดสินใจส่งข้อความถึงนักเรียน';\n  situationHypothesis = 'ข้อมูลรวมบอกว่าห้องมีแรงตึงบางช่วง แต่ยังไม่พอจะชี้ว่าควรแก้ตรงไหนก่อน';\n  recommendedTeacherMove = 'เติมบริบทสั้น ๆ ว่าปัญหาน่าจะเกิดช่วงไหนของคาบ';\n  studentMessageDraft = null;\n  teacherActionPlan = [\n    'เติมบริบทสั้น ๆ ว่าปัญหาน่าจะเกิดช่วงไหนของคาบ',\n    'บอกระบบว่าคุณครูอยากให้ช่วยต่อเรื่องใด',\n    'ค่อยตัดสินใจอีกครั้งหลังได้บริบทเพิ่ม',\n  ];\n  watchSignals = [\n    'ช่วงที่เด็กเริ่มเงียบพร้อมกัน',\n    'กิจกรรมที่ทำให้เด็กถามน้อยลง',\n    'จังหวะที่ครูรู้สึกว่าห้องเริ่มหลุดจากการมีส่วนร่วม',\n  ];\n  whyThisHelps = 'การเติมบริบทจากครูก่อนจะช่วยให้ข้อเสนอรอบถัดไปตรงกับสถานการณ์จริงของห้องมากขึ้น';\n  postClassReflectionPrompt = null;\n} else if (avgMood <= 2 && avgPace <= 2.5) {\n  teacherSummary = 'บรรยากาศของห้องอ่อนลงชัด และมีแนวโน้มว่าช่วงต้นคาบอาจหนักหรือเร็วเกินไป';\n  situationHypothesis = 'นักเรียนบางส่วนอาจยังตั้งหลักกับเนื้อหาไม่ทัน จึงเงียบลงและมีส่วนร่วมน้อยลง';\n  recommendedTeacherMove = 'เริ่มคาบถัดไปด้วยการเช็กอินสั้น ๆ แล้วผ่อนจังหวะช่วงแรกของคาบ';\n  studentMessageDraft = 'จากฟีดแบ็กของห้อง วันนี้เราจะเริ่มคาบด้วยช่วงเช็กอินสั้น ๆ และค่อย ๆ ปรับจังหวะให้ทุกคนตามทันมากขึ้น ถ้ายังมีจุดไหนติดอยู่สามารถบอกได้เลย';\n  teacherActionPlan = [\n    'เปิดช่วงคุยสั้น ๆ 3-5 นาที ก่อนเริ่มเนื้อหาใหม่',\n    'เช็กว่านักเรียนติดตรงไหนหรือกังวลเรื่องใดมากที่สุด',\n    'ลดความหนาแน่นของช่วงต้นคาบลงเล็กน้อย',\n  ];\n  watchSignals = [\n    'นักเรียนเริ่มตอบหรือถามมากขึ้นหลังเช็กอิน',\n    'บรรยากาศช่วงต้นคาบผ่อนลงหรือไม่',\n    'คำถามเดิมยังกลับมาซ้ำในคาบถัดไปหรือไม่',\n  ];\n  whyThisHelps = 'ถ้าปัญหาเกิดจากความตึงในช่วงต้นคาบ การเปิดพื้นที่พูดและผ่อนจังหวะก่อนจะช่วยลดแรงกดดันและทำให้เด็กกลับมามีส่วนร่วมง่ายขึ้น';\n} else if (avgMood <= 2.5 && avgFairness <= 2.7) {\n  teacherSummary = 'ห้องนี้มีทั้งสัญญาณความรู้สึกต่ำและความรู้สึกว่าโอกาสหรือความชัดเจนอาจยังไม่เท่ากัน';\n  situationHypothesis = 'นักเรียนบางส่วนอาจไม่มั่นใจว่าตัวเองตามทันหรือมีพื้นที่ถามได้มากพอ';\n  recommendedTeacherMove = 'เปิดพื้นที่คุยสั้น ๆ และสื่อสาร expectation ให้ชัดขึ้นก่อนเริ่มกิจกรรมหลัก';\n  studentMessageDraft = 'จากฟีดแบ็กของห้อง คาบถัดไปเราจะเริ่มด้วยการเช็กว่ามีจุดไหนยังไม่ชัด และจะอธิบายความคาดหวังของคาบให้ชัดขึ้น เพื่อให้ทุกคนตามได้มากขึ้น';\n  teacherActionPlan = [\n    'เปิดพื้นที่ให้ถามแบบสั้น ๆ ก่อนเริ่มโจทย์หลัก',\n    'ย้ำ expectation และเกณฑ์ของกิจกรรมให้ชัด',\n    'เช็กว่ามีนักเรียนกลุ่มไหนยังรู้สึกตามไม่ทัน',\n  ];\n  watchSignals = [\n    'เด็กกล้าถามมากขึ้นหรือไม่',\n    'คำถามซ้ำเรื่องเกณฑ์ลดลงหรือไม่',\n    'บรรยากาศห้องผ่อนลงหลังสื่อสาร expectation ชัดขึ้นหรือไม่',\n  ];\n  whyThisHelps = 'เมื่อเด็กเห็นภาพคาดหวังชัดและรู้ว่าถามได้ง่ายขึ้น ความตึงจากความไม่แน่ใจจะลดลง';\n} else if (avgPace <= 2.5) {\n  teacherSummary = 'สัญญาณหลักของห้องอยู่ที่จังหวะคาบที่เริ่มฝืดหรือหนักเกินไปในบางช่วง';\n  situationHypothesis = 'เด็กอาจยังรับช่วงต้นคาบไม่ทัน ทำให้การมีส่วนร่วมค่อย ๆ ลดลง';\n  recommendedTeacherMove = 'ชะลอช่วงต้นคาบลงเล็กน้อยและเพิ่ม checkpoint สั้น ๆ';\n  studentMessageDraft = 'คาบถัดไปเราจะค่อย ๆ ปรับจังหวะช่วงต้นคาบให้ชัดและช้าลงขึ้นนิดหนึ่ง และจะมีจุดเช็กความเข้าใจสั้น ๆ ระหว่างทาง';\n  teacherActionPlan = [\n    'ชะลอช่วงต้นคาบลงเล็กน้อย',\n    'เพิ่ม checkpoint สั้น ๆ ระหว่างคาบ',\n    'เช็กจุดที่เด็กยังติดขัดก่อนเดินต่อ',\n  ];\n  watchSignals = [\n    'เด็กตอบ checkpoint ได้ดีขึ้นหรือไม่',\n    'ช่วงต้นคาบยังเงียบเหมือนเดิมหรือไม่',\n    'ห้องกลับมามีส่วนร่วมเร็วขึ้นหรือไม่',\n  ];\n  whyThisHelps = 'การเพิ่ม checkpoint และลดความเร็วช่วงต้นคาบช่วยให้ครูเห็นจุดสะดุดเร็วขึ้นและลดแรงกดดันที่สะสม';\n} else if (policyLevel === 'WARNING' && recentNoAction) {\n  teacherSummary = 'สัญญาณของห้องควรติดตามต่อ แต่ยังไม่ควรเร่งเพิ่มภาระการตอบสนองของครูมากเกินไป';\n  situationHypothesis = 'ห้องมีแรงตึงระดับกลางต่อเนื่องและอาจต้องใช้การแทรกแซงที่เบาแต่สม่ำเสมอ';\n  recommendedTeacherMove = 'เลือกการแทรกแซงสั้น ๆ เพียงหนึ่งอย่างที่ทำได้จริงในคาบถัดไป';\n  studentMessageDraft = 'จากฟีดแบ็กของห้อง คาบถัดไปเราจะเริ่มด้วยช่วงเช็กความเข้าใจสั้น ๆ ก่อน เพื่อให้ทุกคนบอกได้ว่าตรงไหนยังติดอยู่';\n  teacherActionPlan = [\n    'เลือก 1 การเปลี่ยนแปลงสั้น ๆ ที่ทำได้จริงในคาบถัดไป',\n    'เช็กความเข้าใจก่อนเดินเนื้อหาหลัก',\n    'ดูผลตอบรับอีกครั้งหลังจบคาบ',\n  ];\n  watchSignals = [\n    'การแทรกแซงสั้น ๆ ช่วยให้ห้องผ่อนลงหรือไม่',\n    'เด็กตอบสนองดีขึ้นหลังมีช่วงเช็กความเข้าใจหรือไม่',\n  ];\n  whyThisHelps = 'การเริ่มจากสิ่งเล็กแต่ต่อเนื่องมักได้ผลดีกว่าเพิ่มภาระหลายอย่างพร้อมกันในห้องที่ยังตึงระดับกลาง';\n}\n\nconst recommendationContent = teacherSummary;\nconst fallbackReason = aiFallbackReason || fastPathReason || 'rules_planner';\nconst route = aiAttempted ? 'fallback_after_ollama' : fastPathReason ? 'fast_path_rules' : 'rules_only';\n\nreturn {\n  json: {\n    ...$json,\n    policy_level: policyLevel,\n    confidence_score: inquiryMode ? 0.78 : 0.75,\n    recommendation_content: recommendationContent,\n    ai_message_draft: studentMessageDraft || recommendationContent,\n    reasoning: whyThisHelps,\n    actions_json: teacherActionPlan,\n    inquiry_mode: inquiryMode,\n    fallback_used: true,\n    structuredPayload: {\n      version: 1,\n      mode: inquiryMode ? 'inquiry' : 'action',\n      source: 'fallback',\n      teacherSummary,\n      situationHypothesis,\n      recommendedTeacherMove,\n      studentMessageDraft,\n      teacherActionPlan,\n      watchSignals,\n      whyThisHelps,\n      postClassReflectionPrompt,\n    },\n    decision_path: {\n      generated_by: 'rules',\n      route,\n      policy_level: policyLevel,\n      inquiry_mode: inquiryMode,\n      llm_enabled: aiAttempted,\n      llm_provider: aiAttempted ? 'ollama' : null,\n      llm_model: aiAttempted ? 'qwen2.5:3b' : null,\n      fallback_reason: fallbackReason,\n      fast_path_reason: fastPathReason,\n    },\n  },\n};"
       }
     },
     {
@@ -235,7 +284,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1600,
+        1800,
         0
       ],
       "parameters": {
@@ -587,7 +636,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"class_id\": \"{{ $('Get Aggregated Climate Data').item.json.class_id }}\",\n  \"policy_level\": \"{{ $('Route by Policy Level').item.json.policy_level }}\",\n  \"content\": \"{{ (($('Route by Policy Level').item.json.ai_message_draft || $('Route by Policy Level').item.json.recommendation_content || '')).toString().replace(/\\\"/g, '\\\"') }}\",\n  \"ai_message_draft\": \"{{ (($('Route by Policy Level').item.json.ai_message_draft || $('Route by Policy Level').item.json.recommendation_content || '')).toString().replace(/\\\"/g, '\\\"') }}\",\n  \"actions_json\": {{ $('Route by Policy Level').item.json.actions_json || {} }},\n  \"structured_payload\": {{ $('Route by Policy Level').item.json.structuredPayload || null }},\n  \"action_status\": \"pending\",\n  \"confidence_score\": {{ Number($('Route by Policy Level').item.json.confidence_score || 0) }},\n  \"reasoning\": \"{{ (($('Route by Policy Level').item.json.reasoning || '')).toString().replace(/\\\"/g, '\\\"') }}\",\n  \"inquiry_mode\": {{ $('Route by Policy Level').item.json.inquiry_mode || false }},\n  \"fallback_used\": {{ $('Route by Policy Level').item.json.fallback_used || false }},\n  \"status\": \"pending\"\n}",
+        "jsonBody": "={{ ({ class_id: $('Get Aggregated Climate Data').item.json.class_id || null, policy_level: $('Route by Policy Level').item.json.policy_level || null, content: String($('Route by Policy Level').item.json.ai_message_draft || $('Route by Policy Level').item.json.recommendation_content || ''), ai_message_draft: String($('Route by Policy Level').item.json.ai_message_draft || $('Route by Policy Level').item.json.recommendation_content || ''), actions_json: $('Route by Policy Level').item.json.actions_json || {}, structured_payload: $('Route by Policy Level').item.json.structuredPayload || null, action_status: 'pending', confidence_score: Number($('Route by Policy Level').item.json.confidence_score || 0), reasoning: String($('Route by Policy Level').item.json.reasoning || ''), inquiry_mode: $('Route by Policy Level').item.json.inquiry_mode === true, fallback_used: $('Route by Policy Level').item.json.fallback_used === true, status: 'pending' }) }}",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "supabaseApi"
       },
@@ -620,7 +669,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"class_id\": \"{{ $('Get Aggregated Climate Data').item.json.class_id }}\",\n  \"policy_level\": \"{{ $('Route by Policy Level').item.json.policy_level }}\",\n  \"content\": \"{{ (($('Route by Policy Level').item.json.ai_message_draft || $('Route by Policy Level').item.json.recommendation_content || '')).toString().replace(/\\\"/g, '\\\"') }}\",\n  \"ai_message_draft\": \"{{ (($('Route by Policy Level').item.json.ai_message_draft || $('Route by Policy Level').item.json.recommendation_content || '')).toString().replace(/\\\"/g, '\\\"') }}\",\n  \"actions_json\": {{ $('Route by Policy Level').item.json.actions_json || {} }},\n  \"structured_payload\": {{ $('Route by Policy Level').item.json.structuredPayload || null }},\n  \"action_status\": \"pending\",\n  \"confidence_score\": {{ Number($('Route by Policy Level').item.json.confidence_score || 0) }},\n  \"reasoning\": \"{{ (($('Route by Policy Level').item.json.reasoning || '')).toString().replace(/\\\"/g, '\\\"') }}\",\n  \"inquiry_mode\": {{ $('Route by Policy Level').item.json.inquiry_mode || false }},\n  \"fallback_used\": {{ $('Route by Policy Level').item.json.fallback_used || false }},\n  \"status\": \"pending\"\n}",
+        "jsonBody": "={{ ({ class_id: $('Get Aggregated Climate Data').item.json.class_id || null, policy_level: $('Route by Policy Level').item.json.policy_level || null, content: String($('Route by Policy Level').item.json.ai_message_draft || $('Route by Policy Level').item.json.recommendation_content || ''), ai_message_draft: String($('Route by Policy Level').item.json.ai_message_draft || $('Route by Policy Level').item.json.recommendation_content || ''), actions_json: $('Route by Policy Level').item.json.actions_json || {}, structured_payload: $('Route by Policy Level').item.json.structuredPayload || null, action_status: 'pending', confidence_score: Number($('Route by Policy Level').item.json.confidence_score || 0), reasoning: String($('Route by Policy Level').item.json.reasoning || ''), inquiry_mode: $('Route by Policy Level').item.json.inquiry_mode === true, fallback_used: $('Route by Policy Level').item.json.fallback_used === true, status: 'pending' }) }}",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "supabaseApi"
       },
@@ -653,7 +702,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"class_id\": \"{{ $('Get Aggregated Climate Data').item.json.class_id }}\",\n  \"policy_level\": \"{{ $('Route by Policy Level').item.json.policy_level }}\",\n  \"content\": \"{{ (($('Route by Policy Level').item.json.ai_message_draft || $('Route by Policy Level').item.json.recommendation_content || '')).toString().replace(/\\\"/g, '\\\"') }}\",\n  \"ai_message_draft\": \"{{ (($('Route by Policy Level').item.json.ai_message_draft || $('Route by Policy Level').item.json.recommendation_content || '')).toString().replace(/\\\"/g, '\\\"') }}\",\n  \"actions_json\": {{ $('Route by Policy Level').item.json.actions_json || {} }},\n  \"structured_payload\": {{ $('Route by Policy Level').item.json.structuredPayload || null }},\n  \"action_status\": \"pending\",\n  \"confidence_score\": {{ Number($('Route by Policy Level').item.json.confidence_score || 0) }},\n  \"reasoning\": \"{{ (($('Route by Policy Level').item.json.reasoning || '')).toString().replace(/\\\"/g, '\\\"') }}\",\n  \"inquiry_mode\": {{ $('Route by Policy Level').item.json.inquiry_mode || false }},\n  \"fallback_used\": {{ $('Route by Policy Level').item.json.fallback_used || false }},\n  \"status\": \"pending\"\n}",
+        "jsonBody": "={{ ({ class_id: $('Get Aggregated Climate Data').item.json.class_id || null, policy_level: $('Route by Policy Level').item.json.policy_level || null, content: String($('Route by Policy Level').item.json.ai_message_draft || $('Route by Policy Level').item.json.recommendation_content || ''), ai_message_draft: String($('Route by Policy Level').item.json.ai_message_draft || $('Route by Policy Level').item.json.recommendation_content || ''), actions_json: $('Route by Policy Level').item.json.actions_json || {}, structured_payload: $('Route by Policy Level').item.json.structuredPayload || null, action_status: 'pending', confidence_score: Number($('Route by Policy Level').item.json.confidence_score || 0), reasoning: String($('Route by Policy Level').item.json.reasoning || ''), inquiry_mode: $('Route by Policy Level').item.json.inquiry_mode === true, fallback_used: $('Route by Policy Level').item.json.fallback_used === true, status: 'pending' }) }}",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "supabaseApi"
       },
@@ -686,7 +735,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"class_id\": \"{{ $('Get Aggregated Climate Data').item.json.class_id }}\",\n  \"policy_level\": \"{{ $('Route by Policy Level').item.json.policy_level }}\",\n  \"content\": \"{{ (($('Route by Policy Level').item.json.ai_message_draft || $('Route by Policy Level').item.json.recommendation_content || '')).toString().replace(/\\\\\"/g, '\\\\\\\"') }}\",\n  \"ai_message_draft\": \"{{ (($('Route by Policy Level').item.json.ai_message_draft || $('Route by Policy Level').item.json.recommendation_content || '')).toString().replace(/\\\\\"/g, '\\\\\\\"') }}\",\n  \"actions_json\": {{ $('Route by Policy Level').item.json.actions_json || {} }},\n  \"structured_payload\": {{ $('Route by Policy Level').item.json.structuredPayload || null }},\n  \"action_status\": \"pending\",\n  \"confidence_score\": {{ Number($('Route by Policy Level').item.json.confidence_score || 0) }},\n  \"reasoning\": \"{{ (($('Route by Policy Level').item.json.reasoning || '')).toString().replace(/\\\\\"/g, '\\\\\\\"') }}\",\n  \"inquiry_mode\": {{ $('Route by Policy Level').item.json.inquiry_mode || false }},\n  \"fallback_used\": true,\n  \"status\": \"pending\"\n}",
+        "jsonBody": "={{ ({ class_id: $('Get Aggregated Climate Data').item.json.class_id || null, policy_level: $('Route by Policy Level').item.json.policy_level || null, content: String($('Route by Policy Level').item.json.ai_message_draft || $('Route by Policy Level').item.json.recommendation_content || ''), ai_message_draft: String($('Route by Policy Level').item.json.ai_message_draft || $('Route by Policy Level').item.json.recommendation_content || ''), actions_json: $('Route by Policy Level').item.json.actions_json || {}, structured_payload: $('Route by Policy Level').item.json.structuredPayload || null, action_status: 'pending', confidence_score: Number($('Route by Policy Level').item.json.confidence_score || 0), reasoning: String($('Route by Policy Level').item.json.reasoning || ''), inquiry_mode: $('Route by Policy Level').item.json.inquiry_mode === true, fallback_used: true, status: 'pending' }) }}",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "supabaseApi"
       },
@@ -719,7 +768,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"class_id\": \"{{ $('Get Aggregated Climate Data').item.json.class_id }}\",\n  \"policy_level\": \"{{ $('Route by Policy Level').item.json.policy_level }}\",\n  \"content\": \"{{ (($('Route by Policy Level').item.json.ai_message_draft || $('Route by Policy Level').item.json.recommendation_content || '')).toString().replace(/\\\\\"/g, '\\\\\\\"') }}\",\n  \"ai_message_draft\": \"{{ (($('Route by Policy Level').item.json.ai_message_draft || $('Route by Policy Level').item.json.recommendation_content || '')).toString().replace(/\\\\\"/g, '\\\\\\\"') }}\",\n  \"actions_json\": {{ $('Route by Policy Level').item.json.actions_json || {} }},\n  \"structured_payload\": {{ $('Route by Policy Level').item.json.structuredPayload || null }},\n  \"action_status\": \"pending\",\n  \"confidence_score\": {{ Number($('Route by Policy Level').item.json.confidence_score || 0) }},\n  \"reasoning\": \"{{ (($('Route by Policy Level').item.json.reasoning || '')).toString().replace(/\\\\\"/g, '\\\\\\\"') }}\",\n  \"inquiry_mode\": {{ $('Route by Policy Level').item.json.inquiry_mode || false }},\n  \"fallback_used\": true,\n  \"status\": \"pending\"\n}",
+        "jsonBody": "={{ ({ class_id: $('Get Aggregated Climate Data').item.json.class_id || null, policy_level: $('Route by Policy Level').item.json.policy_level || null, content: String($('Route by Policy Level').item.json.ai_message_draft || $('Route by Policy Level').item.json.recommendation_content || ''), ai_message_draft: String($('Route by Policy Level').item.json.ai_message_draft || $('Route by Policy Level').item.json.recommendation_content || ''), actions_json: $('Route by Policy Level').item.json.actions_json || {}, structured_payload: $('Route by Policy Level').item.json.structuredPayload || null, action_status: 'pending', confidence_score: Number($('Route by Policy Level').item.json.confidence_score || 0), reasoning: String($('Route by Policy Level').item.json.reasoning || ''), inquiry_mode: $('Route by Policy Level').item.json.inquiry_mode === true, fallback_used: true, status: 'pending' }) }}",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "supabaseApi"
       },
@@ -901,10 +950,84 @@
         "specifyBody": "json",
         "jsonBody": "={\n  \"from\": \"{{ $env.EMAIL_FROM }}\",\n  \"to\": [\"{{ $env.EMAIL_ADMIN }}\"],\n  \"subject\": \"WORKFLOW ERROR: climate-agent-main-v2\",\n  \"html\": \"<p>An error occurred matching execution id: {{ $execution.id }}.</p>\"\n}"
       }
+    },
+    {
+      "id": "decide-ollama-fast-path-main",
+      "name": "Decide Ollama Fast Path",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        -208
+      ],
+      "parameters": {
+        "jsCode": "const item = $json || {};\nconst metrics = item.teacher_metrics || {};\nconst summary = item.past_summary || {};\nconst comparison = item.trend_comparison || item.trend || {};\nconst closureHistory = item.closure_history || {};\nconst redactedVoice = String(item.redacted_voice_summary || item.redacted_voice || '').trim();\nconst avgMood = Number(item.avg_mood_score ?? metrics.avg_mood_score ?? 3.5);\nconst dismissalRate = Number(metrics.dismissal_rate ?? summary.dismissal_rate ?? 0);\nconst consecutiveDismissals = Number(metrics.dismissal_pattern_consecutive ?? 0);\nconst teacherFlagInquiryMode =\n  metrics.teacher_flag_inquiry_mode === true ||\n  metrics.is_inquiry_mode === true ||\n  metrics.inquiry_mode_suggested === true;\nconst forceOllama = [\n  item.test_force_low_confidence === true,\n  item.test_force_invalid_ai_json === true,\n  item.test_force_valid_ai_output === true,\n].some(Boolean);\n\nlet previewPolicy = 'ROUTINE';\nif (avgMood <= 2.0) previewPolicy = 'CRITICAL';\nelse if (avgMood <= 3.0) previewPolicy = 'WARNING';\n\nconst hasTrend = typeof comparison === 'object'\n  ? Object.keys(comparison).length > 0\n  : Boolean(String(comparison || '').trim() && String(comparison).trim().toLowerCase() !== 'none');\nconst hasClosure = typeof closureHistory === 'object'\n  ? Object.keys(closureHistory).length > 0\n  : Boolean(String(closureHistory || '').trim() && String(closureHistory).trim().toLowerCase() !== 'none');\nconst hasRedactedVoice = redactedVoice.length >= 24 && redactedVoice.toLowerCase() !== 'none';\n\nlet fastPathReason = null;\nif (!forceOllama) {\n  if (previewPolicy === 'ROUTINE') fastPathReason = 'routine_rule_based';\n  else if (teacherFlagInquiryMode || (dismissalRate > 0.6 && consecutiveDismissals >= 2)) fastPathReason = 'inquiry_rule_based';\n  else if (previewPolicy === 'WARNING' && !hasTrend && !hasClosure && !hasRedactedVoice) fastPathReason = 'warning_minimal_context';\n}\n\nreturn {\n  json: {\n    ...item,\n    fast_path_preview_policy: previewPolicy,\n    fast_path_reason: fastPathReason,\n    skip_ollama: Boolean(fastPathReason),\n    ai_attempted: false,\n  },\n};"
+      }
+    },
+    {
+      "id": "should-skip-ollama-main",
+      "name": "Should Skip Ollama",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        -64
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {},
+          "conditions": [
+            {
+              "id": "skip-ollama-check-main",
+              "leftValue": "={{ $json.skip_ollama }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
     }
   ],
   "connections": {
     "Daily Climate Check Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Active Classes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Active Classes": {
+      "main": [
+        [
+          {
+            "node": "Prepare Climate Snapshot Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Climate Snapshot Batch": {
+      "main": [
+        [
+          {
+            "node": "Fetch Climate Snapshot Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Climate Snapshot Batch": {
       "main": [
         [
           {
@@ -981,7 +1104,7 @@
       "main": [
         [
           {
-            "node": "Build Ollama Analysis Prompt",
+            "node": "Decide Ollama Fast Path",
             "type": "main",
             "index": 0
           }
@@ -1188,7 +1311,7 @@
       "main": [
         [
           {
-            "node": "Insert Fallback Draft Recommendation (WARNING)",
+            "node": "Insert Audit Log",
             "type": "main",
             "index": 0
           }
@@ -1199,7 +1322,7 @@
       "main": [
         [
           {
-            "node": "Insert Fallback Draft Recommendation (CRITICAL)",
+            "node": "Insert Audit Log",
             "type": "main",
             "index": 0
           }
@@ -1311,6 +1434,35 @@
           {
             "node": "Climate Analysis Agent",
             "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decide Ollama Fast Path": {
+      "main": [
+        [
+          {
+            "node": "Should Skip Ollama",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Skip Ollama": {
+      "main": [
+        [
+          {
+            "node": "Fallback Policy Engine",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Ollama Analysis Prompt",
+            "type": "main",
             "index": 0
           }
         ]

@@ -38,7 +38,7 @@
         "conditions": {
           "boolean": [
             {
-              "value1": "={{ $json.body.event === \"recommendation_approved\" && !!$json.body.recommendation_id && !!$json.body.teacher_id }}",
+              "value1": "={{ $json.isValid }}",
               "operation": "true",
               "singleValue": true
             }
@@ -57,10 +57,24 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.SUPABASE_URL + '/rest/v1/n8n_audit_logs?apikey=' + $env.SUPABASE_SERVICE_KEY }}",
+        "url": "={{ $env.SUPABASE_URL + '/rest/v1/n8n_audit_log?apikey=' + $env.SUPABASE_SERVICE_KEY }}",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"workflow_id\": \"{{ $workflow.name }}\",\n  \"execution_id\": \"{{ $execution.id }}\",\n  \"trigger_time\": \"{{ $now.toISO() }}\",\n  \"class_id\": \"{{ $json.body.recommendation.class_id }}\",\n  \"policy_selected\": \"teacher_approval\",\n  \"confidence_score\": 1,\n  \"triggered_by\": \"teacher_webhook\",\n  \"inquiry_mode\": {{ $json.body.recommendation.inquiry_mode || false }},\n  \"event_type\": \"teacher_approval\",\n  \"decision_path_json\": {\n    \"source\": \"Handle Teacher Approval\",\n    \"event\": \"{{ $json.body.event }}\",\n    \"note\": \"{{ $json.body.note || '' }}\",\n    \"recommendation\": {\n      \"id\": \"{{ $json.body.recommendation.id }}\",\n      \"class_id\": \"{{ $json.body.recommendation.class_id }}\",\n      \"policy_level\": \"{{ $json.body.recommendation.policy_level }}\",\n      \"inquiry_mode\": {{ $json.body.recommendation.inquiry_mode || false }}\n    }\n  },\n  \"error_message\": \"\",\n  \"blocked_reason\": \"\"\n}",
+        "jsonBody": "={{ ({ workflow_id: $workflow.id, workflow_name: $workflow.name, execution_id: String($execution.id), class_id: $json.body?.recommendation?.class_id || null, teacher_id: $json.body?.teacher_id || null, recommendation_id: $json.body?.recommendation?.id || $json.body?.recommendation_id || null, decision_path_json: { source: 'Handle Teacher Approval', route: 'teacher_webhook_audit', event: $json.body?.event || null, note: $json.body?.note || '', recommendation: { id: $json.body?.recommendation?.id || $json.body?.recommendation_id || null, class_id: $json.body?.recommendation?.class_id || null, policy_level: $json.body?.recommendation?.policy_level || null, inquiry_mode: $json.body?.recommendation?.inquiry_mode === true } }, policy_applied: 'teacher_approval', confidence_score: 1, tools_invoked: ['teacher_approval_webhook'], action_taken: 'SKIP', action_skipped: true, skip_reason: 'teacher_approval_logged_only', teacher_response_received_at: $now.toISO(), teacher_response_type: 'APPROVED', error_message: '' }) }}",
         "options": {
           "timeout": 15000
         }
@@ -210,7 +224,7 @@
       "main": [
         [
           {
-            "node": "Is Valid?",
+            "node": "Validate Payload",
             "type": "main",
             "index": 0
           }

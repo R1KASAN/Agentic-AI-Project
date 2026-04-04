@@ -33,8 +33,45 @@
     },
     {
       "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL + '/rest/v1/classes?select=id,name,teacher_id&id=eq.' + $json.class_id + '&pilot_status=eq.true&archived_at=is.null' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "id": "b4d55df6-7332-49f2-9d80-9b36d509e7e8",
+      "name": "Get Active Classes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        448,
+        -576
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "668Eac9gOdjgSW7d",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const override = $('Test Input Override').first().json || {};\nconst classRows = $input.all().map((item) => item.json || {}).filter((row) => row.id);\nconst snapshotDate = $now.minus({ days: 1 }).toFormat('yyyy-MM-dd');\nreturn [{\n  json: {\n    class_ids: classRows.map((row) => row.id),\n    class_rows: classRows,\n    snapshot_date: snapshotDate,\n    override,\n  },\n}];"
+      },
+      "id": "117fb552-a87b-4c55-8fc7-5f325376b79f",
+      "name": "Prepare Climate Snapshot Batch",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        -576
+      ]
+    },
+    {
+      "parameters": {
         "method": "POST",
-        "url": "={{ $env.SUPABASE_URL }}/rest/v1/rpc/get_aggregated_climate_data",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/rpc/get_class_climate_snapshot_batch",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "supabaseApi",
         "sendHeaders": true,
@@ -52,16 +89,16 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"p_date\": \"{{ $now.minus({ days: 1 }).toFormat('yyyy-MM-dd') }}\",\n  \"p_min_n\": 3\n}",
+        "jsonBody": "={\n  \"p_class_ids\": {{ JSON.stringify($json.class_ids || []) }},\n  \"p_date\": \"{{ $json.snapshot_date }}\",\n  \"p_min_n\": 3\n}",
         "options": {}
       },
       "id": "e7b0e14a-f32f-488b-b1e7-2cd7a1a0f8d0",
-      "name": "Get Aggregated Climate Data",
+      "name": "Fetch Climate Snapshot Batch",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        224,
-        -352
+        896,
+        -576
       ],
       "credentials": {
         "supabaseApi": {
@@ -72,16 +109,30 @@
     },
     {
       "parameters": {
+        "jsCode": "const prepared = $('Prepare Climate Snapshot Batch').first().json || {};\nconst override = prepared.override || {};\nconst classRows = Array.isArray(prepared.class_rows) ? prepared.class_rows : [];\nconst classMap = new Map(classRows.map((row) => [row.id, row]));\nconst snapshot = $json || {};\nconst resolvedClassId = override.class_id || snapshot.class_id || null;\nconst classMeta = classMap.get(resolvedClassId) || {};\nconst avgMood = override.avg_mood_score ?? snapshot.avg_mood_score ?? null;\nconst avgPace = override.avg_pace_score ?? snapshot.avg_pace_score ?? null;\nconst avgFairness = override.avg_fairness_score ?? snapshot.avg_fairness_score ?? null;\nconst totalResponses = Number(override.total_responses ?? snapshot.total_responses ?? 0);\nconst safeFromSnapshot = snapshot.k_anonymity_safe === true || avgMood !== null;\nconst safe = override.k_anonymity_safe === true || (override.k_anonymity_safe !== false && safeFromSnapshot);\nreturn {\n  json: {\n    class_id: resolvedClassId || classMeta.id || null,\n    class_name: override.class_name || classMeta.name || null,\n    teacher_id: override.teacher_id || classMeta.teacher_id || null,\n    avg_mood_score: avgMood,\n    avg_pace_score: avgPace,\n    avg_fairness_score: avgFairness,\n    total_responses: totalResponses,\n    k_anonymity_safe: safe,\n    blocked_reason: override.blocked_reason || snapshot.blocked_reason || (safe ? null : totalResponses > 0 ? 'k_anonymity' : 'no_responses'),\n    snapshot_date: snapshot.snapshot_date || prepared.snapshot_date || null,\n    sentiment_distribution: override.sentiment_distribution || {},\n    raw_comments: override.raw_comments || [],\n    test_force_low_confidence: override.test_force_low_confidence === true,\n    test_force_invalid_ai_json: override.test_force_invalid_ai_json === true,\n    test_force_valid_ai_output: override.test_force_valid_ai_output === true,\n    test_label: override.test_label || null,\n    source: override.source || 'manual_test_override',\n    scenario: override.scenario || null,\n  },\n};"
+      },
+      "id": "77df9c4f-fba1-48bb-a526-bcc13eab73d3",
+      "name": "Get Aggregated Climate Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        -576
+      ]
+    },
+    {
+      "parameters": {
         "conditions": {
           "options": {},
           "conditions": [
             {
               "id": "valid-n",
-              "leftValue": "={{ $json.total_responses }}",
-              "rightValue": 3,
+              "leftValue": "={{ Number($json.total_responses || 0) >= 3 && ($json.k_anonymity_safe === true || $json.avg_mood_score !== null) }}",
+              "rightValue": true,
               "operator": {
-                "type": "number",
-                "operation": "gte"
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
               }
             }
           ],
@@ -100,7 +151,7 @@
     },
     {
       "parameters": {
-        "jsCode": "return { json: { blocked_reason: \"k_anonymity\", decision_path_json: { route: \"blocked_by_k_anonymity\", blocked_reason: \"k_anonymity\" } } };"
+        "jsCode": "const item = $json || {};\nconst blockedReason = item.blocked_reason || 'k_anonymity';\nreturn {\n  json: {\n    ...item,\n    blocked_reason: blockedReason,\n    decision_path_json: {\n      route: 'blocked_by_k_anonymity',\n      blocked_reason: blockedReason,\n      snapshot_date: item.snapshot_date || null,\n    },\n  },\n};"
       },
       "id": "766ab9ec-04ac-4830-bd5b-b54130097a8e",
       "name": "Meta: Blocked By k-anonymity",
@@ -145,7 +196,7 @@
     },
     {
       "parameters": {
-        "jsCode": "let metrics = {};\ntry { metrics = $('Tool: Get Teacher Metrics').item.json || {}; } catch(e){}\nlet summary = {};\ntry { summary = $(\"Call 'Tool: Get Past Recommendations'\").item.json || {}; } catch(e){}\nlet climate = {};\ntry { climate = $('Test Input Override').item.json || {}; } catch(e){}\n\nlet avg_mood = (metrics.avg_mood_score !== undefined && metrics.avg_mood_score !== null)\n  ? metrics.avg_mood_score\n  : (climate.avg_mood_score !== undefined && climate.avg_mood_score !== null)\n    ? climate.avg_mood_score\n    : $input.item.json.avg_mood_score;\n\nreturn {\n  json: {\n    ...climate,\n    ...$input.item.json,\n    teacher_metrics: metrics,\n    past_summary: summary,\n    avg_mood_score: avg_mood\n  }\n};"
+        "jsCode": "let metrics = {};\ntry { metrics = $('Tool: Get Teacher Metrics').item.json || {}; } catch(e){}\nlet summary = {};\ntry { summary = $(\"Call 'Tool: Get Past Recommendations'\").item.json || {}; } catch(e){}\nlet climate = {};\ntry { climate = $('Get Aggregated Climate Data').item.json || {}; } catch(e){}\n\nlet avg_mood = (metrics.avg_mood_score !== undefined && metrics.avg_mood_score !== null)\n  ? metrics.avg_mood_score\n  : (climate.avg_mood_score !== undefined && climate.avg_mood_score !== null)\n    ? climate.avg_mood_score\n    : $input.item.json.avg_mood_score;\n\nreturn {\n  json: {\n    ...climate,\n    ...$input.item.json,\n    teacher_metrics: metrics,\n    past_summary: summary,\n    avg_mood_score: avg_mood\n  }\n};"
       },
       "id": "673f32c9-e747-4cf0-8809-7b3b38c234a5",
       "name": "Merge Metrics Into Item",
@@ -247,7 +298,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"p_class_id\": \"{{ $(`Test Input Override`).item.json.class_id }}\",\n  \"p_max_daily\": 2,\n  \"p_max_weekly\": 5\n}",
+        "jsonBody": "={\n  \"p_class_id\": \"{{ $('Get Aggregated Climate Data').item.json.class_id }}\",\n  \"p_max_daily\": 2,\n  \"p_max_weekly\": 5\n}",
         "options": {}
       },
       "id": "97b1a23b-5b58-45b6-bf25-cc7cd831ce89",
@@ -282,7 +333,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"p_class_id\": \"{{ $(`Test Input Override`).item.json.class_id }}\",\n  \"p_max_daily\": 2,\n  \"p_max_weekly\": 5\n}",
+        "jsonBody": "={\n  \"p_class_id\": \"{{ $('Get Aggregated Climate Data').item.json.class_id }}\",\n  \"p_max_daily\": 2,\n  \"p_max_weekly\": 5\n}",
         "options": {}
       },
       "id": "b3e32e8b-b72e-4b68-b755-e5e6e3ceba3c",
@@ -317,7 +368,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"p_class_id\": \"{{ $(`Test Input Override`).item.json.class_id }}\",\n  \"p_max_daily\": 2,\n  \"p_max_weekly\": 5\n}",
+        "jsonBody": "={\n  \"p_class_id\": \"{{ $('Get Aggregated Climate Data').item.json.class_id }}\",\n  \"p_max_daily\": 2,\n  \"p_max_weekly\": 5\n}",
         "options": {}
       },
       "id": "ae5b6c8f-223d-42bc-9fe1-026c278fb483",
@@ -604,11 +655,11 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1200,
+        1400,
         -208
       ],
       "parameters": {
-        "jsCode": "const item = $json || {};\nconst metrics = item.teacher_metrics || {};\nconst summary = item.past_summary || {};\nconst avgMood = Number(item.avg_mood_score ?? metrics.avg_mood_score ?? 3.5);\nconst totalResponses = Number(item.total_responses ?? 0);\nconst sentiment = item.sentiment_distribution || {};\nconst dismissalRate = Number(metrics.dismissal_rate ?? summary.dismissal_rate ?? 0);\nconst consecutiveDismissals = Number(metrics.dismissal_pattern_consecutive ?? 0);\nconst inquiryModeSuggested = metrics.inquiry_mode_suggested === true || metrics.teacher_flag_inquiry_mode === true || metrics.is_inquiry_mode === true;\nconst sentimentLine = `very_low=${Number(sentiment.very_low ?? 0)}, low=${Number(sentiment.low ?? 0)}, okay=${Number(sentiment.okay ?? 0)}, good=${Number(sentiment.good ?? 0)}, great=${Number(sentiment.great ?? 0)}`;\nconst contextBlock = [\n  'ข้อมูลห้องเรียนวันนี้:',\n  `- class_id: ${item.class_id || 'unknown'}`,\n  `- avg_mood_score: ${Number.isFinite(avgMood) ? avgMood.toFixed(2) : 'null'} / 5`,\n  `- total_responses: ${totalResponses} นักเรียน`,\n  `- sentiment_distribution: ${sentimentLine}`,\n  '  (very_low / low / okay / good / great)',\n  `- dismissal_rate: ${dismissalRate.toFixed(2)}`,\n  `- dismissal_pattern_consecutive: ${consecutiveDismissals}`,\n  `- inquiry_mode_suggested: ${inquiryModeSuggested}`,\n  `- teacher_flag_inquiry_mode: ${metrics.teacher_flag_inquiry_mode === true}`,\n  `- inquiry_reason: ${metrics.inquiry_reason || 'none'}`,\n  `- recent_recommendation_summary: ${summary.summary_text || summary.reasoning || 'none'}`,\n  'กฎการตีความ:',\n  '- avg_mood ≤ 2.0 → policy_level = CRITICAL',\n  '- avg_mood ≤ 3.0 → policy_level = WARNING',\n  '- avg_mood > 3.0 → policy_level = ROUTINE',\n];\nif (Object.prototype.hasOwnProperty.call(item, 'test_force_low_confidence')) {\n  contextBlock.push(`- test_force_low_confidence: ${item.test_force_low_confidence === true}`);\n}\nif (Object.prototype.hasOwnProperty.call(item, 'test_force_invalid_ai_json')) {\n  contextBlock.push(`- test_force_invalid_ai_json: ${item.test_force_invalid_ai_json === true}`);\n}\nif (Object.prototype.hasOwnProperty.call(item, 'test_force_valid_ai_output')) {\n  contextBlock.push(`- test_force_valid_ai_output: ${item.test_force_valid_ai_output === true}`);\n}\nconst prompt = [\n  'You are the Climate Analysis Agent for a privacy-first classroom climate system.',\n  'Use only the aggregated classroom metrics below. Never mention any individual student or invent student-level facts.',\n  'Your reasoning and recommendation must be anchored to the actual mood numbers and sentiment distribution.',\n  '',\n  ...contextBlock,\n  '',\n  'ข้อกำหนดสำคัญ:',\n  '1. reasoning ต้องอ้างอิงสัญญาณจริงของห้อง เช่น avg_mood_score, คะแนนเฉลี่ย, หรือสัดส่วน low/okay/good อย่างชัดเจน',\n  '2. recommendation_content ต้องบอกบริบทอารมณ์ของห้องอย่างเฉพาะเจาะจง เช่น นักเรียนส่วนใหญ่อยู่ในช่วง low–okay หรือมี very_low/low เด่น',\n  '3. recommendation_content ต้องเสนอเพียง 1 การกระทำที่ครูทำได้ทันทีและผูกกับระดับอารมณ์นั้น',\n  '4. recommendation_content ต้องเป็นภาษาไทย, ยาวไม่เกิน 280 ตัวอักษร, ไม่มีชื่อหรือข้อมูลระบุตัวตน',\n  '5. ห้ามใช้ถ้อยคำกว้าง ๆ เช่น ตรวจสอบสภาพคล่องของห้องเรียน, สภาพอากาศ, ให้แน่ใจว่าพวกเขาอยู่ในสภาพที่ดี',\n  '6. หากสัญญาณอ่อนหรือกำกวม ให้ยังตอบเป็น JSON ที่ถูกต้องได้ แต่ลด confidence_score ให้ต่ำกว่า 0.65 เพื่อให้ workflow fallback เอง',\n  '',\n  'ตัวอย่างดี (avg_mood = 2.7, low/okay เด่น):',\n  'recommendation_content: \"นักเรียนส่วนใหญ่รู้สึกกลาง ๆ ถึงต่ำในวันนี้ ลองเปิดพื้นที่ให้แชร์ความรู้สึกก่อนเริ่มคาบ หรือลดปริมาณงานชิ้นแรกลง\"',\n  '',\n  'ตัวอย่างไม่ดี (generic, ห้ามใช้):',\n  'recommendation_content: \"โปรดตรวจสอบสภาพคล่องของห้องเรียนและสภาพอากาศเพื่อให้แน่ใจว่าพวกเขาอยู่ในสภาพที่ดี\"',\n  '',\n  'ถ้า test_force_low_confidence เป็น true ให้ยังตอบ JSON ที่ถูกต้อง แต่ตั้ง confidence_score ไม่เกิน 0.20',\n  'ถ้า test_force_invalid_ai_json เป็น true ให้ตอบ JSON ที่ recommendation_content ว่างเพื่อให้ parser ปฏิเสธ',\n  'ถ้า test_force_valid_ai_output เป็น true ให้ตอบ JSON ที่สมบูรณ์และ recommendation_content ต้องไม่ว่าง',\n  '',\n  'ตอบกลับ ONLY valid JSON ต่อไปนี้ ห้ามมีข้อความอื่น:',\n  '{',\n  '  \"policy_level\": \"ROUTINE|WARNING|CRITICAL\",',\n  '  \"confidence_score\": 0.0,',\n  '  \"recommendation_content\": \"Thai <=280 chars, mood-specific, one concrete action\",',\n  '  \"reasoning\": \"short Thai explanation referencing avg_mood and sentiment\",',\n  '  \"actions_json\": null,',\n  '  \"decision_path\": {',\n  '    \"route\": \"ai\",',\n  '    \"generated_by\": \"ollama\",',\n  '    \"steps\": []',\n  '  },',\n  '  \"inquiry_mode\": false,',\n  '  \"fallback_used\": false',\n  '}',\n].join('\\n');\nreturn {\n  json: {\n    ...item,\n    llm_prompt: prompt,\n    llm_provider: 'ollama',\n    llm_model: 'qwen2.5:3b',\n  },\n};"
+        "jsCode": "const item = $json || {};\nconst metrics = item.teacher_metrics || {};\nconst summary = item.past_summary || {};\nconst avgMood = Number(item.avg_mood_score ?? metrics.avg_mood_score ?? 3.5);\nconst totalResponses = Number(item.total_responses ?? 0);\nconst sentiment = item.sentiment_distribution || {};\nconst dismissalRate = Number(metrics.dismissal_rate ?? summary.dismissal_rate ?? 0);\nconst consecutiveDismissals = Number(metrics.dismissal_pattern_consecutive ?? 0);\nconst inquiryModeSuggested =\n  metrics.inquiry_mode_suggested === true ||\n  metrics.teacher_flag_inquiry_mode === true ||\n  metrics.is_inquiry_mode === true;\n\nconst compactContext = {\n  class_id: item.class_id || 'unknown',\n  avg_mood_score: Number.isFinite(avgMood) ? Number(avgMood.toFixed(2)) : null,\n  total_responses: totalResponses,\n  sentiment_distribution: {\n    very_low: Number(sentiment.very_low ?? 0),\n    low: Number(sentiment.low ?? 0),\n    okay: Number(sentiment.okay ?? 0),\n    good: Number(sentiment.good ?? 0),\n    great: Number(sentiment.great ?? 0),\n  },\n  dismissal_rate: Number.isFinite(dismissalRate) ? Number(dismissalRate.toFixed(2)) : 0,\n  consecutive_dismissals: consecutiveDismissals,\n  inquiry_mode_suggested: inquiryModeSuggested,\n  recent_recommendation_summary: String(summary.summary_text || summary.reasoning || 'none').slice(0, 120),\n  test_force_low_confidence: item.test_force_low_confidence === true,\n  test_force_invalid_ai_json: item.test_force_invalid_ai_json === true,\n  test_force_valid_ai_output: item.test_force_valid_ai_output === true,\n};\n\nconst prompt = [\n  'You are the Climate Analysis Agent for a privacy-first classroom climate system.',\n  'Use only the aggregated classroom metrics below. Never mention any individual student.',\n  `Context: ${JSON.stringify(compactContext)}`,\n  'Rules:',\n  '- recommendation_content must be Thai, mood-specific, one concrete action, <= 280 chars.',\n  '- reasoning must reference real mood or sentiment signals from the context.',\n  '- If the signal is weak, still return valid JSON but set confidence_score below 0.65.',\n  '- If test_force_low_confidence is true, set confidence_score <= 0.20.',\n  '- If test_force_invalid_ai_json is true, return JSON with empty recommendation_content.',\n  '- If test_force_valid_ai_output is true, return complete JSON with non-empty recommendation_content.',\n  'Return JSON only:',\n  '{\"policy_level\":\"ROUTINE|WARNING|CRITICAL\",\"confidence_score\":0.0,\"recommendation_content\":\"Thai <=280 chars, mood-specific, one concrete action\",\"reasoning\":\"short Thai explanation referencing avg_mood and sentiment\",\"actions_json\":null,\"decision_path\":{\"route\":\"ai\",\"generated_by\":\"ollama\",\"steps\":[]},\"inquiry_mode\":false,\"fallback_used\":false}',\n].join('\\n');\n\nreturn {\n  json: {\n    ...item,\n    llm_prompt: prompt,\n    llm_provider: 'ollama',\n    llm_model: 'qwen2.5:3b',\n  },\n};"
       }
     },
     {
@@ -618,7 +669,7 @@
       "typeVersion": 1.9,
       "onError": "continueRegularOutput",
       "position": [
-        1200,
+        1400,
         0
       ],
       "parameters": {
@@ -626,7 +677,7 @@
         "text": "={{ $json.llm_prompt }}",
         "batching": {
           "batchSize": 1,
-          "delayBetweenBatches": 0
+          "delayBetweenBatches": 250
         }
       }
     },
@@ -636,7 +687,7 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
       "typeVersion": 1,
       "position": [
-        1200,
+        1400,
         200
       ],
       "parameters": {
@@ -644,10 +695,10 @@
         "options": {
           "temperature": 0.2,
           "topP": 0.9,
-          "numPredict": 420,
-          "numCtx": 4096,
+          "numPredict": 220,
+          "numCtx": 2048,
           "repeatPenalty": 1.1,
-          "keepAlive": "10m"
+          "keepAlive": "30m"
         }
       },
       "credentials": {
@@ -663,7 +714,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1400,
+        1600,
         0
       ],
       "parameters": {
@@ -676,11 +727,11 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1400,
-        0
+        1600,
+        180
       ],
       "parameters": {
-        "jsCode": "const metrics = $json.teacher_metrics || {};\nconst summary = $json.past_summary || {};\nconst avgMood = Number($json.avg_mood_score ?? metrics.avg_mood_score ?? 3.5);\nconst dismissalRate = Number(metrics.dismissal_rate ?? summary.dismissal_rate ?? 0);\nconst consecutiveDismissals = Number(metrics.dismissal_pattern_consecutive ?? 0);\nconst teacherFlagInquiryMode = metrics.teacher_flag_inquiry_mode === true || metrics.is_inquiry_mode === true;\nconst inquiryReason = metrics.inquiry_reason || (teacherFlagInquiryMode ? 'teacher_flag' : dismissalRate > 0.6 && consecutiveDismissals >= 2 ? 'dismissal_pattern' : null);\nconst aiFallbackReason = $json.ai_fallback_reason || null;\nconst aiAttempted = $json.ai_attempted === true;\n\nlet policyLevel = 'ROUTINE';\nlet priority = 'low';\n\nif (avgMood <= 2.0) {\n  policyLevel = 'CRITICAL';\n  priority = 'high';\n} else if (avgMood <= 3.0) {\n  policyLevel = 'WARNING';\n  priority = 'medium';\n}\n\nconst inquiryMode = teacherFlagInquiryMode || (\n  dismissalRate > 0.6 &&\n  consecutiveDismissals >= 2 &&\n  ['WARNING', 'CRITICAL'].includes(policyLevel)\n);\n\nlet templateKey = policyLevel.toLowerCase();\nlet recommendationContent = 'วันนี้บรรยากาศห้องเรียนอยู่ในเกณฑ์ปกติ ลองชวนเด็กสะท้อนสิ่งที่ทำได้ดีสัก 1 อย่างในคาบนี้';\n\nif (policyLevel === 'WARNING') {\n  templateKey = inquiryMode ? 'warning_inquiry_th' : 'warning_standard_th';\n  recommendationContent = inquiryMode\n    ? 'บรรยากาศเริ่มต่ำลง คุณครูคิดว่าอะไรอาจเป็นสาเหตุ และอยากให้ระบบเสนอการช่วยเหลือแบบไหนบ้าง?'\n    : 'บรรยากาศเริ่มต่ำกว่าปกติ ลองถามนักเรียนว่าอะไรทำให้ไม่ค่อยมีส่วนร่วม และจะลองปรับอะไรในคาบต่อไป';\n}\n\nif (policyLevel === 'CRITICAL') {\n  templateKey = inquiryMode ? 'critical_inquiry_th' : 'critical_standard_th';\n  recommendationContent = inquiryMode\n    ? 'ระบบเห็นสัญญาณที่น่ากังวล คุณครูมองว่าสถานการณ์ห้องตอนนี้เป็นอย่างไร และอยากให้ระบบช่วยแบบไหนมากกว่ากัน?'\n    : 'ระบบเห็นสัญญาณน่ากังวลต่อเนื่อง ลองเปิดพื้นที่พูดคุยสั้น ๆ ให้เด็กเล่าเรื่องที่กังวล แล้ววางแผนช่วยเหลือร่วมกัน';\n}\n\nconst rulesFired = [];\nif (avgMood <= 3.0) rulesFired.push('avg_mood_low');\nif (avgMood <= 2.0) rulesFired.push('avg_mood_critical');\nif (dismissalRate > 0.6) rulesFired.push('high_dismissal');\nif (teacherFlagInquiryMode) rulesFired.push('teacher_flag_inquiry_mode');\nif (inquiryMode && !teacherFlagInquiryMode) rulesFired.push('dismissal_pattern_inquiry_mode');\nif (aiAttempted) rulesFired.push('ollama_fallback');\nif (aiFallbackReason) rulesFired.push(`fallback_reason:${aiFallbackReason}`);\n\nconst reasoning = [\n  'rule_core',\n  'avg_mood_score=' + avgMood.toFixed(2),\n  'dismissal_rate=' + dismissalRate.toFixed(2),\n  'dismissal_pattern_consecutive=' + consecutiveDismissals,\n  'policy_level=' + policyLevel,\n  'inquiry_mode=' + inquiryMode,\n  aiFallbackReason ? 'fallback_reason=' + aiFallbackReason : null,\n].filter(Boolean).join(' | ');\n\nconst decisionPath = {\n  generated_by: 'fallback',\n  route: aiFallbackReason ? 'fallback_after_ollama' : 'rules_only',\n  policy_level: policyLevel,\n  mode: inquiryMode ? 'inquiry' : policyLevel.toLowerCase(),\n  inquiry_mode: inquiryMode,\n  llm_enabled: aiAttempted,\n  llm_provider: aiAttempted ? 'ollama' : null,\n  llm_model: aiAttempted ? 'qwen2.5:3b' : null,\n  fallback_reason: aiFallbackReason,\n  template_key: templateKey,\n  rules_fired: rulesFired,\n  thresholds: {\n    avg_mood_score: avgMood,\n    dismissal_rate: dismissalRate,\n    dismissal_pattern_consecutive: consecutiveDismissals,\n  },\n  teacher_flag_inquiry_mode: teacherFlagInquiryMode,\n  inquiry_reason: inquiryReason,\n  priority,\n};\n\nreturn {\n  json: {\n    ...$json,\n    policy_level: policyLevel,\n    priority,\n    confidence_score: inquiryMode ? 0.78 : 0.75,\n    recommendation_content: recommendationContent,\n    ai_message_draft: recommendationContent,\n    reasoning,\n    actions_json: {\n      recommended_action: inquiryMode ? 'reflective_prompt' : 'teacher_follow_up',\n      priority,\n    },\n    decision_path: decisionPath,\n    inquiry_mode: inquiryMode,\n    fallback_used: true,\n  },\n};"
+        "jsCode": "const metrics = $json.teacher_metrics || {};\nconst summary = $json.past_summary || {};\nconst avgMood = Number($json.avg_mood_score ?? metrics.avg_mood_score ?? 3.5);\nconst dismissalRate = Number(metrics.dismissal_rate ?? summary.dismissal_rate ?? 0);\nconst consecutiveDismissals = Number(metrics.dismissal_pattern_consecutive ?? 0);\nconst teacherFlagInquiryMode = metrics.teacher_flag_inquiry_mode === true || metrics.is_inquiry_mode === true;\nconst inquiryReason =\n  metrics.inquiry_reason ||\n  (teacherFlagInquiryMode ? 'teacher_flag' : dismissalRate > 0.6 && consecutiveDismissals >= 2 ? 'dismissal_pattern' : null);\nconst aiFallbackReason = $json.ai_fallback_reason || null;\nconst fastPathReason = $json.fast_path_reason || null;\nconst aiAttempted = $json.ai_attempted === true;\n\nlet policyLevel = 'ROUTINE';\nlet priority = 'low';\n\nif (avgMood <= 2.0) {\n  policyLevel = 'CRITICAL';\n  priority = 'high';\n} else if (avgMood <= 3.0) {\n  policyLevel = 'WARNING';\n  priority = 'medium';\n}\n\nconst inquiryMode = teacherFlagInquiryMode || (\n  dismissalRate > 0.6 &&\n  consecutiveDismissals >= 2 &&\n  ['WARNING', 'CRITICAL'].includes(policyLevel)\n);\n\nlet templateKey = policyLevel.toLowerCase();\nlet recommendationContent = 'วันนี้บรรยากาศห้องเรียนอยู่ในเกณฑ์ปกติ ลองชวนเด็กสะท้อนสิ่งที่ทำได้ดีสัก 1 อย่างในคาบนี้';\n\nif (policyLevel === 'WARNING') {\n  templateKey = inquiryMode ? 'warning_inquiry_th' : 'warning_standard_th';\n  recommendationContent = inquiryMode\n    ? 'บรรยากาศเริ่มต่ำลง คุณครูคิดว่าอะไรอาจเป็นสาเหตุ และอยากให้ระบบเสนอการช่วยเหลือแบบไหนบ้าง?'\n    : 'บรรยากาศเริ่มต่ำกว่าปกติ ลองถามนักเรียนว่าอะไรทำให้ไม่ค่อยมีส่วนร่วม และจะลองปรับอะไรในคาบต่อไป';\n}\n\nif (policyLevel === 'CRITICAL') {\n  templateKey = inquiryMode ? 'critical_inquiry_th' : 'critical_standard_th';\n  recommendationContent = inquiryMode\n    ? 'ระบบเห็นสัญญาณที่น่ากังวล คุณครูมองว่าสถานการณ์ห้องตอนนี้เป็นอย่างไร และอยากให้ระบบช่วยแบบไหนมากกว่ากัน?'\n    : 'ระบบเห็นสัญญาณน่ากังวลต่อเนื่อง ลองเปิดพื้นที่พูดคุยสั้น ๆ ให้เด็กเล่าเรื่องที่กังวล แล้ววางแผนช่วยเหลือร่วมกัน';\n}\n\nconst rulesFired = [];\nif (avgMood <= 3.0) rulesFired.push('avg_mood_low');\nif (avgMood <= 2.0) rulesFired.push('avg_mood_critical');\nif (dismissalRate > 0.6) rulesFired.push('high_dismissal');\nif (teacherFlagInquiryMode) rulesFired.push('teacher_flag_inquiry_mode');\nif (inquiryMode && !teacherFlagInquiryMode) rulesFired.push('dismissal_pattern_inquiry_mode');\nif (aiAttempted) rulesFired.push('ollama_fallback');\nif (aiFallbackReason) rulesFired.push(`fallback_reason:${aiFallbackReason}`);\nif (fastPathReason) rulesFired.push(`fast_path:${fastPathReason}`);\n\nconst reasoning = [\n  'rule_core',\n  'avg_mood_score=' + avgMood.toFixed(2),\n  'dismissal_rate=' + dismissalRate.toFixed(2),\n  'dismissal_pattern_consecutive=' + consecutiveDismissals,\n  'policy_level=' + policyLevel,\n  'inquiry_mode=' + inquiryMode,\n  aiFallbackReason ? 'fallback_reason=' + aiFallbackReason : null,\n  fastPathReason ? 'fast_path_reason=' + fastPathReason : null,\n].filter(Boolean).join(' | ');\n\nconst route = aiAttempted ? 'fallback_after_ollama' : fastPathReason ? 'fast_path_rules' : 'rules_only';\nconst decisionPath = {\n  generated_by: 'fallback',\n  route,\n  policy_level: policyLevel,\n  mode: inquiryMode ? 'inquiry' : policyLevel.toLowerCase(),\n  inquiry_mode: inquiryMode,\n  llm_enabled: aiAttempted,\n  llm_provider: aiAttempted ? 'ollama' : null,\n  llm_model: aiAttempted ? 'qwen2.5:3b' : null,\n  fallback_reason: aiFallbackReason || fastPathReason || null,\n  fast_path_reason: fastPathReason,\n  template_key: templateKey,\n  rules_fired: rulesFired,\n  thresholds: {\n    avg_mood_score: avgMood,\n    dismissal_rate: dismissalRate,\n    dismissal_pattern_consecutive: consecutiveDismissals,\n  },\n  teacher_flag_inquiry_mode: teacherFlagInquiryMode,\n  inquiry_reason: inquiryReason,\n  priority,\n};\n\nreturn {\n  json: {\n    ...$json,\n    policy_level: policyLevel,\n    priority,\n    confidence_score: inquiryMode ? 0.78 : 0.75,\n    recommendation_content: recommendationContent,\n    ai_message_draft: recommendationContent,\n    reasoning,\n    actions_json: {\n      recommended_action: inquiryMode ? 'reflective_prompt' : 'teacher_follow_up',\n      priority,\n    },\n    decision_path: decisionPath,\n    inquiry_mode: inquiryMode,\n    fallback_used: true,\n  },\n};"
       }
     },
     {
@@ -689,7 +740,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1600,
+        1800,
         0
       ],
       "parameters": {
@@ -746,7 +797,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"class_id\": \"{{ $(`Test Input Override`).item.json.class_id }}\",\n  \"policy_level\": \"{{ $('Mark AI/Fallback Path').item.json.policy_level }}\",\n  \"content\": \"{{ (($('Mark AI/Fallback Path').item.json.recommendation_content || $('Mark AI/Fallback Path').item.json.ai_message_draft || '')).toString().replace(/\\\\\"/g, '\\\\\\\"') }}\",\n  \"ai_message_draft\": \"{{ (($('Mark AI/Fallback Path').item.json.ai_message_draft || $('Mark AI/Fallback Path').item.json.recommendation_content || '')).toString().replace(/\\\\\"/g, '\\\\\\\"') }}\",\n  \"confidence_score\": {{ Number($('Mark AI/Fallback Path').item.json.confidence_score || 0) }},\n  \"reasoning\": \"{{ (($('Mark AI/Fallback Path').item.json.reasoning || '')).toString().replace(/\\\\\"/g, '\\\\\\\"') }}\",\n  \"inquiry_mode\": {{ $('Mark AI/Fallback Path').item.json.inquiry_mode || false }},\n  \"fallback_used\": {{ $('Mark AI/Fallback Path').item.json.fallback_used || false }},\n  \"status\": \"pending\"\n}",
+        "jsonBody": "={{ ({ class_id: $('Get Aggregated Climate Data').item.json.class_id || null, policy_level: $('Mark AI/Fallback Path').item.json.policy_level || null, content: String($('Mark AI/Fallback Path').item.json.recommendation_content || $('Mark AI/Fallback Path').item.json.ai_message_draft || ''), ai_message_draft: String($('Mark AI/Fallback Path').item.json.ai_message_draft || $('Mark AI/Fallback Path').item.json.recommendation_content || ''), action_status: 'pending', confidence_score: Number($('Mark AI/Fallback Path').item.json.confidence_score || 0), reasoning: String($('Mark AI/Fallback Path').item.json.reasoning || ''), inquiry_mode: $('Mark AI/Fallback Path').item.json.inquiry_mode === true, fallback_used: $('Mark AI/Fallback Path').item.json.fallback_used === true, status: 'pending' }) }}",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "supabaseApi"
       },
@@ -780,7 +831,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"class_id\": \"{{ $(`Test Input Override`).item.json.class_id }}\",\n  \"policy_level\": \"{{ $('Mark AI/Fallback Path').item.json.policy_level }}\",\n  \"content\": \"{{ (($('Mark AI/Fallback Path').item.json.recommendation_content || $('Mark AI/Fallback Path').item.json.ai_message_draft || '')).toString().replace(/\\\\\"/g, '\\\\\\\"') }}\",\n  \"ai_message_draft\": \"{{ (($('Mark AI/Fallback Path').item.json.ai_message_draft || $('Mark AI/Fallback Path').item.json.recommendation_content || '')).toString().replace(/\\\\\"/g, '\\\\\\\"') }}\",\n  \"confidence_score\": {{ Number($('Mark AI/Fallback Path').item.json.confidence_score || 0) }},\n  \"reasoning\": \"{{ (($('Mark AI/Fallback Path').item.json.reasoning || '')).toString().replace(/\\\\\"/g, '\\\\\\\"') }}\",\n  \"inquiry_mode\": {{ $('Mark AI/Fallback Path').item.json.inquiry_mode || false }},\n  \"fallback_used\": {{ $('Mark AI/Fallback Path').item.json.fallback_used || false }},\n  \"status\": \"pending\"\n}",
+        "jsonBody": "={{ ({ class_id: $('Get Aggregated Climate Data').item.json.class_id || null, policy_level: $('Mark AI/Fallback Path').item.json.policy_level || null, content: String($('Mark AI/Fallback Path').item.json.recommendation_content || $('Mark AI/Fallback Path').item.json.ai_message_draft || ''), ai_message_draft: String($('Mark AI/Fallback Path').item.json.ai_message_draft || $('Mark AI/Fallback Path').item.json.recommendation_content || ''), action_status: 'pending', confidence_score: Number($('Mark AI/Fallback Path').item.json.confidence_score || 0), reasoning: String($('Mark AI/Fallback Path').item.json.reasoning || ''), inquiry_mode: $('Mark AI/Fallback Path').item.json.inquiry_mode === true, fallback_used: $('Mark AI/Fallback Path').item.json.fallback_used === true, status: 'pending' }) }}",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "supabaseApi"
       },
@@ -814,7 +865,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"class_id\": \"{{ $(`Test Input Override`).item.json.class_id }}\",\n  \"policy_level\": \"{{ $('Mark AI/Fallback Path').item.json.policy_level }}\",\n  \"content\": \"{{ (($('Mark AI/Fallback Path').item.json.recommendation_content || $('Mark AI/Fallback Path').item.json.ai_message_draft || '')).toString().replace(/\\\\\"/g, '\\\\\\\"') }}\",\n  \"ai_message_draft\": \"{{ (($('Mark AI/Fallback Path').item.json.ai_message_draft || $('Mark AI/Fallback Path').item.json.recommendation_content || '')).toString().replace(/\\\\\"/g, '\\\\\\\"') }}\",\n  \"confidence_score\": {{ Number($('Mark AI/Fallback Path').item.json.confidence_score || 0) }},\n  \"reasoning\": \"{{ (($('Mark AI/Fallback Path').item.json.reasoning || '')).toString().replace(/\\\\\"/g, '\\\\\\\"') }}\",\n  \"inquiry_mode\": {{ $('Mark AI/Fallback Path').item.json.inquiry_mode || false }},\n  \"fallback_used\": {{ $('Mark AI/Fallback Path').item.json.fallback_used || false }},\n  \"status\": \"pending\"\n}",
+        "jsonBody": "={{ ({ class_id: $('Get Aggregated Climate Data').item.json.class_id || null, policy_level: $('Mark AI/Fallback Path').item.json.policy_level || null, content: String($('Mark AI/Fallback Path').item.json.recommendation_content || $('Mark AI/Fallback Path').item.json.ai_message_draft || ''), ai_message_draft: String($('Mark AI/Fallback Path').item.json.ai_message_draft || $('Mark AI/Fallback Path').item.json.recommendation_content || ''), action_status: 'pending', confidence_score: Number($('Mark AI/Fallback Path').item.json.confidence_score || 0), reasoning: String($('Mark AI/Fallback Path').item.json.reasoning || ''), inquiry_mode: $('Mark AI/Fallback Path').item.json.inquiry_mode === true, fallback_used: $('Mark AI/Fallback Path').item.json.fallback_used === true, status: 'pending' }) }}",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "supabaseApi"
       },
@@ -848,7 +899,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ ({ workflow_id: $workflow.id, workflow_name: 'climate-agent-main-v2-manual-test', execution_id: String($execution.id), class_id: $('Test Input Override').item.json.class_id || null, decision_path_json: $('Mark AI/Fallback Path').item.json.decision_path_json || $('Mark AI/Fallback Path').item.json.decision_path || {}, policy_applied: $('Mark AI/Fallback Path').item.json.policy_level || null, confidence_score: Number($('Mark AI/Fallback Path').item.json.confidence_score || 0), action_taken: ['WARNING', 'CRITICAL'].includes($('Mark AI/Fallback Path').item.json.policy_level || '') ? 'SEND_EMAIL' : 'SKIP', action_skipped: !['WARNING', 'CRITICAL'].includes($('Mark AI/Fallback Path').item.json.policy_level || ''), skip_reason: ['WARNING', 'CRITICAL'].includes($('Mark AI/Fallback Path').item.json.policy_level || '') ? null : 'routine_policy_no_notification', error_message: $json.error_message || '' }) }}",
+        "jsonBody": "={{ ({ workflow_id: $workflow.id, workflow_name: 'climate-agent-main-v2-manual-test', execution_id: String($execution.id), class_id: $('Get Aggregated Climate Data').item.json.class_id || null, decision_path_json: $('Mark AI/Fallback Path').item.json.decision_path_json || $('Mark AI/Fallback Path').item.json.decision_path || {}, policy_applied: $('Mark AI/Fallback Path').item.json.policy_level || null, confidence_score: Number($('Mark AI/Fallback Path').item.json.confidence_score || 0), action_taken: ['WARNING', 'CRITICAL'].includes($('Mark AI/Fallback Path').item.json.policy_level || '') ? 'SEND_EMAIL' : 'SKIP', action_skipped: !['WARNING', 'CRITICAL'].includes($('Mark AI/Fallback Path').item.json.policy_level || ''), skip_reason: ['WARNING', 'CRITICAL'].includes($('Mark AI/Fallback Path').item.json.policy_level || '') ? null : 'routine_policy_no_notification', error_message: $json.error_message || '' }) }}",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "supabaseApi"
       },
@@ -868,9 +919,50 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1840,
+        2040,
         140
       ]
+    },
+    {
+      "id": "decide-ollama-fast-path-manual-test",
+      "name": "Decide Ollama Fast Path",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        -208
+      ],
+      "parameters": {
+        "jsCode": "const item = $json || {};\nconst metrics = item.teacher_metrics || {};\nconst summary = item.past_summary || {};\nconst comparison = item.trend_comparison || item.trend || {};\nconst closureHistory = item.closure_history || {};\nconst redactedVoice = String(item.redacted_voice_summary || item.redacted_voice || '').trim();\nconst avgMood = Number(item.avg_mood_score ?? metrics.avg_mood_score ?? 3.5);\nconst dismissalRate = Number(metrics.dismissal_rate ?? summary.dismissal_rate ?? 0);\nconst consecutiveDismissals = Number(metrics.dismissal_pattern_consecutive ?? 0);\nconst teacherFlagInquiryMode =\n  metrics.teacher_flag_inquiry_mode === true ||\n  metrics.is_inquiry_mode === true ||\n  metrics.inquiry_mode_suggested === true;\nconst forceOllama = [\n  item.test_force_low_confidence === true,\n  item.test_force_invalid_ai_json === true,\n  item.test_force_valid_ai_output === true,\n].some(Boolean);\n\nlet previewPolicy = 'ROUTINE';\nif (avgMood <= 2.0) previewPolicy = 'CRITICAL';\nelse if (avgMood <= 3.0) previewPolicy = 'WARNING';\n\nconst hasTrend = typeof comparison === 'object'\n  ? Object.keys(comparison).length > 0\n  : Boolean(String(comparison || '').trim() && String(comparison).trim().toLowerCase() !== 'none');\nconst hasClosure = typeof closureHistory === 'object'\n  ? Object.keys(closureHistory).length > 0\n  : Boolean(String(closureHistory || '').trim() && String(closureHistory).trim().toLowerCase() !== 'none');\nconst hasRedactedVoice = redactedVoice.length >= 24 && redactedVoice.toLowerCase() !== 'none';\n\nlet fastPathReason = null;\nif (!forceOllama) {\n  if (previewPolicy === 'ROUTINE') fastPathReason = 'routine_rule_based';\n  else if (teacherFlagInquiryMode || (dismissalRate > 0.6 && consecutiveDismissals >= 2)) fastPathReason = 'inquiry_rule_based';\n  else if (previewPolicy === 'WARNING' && !hasTrend && !hasClosure && !hasRedactedVoice) fastPathReason = 'warning_minimal_context';\n}\n\nreturn {\n  json: {\n    ...item,\n    fast_path_preview_policy: previewPolicy,\n    fast_path_reason: fastPathReason,\n    skip_ollama: Boolean(fastPathReason),\n    ai_attempted: false,\n  },\n};"
+      }
+    },
+    {
+      "id": "should-skip-ollama-manual-test",
+      "name": "Should Skip Ollama",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        -64
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {},
+          "conditions": [
+            {
+              "id": "skip-ollama-check-manual",
+              "leftValue": "={{ $json.skip_ollama }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
     }
   ],
   "connections": {
@@ -940,7 +1032,7 @@
       "main": [
         [
           {
-            "node": "Build Ollama Analysis Prompt",
+            "node": "Decide Ollama Fast Path",
             "type": "main",
             "index": 0
           }
@@ -1268,7 +1360,40 @@
       "main": [
         [
           {
-            "node": "Validate n >= 3",
+            "node": "Get Active Classes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Active Classes": {
+      "main": [
+        [
+          {
+            "node": "Prepare Climate Snapshot Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Climate Snapshot Batch": {
+      "main": [
+        [
+          {
+            "node": "Fetch Climate Snapshot Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Climate Snapshot Batch": {
+      "main": [
+        [
+          {
+            "node": "Get Aggregated Climate Data",
             "type": "main",
             "index": 0
           }
@@ -1280,6 +1405,35 @@
         [
           {
             "node": "Route by Policy Level",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decide Ollama Fast Path": {
+      "main": [
+        [
+          {
+            "node": "Should Skip Ollama",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Skip Ollama": {
+      "main": [
+        [
+          {
+            "node": "Fallback Policy Engine",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Ollama Analysis Prompt",
             "type": "main",
             "index": 0
           }
